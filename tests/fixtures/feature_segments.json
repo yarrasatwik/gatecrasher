@@ -1,0 +1,18 @@
+{
+  "count": 1,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": 6,
+      "uuid": "7112bfef-389d-45ac-89e4-ef750776dd9e",
+      "segment": 1,
+      "priority": 0,
+      "environment": 2,
+      "segment_name": "gold_plan",
+      "is_feature_specific": false,
+      "is_system_segment": false,
+      "segment_managed_by": ""
+    }
+  ]
+}

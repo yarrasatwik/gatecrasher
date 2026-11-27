@@ -1,0 +1,37 @@
+{
+  "count": 3,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": 5,
+      "trait_key": "lifetime_value",
+      "value_type": "int",
+      "integer_value": 48200,
+      "string_value": null,
+      "boolean_value": null,
+      "float_value": null,
+      "created_date": "2026-11-27T18:01:23.430987Z"
+    },
+    {
+      "id": 6,
+      "trait_key": "phone",
+      "value_type": "unicode",
+      "integer_value": null,
+      "string_value": "+1-555-0100",
+      "boolean_value": null,
+      "float_value": null,
+      "created_date": "2026-11-27T18:01:23.431027Z"
+    },
+    {
+      "id": 7,
+      "trait_key": "plan",
+      "value_type": "unicode",
+      "integer_value": null,
+      "string_value": "enterprise",
+      "boolean_value": null,
+      "float_value": null,
+      "created_date": "2026-11-27T18:01:23.431051Z"
+    }
+  ]
+}

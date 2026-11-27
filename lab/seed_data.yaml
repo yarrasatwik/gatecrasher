@@ -1,0 +1,98 @@
+# Declared vulnerable state of the Acme Shop lab (spec section 7).
+# `go run ./lab/seed` converges the running Flagsmith to exactly this, using
+# only the public REST API. `{{payment_secret}}` is replaced at seed time by a
+# generated fake secret (acme_live_ + 32 hex) that is never written to a
+# tracked file.
+
+organisation: Acme Labs
+project: Acme Shop
+admin_email: lab-admin@acmeshop.dev
+
+# The master API key creates the lab; the shop reads payment_config with the
+# Production server-side key.
+environments:
+  - Development
+  - Production
+
+# Vulnerabilities V1 and V2: Flagsmith's defaults, left deliberately unsafe.
+environment_settings:
+  allow_client_traits: true
+  hide_sensitive_data: false
+
+tags:
+  - kill-switch
+
+segments:
+  - name: gold_plan
+    conditions:
+      - {property: plan, operator: EQUAL, value: gold}
+  - name: admins
+    conditions:
+      - {property: role, operator: EQUAL, value: admin}
+  - name: staff
+    conditions:
+      - {property: email, operator: REGEX, value: '.*@acmeshop\.dev$'}
+  - name: canary_10
+    conditions:
+      - {property: "$.identity.key", operator: PERCENTAGE_SPLIT, value: "10"}
+
+# Identities persisted with fake traits (identity-lookup vulnerability).
+identities:
+  - identifier: ceo@acmeshop.dev
+    traits:
+      phone: "+1-555-0100"
+      lifetime_value: 48200
+      plan: enterprise
+  - identifier: qa-user-1@acmeshop.dev
+    traits:
+      plan: free
+
+features:
+  - name: premium_export
+    description: Paid feature gated on the plan trait (trait forgery).
+    segment_overrides:
+      - {segment: gold_plan, enabled: true}
+  - name: admin_panel
+    description: Admin UI gated on the role trait (privilege escalation).
+    segment_overrides:
+      - {segment: admins, enabled: true}
+  - name: staff_preview
+    description: Staff-only preview gated on an email regex.
+    segment_overrides:
+      - {segment: staff, enabled: true}
+  - name: early_access_ai
+    description: 10 percent canary rollout (identifier re-roll).
+    segment_overrides:
+      - {segment: canary_10, enabled: true}
+  - name: pricing_page
+    description: Multivariate price test (variant re-roll, experiment rigging).
+    multivariate: true
+    default_enabled: true
+    value: price_high
+    variants:
+      - {value: price_low, percentage: 50}
+      - {value: price_high, percentage: 50}
+    experiment:
+      name: Pricing page price test
+      hypothesis: A lower price increases checkout conversion.
+  - name: payment_config
+    description: Remote config that carries a secret in a client-visible value.
+    default_enabled: true
+    value: '{"provider":"acmepay","api_secret":"{{payment_secret}}","webhook":"https://internal.acmeshop.dev/pay"}'
+  - name: internal_api_url
+    description: Remote config that leaks an internal URL.
+    default_enabled: true
+    value: http://10.0.3.7:8080/admin
+  - name: project_nightjar_launch_2026_12_15
+    description: Flag name leaks an unreleased product and its launch date.
+  - name: beta_dashboard
+    description: Beta dashboard enabled for the CEO through an identity override.
+    identity_overrides:
+      - {identifier: ceo@acmeshop.dev, enabled: true}
+  - name: maintenance_mode
+    description: Harmless control flag (must not be reported).
+    tags: [kill-switch]
+  - name: banner_text
+    description: Harmless control value (must not be reported).
+    default_enabled: true
+    value: Free shipping over $50

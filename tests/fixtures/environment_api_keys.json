@@ -1,0 +1,10 @@
+[
+  {
+    "id": 2,
+    "key": "ser.REDACTED_PRODUCTION_SERVER_KEY",
+    "active": true,
+    "created_at": "2026-11-27T18:01:11.567611Z",
+    "name": "gatecrasher-lab",
+    "expires_at": null
+  }
+]

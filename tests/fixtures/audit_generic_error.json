@@ -1,0 +1,4 @@
+{
+  "status": 500,
+  "note": "generic /audit/ returns an HTML 500 on self-hosted 2.295.2; use organisations/{id}/audit/ or projects/{id}/audit/"
+}

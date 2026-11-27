@@ -1,0 +1,21 @@
+[
+  {
+    "id": 1,
+    "uuid": "a4bebfb6-18ff-4947-aeed-dfd96a3cb5f0",
+    "name": "Acme Shop",
+    "organisation": 1,
+    "hide_disabled_flags": false,
+    "enable_dynamo_db": false,
+    "migration_status": "NOT_APPLICABLE",
+    "use_edge_identities": false,
+    "prevent_flag_defaults": false,
+    "enable_realtime_updates": false,
+    "only_allow_lower_case_feature_names": true,
+    "feature_name_regex": null,
+    "show_edge_identity_overrides_for_feature": false,
+    "stale_flags_limit_days": 30,
+    "edge_v2_migration_status": "NOT_STARTED",
+    "minimum_change_request_approvals": null,
+    "enforce_feature_owners": false
+  }
+]
