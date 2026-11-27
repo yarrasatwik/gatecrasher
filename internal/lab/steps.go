@@ -123,6 +123,31 @@ func (s *seeder) ensureProject(ctx context.Context) error {
 	return nil
 }
 
+// ensureVersioning switches the declared environments to v2 feature
+// versioning. It runs last: Flagsmith migrates the existing feature states
+// into the first version, exactly as it does for a real team switching over,
+// and v1-only endpoints used while seeding are no longer accepted afterwards.
+func (s *seeder) ensureVersioning(ctx context.Context) error {
+	envs, err := list[apiEnv](ctx, s.api, s.admin, fmt.Sprintf("environments/?project=%d", s.state.ProjectID))
+	if err != nil {
+		return err
+	}
+	for _, name := range s.opts.data.V2Versioning {
+		env, ok := findEnv(envs, name)
+		if !ok || env.UseV2Versioning {
+			continue
+		}
+		if err := s.api.call(ctx, s.admin, "POST", "environments/"+env.APIKey+"/enable-v2-versioning/", map[string]any{}, nil); err != nil {
+			return err
+		}
+		if err := s.waitV2(ctx, env.APIKey); err != nil {
+			return err
+		}
+		s.changed("%s: enabled v2 feature versioning", name)
+	}
+	return nil
+}
+
 // waitV2 polls until Flagsmith finishes the asynchronous switch to v2
 // feature versioning for an environment.
 func (s *seeder) waitV2(ctx context.Context, key string) error {
@@ -164,15 +189,6 @@ func (s *seeder) ensureEnvironments(ctx context.Context) error {
 				return err
 			}
 			s.changed("%s: allow_client_traits=%t hide_sensitive_data=%t", name, want.AllowClientTraits, want.HideSensitiveData)
-		}
-		if s.opts.data.wantsV2(name) && !env.UseV2Versioning {
-			if err := s.api.call(ctx, s.admin, "POST", "environments/"+env.APIKey+"/enable-v2-versioning/", map[string]any{}, nil); err != nil {
-				return err
-			}
-			if err := s.waitV2(ctx, env.APIKey); err != nil {
-				return err
-			}
-			s.changed("%s: enabled v2 feature versioning", name)
 		}
 		server, err := s.ensureServerKey(ctx, name, env.APIKey)
 		if err != nil {

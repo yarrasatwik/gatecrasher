@@ -185,6 +185,7 @@ func (s *seeder) run(ctx context.Context) error {
 		{"features", s.ensureFeatures},
 		{"identities", s.ensureIdentities},
 		{"per-environment state", s.ensureEnvironmentState},
+		{"feature versioning", s.ensureVersioning},
 	}
 	for _, st := range steps {
 		s.logf("%s", st.name)
