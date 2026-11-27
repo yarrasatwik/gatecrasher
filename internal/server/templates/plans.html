@@ -19,7 +19,7 @@
 {{range .Plans}}{{$p := .Rec.Plan}}{{$id := $p.ID}}
 <article class="card plan state-{{.Rec.State}}" id="plan-{{$id}}" aria-labelledby="pt-{{$id}}">
   <header class="card-head">
-    <div class="card-title"><h2 id="pt-{{$id}}">{{rd $p.Title}}</h2>
+    <div class="card-title"><h2 id="pt-{{$id}}">{{rich $p.Title}}</h2>
       <span class="chip state-chip">{{.Rec.State}}</span>
       {{if $p.Production}}<span class="chip chip-prod">PRODUCTION</span>{{end}}
     </div>
@@ -31,7 +31,7 @@
 
   <section aria-labelledby="chg-{{$id}}"><h3 id="chg-{{$id}}">What changes</h3>
   {{range .Ops}}<div class="op">
-    <p><strong>{{rd .Op.Description}}</strong> <span class="chip chip-quiet">{{.Op.Kind}}</span>{{if .Op.Automatic}}{{else}} <span class="chip">Guidance only, never executed</span>{{end}}</p>
+    <p><strong>{{rich .Op.Description}}</strong> <span class="chip chip-quiet">{{.Op.Kind}}</span>{{if .Op.Automatic}}{{else}} <span class="chip">Guidance only, never executed</span>{{end}}</p>
     {{if .Rows}}<div class="table-wrap"><table>
       <caption class="sr-only">Before and after for {{.Op.Description}}</caption>
       <thead><tr><th scope="col">Setting</th><th scope="col">Before</th><th scope="col">After</th></tr></thead>
