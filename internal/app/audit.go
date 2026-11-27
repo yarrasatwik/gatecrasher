@@ -11,6 +11,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/yarrasatwik/gatecrasher/internal/ai"
@@ -100,9 +101,17 @@ func (a *App) Audit(ctx context.Context, o AuditOptions) (*model.Report, error) 
 	if o.Explain {
 		_ = stage("explain", func() error {
 			say("explain", fmt.Sprintf("explaining %d findings · AI %s", len(r.Findings), a.AI.Mode()))
+			sem := make(chan struct{}, 4)
+			var wg sync.WaitGroup
 			for i := range r.Findings {
-				r.Findings[i].Explanation = a.AI.Explain(ctx, r.Findings[i])
+				wg.Add(1)
+				sem <- struct{}{}
+				go func(i int) {
+					defer func() { <-sem; wg.Done() }()
+					r.Findings[i].Explanation = a.AI.Explain(ctx, r.Findings[i])
+				}(i)
 			}
+			wg.Wait()
 			return nil
 		})
 	}

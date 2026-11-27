@@ -64,6 +64,9 @@ type Client struct {
 	model    string
 	endpoint string
 	http     *httpx.Client
+	// cli, when set, is the path of a signed-in Claude Code binary used
+	// instead of the Messages API (claude -p, every tool disabled).
+	cli string
 }
 
 // New builds a Client. An empty apiKey yields AI-off mode; an empty model
@@ -94,12 +97,16 @@ func hostOf(endpoint string) string {
 	return s
 }
 
-func (c *Client) enabled() bool { return c != nil && c.key != "" }
+func (c *Client) enabled() bool { return c != nil && (c.key != "" || c.cli != "") }
 
-// Mode returns "on (model)" when an API key is set, else ModeOff.
+// Mode returns "on (model)" when an API key or Claude Code is configured,
+// else ModeOff.
 func (c *Client) Mode() Mode {
 	if !c.enabled() {
 		return ModeOff
+	}
+	if c.cli != "" {
+		return Mode("on (" + c.model + " via Claude Code)")
 	}
 	return Mode("on (" + c.model + ")")
 }
@@ -147,6 +154,9 @@ type messageResponse struct {
 func (c *Client) send(ctx context.Context, system, user string) (string, error) {
 	if err := guard(system, user); err != nil {
 		return "", err
+	}
+	if c.cli != "" {
+		return c.sendCLI(ctx, system, user)
 	}
 	body := messageRequest{Model: c.model, MaxTokens: maxOutputTokens, System: system, Messages: []message{{Role: "user", Content: user}}}
 	var resp messageResponse

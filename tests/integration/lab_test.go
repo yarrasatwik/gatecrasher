@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -407,4 +408,88 @@ func ways(r *model.Report) int {
 		}
 	}
 	return n
+}
+
+// TestFixOnV2VersionedEnvironment runs the inside map, approval, apply,
+// verify and rollback on the Development environment, which the lab keeps
+// on Flagsmith v2 feature versioning. When the Flagsmith CLI is installed,
+// every change must go through it.
+func TestFixOnV2VersionedEnvironment(t *testing.T) {
+	reset(t)
+	defer reset(t)
+	a := newApp(t)
+	ctx := context.Background()
+	env, err := a.Environment(ctx, "Development")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := a.Admin.Environment(ctx, env.APIKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !fresh.UseV2FeatureVersioning {
+		t.Fatal("lab Development environment should use v2 feature versioning")
+	}
+	r, err := a.Audit(ctx, app.AuditOptions{Environment: "Development", Inside: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.SaveReport(r); err != nil {
+		t.Fatal(err)
+	}
+	recs, err := a.MakePlans(ctx, "latest", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	applied := 0
+	for _, rec := range recs {
+		if !hasAuto(rec.Plan) {
+			continue
+		}
+		if _, err := a.Approve(rec.Plan.ID, "it", "cli", rec.Plan.Environment, ""); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := a.Apply(ctx, rec.Plan.ID); err != nil {
+			t.Fatalf("apply %s on v2 environment: %v", rec.Plan.ID, err)
+		}
+		v, err := a.Verify(ctx, rec.Plan.ID, "it")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, row := range v.Verify {
+			if row.After != model.StatusBlocked {
+				t.Errorf("v2: %s is %s after the fix (%s)", row.Title, row.After, row.Proof)
+			}
+		}
+		applied++
+		for i := 0; i < 2; i++ {
+			if _, err := a.Rollback(ctx, rec.Plan.ID, "it"); err != nil {
+				t.Fatalf("rollback on v2 environment: %v", err)
+			}
+		}
+	}
+	if applied < 3 {
+		t.Fatalf("expected at least 3 automatic plans on Development, got %d", applied)
+	}
+	if _, err := exec.LookPath("flagsmith"); err == nil {
+		es, err := a.Log.Entries()
+		if err != nil {
+			t.Fatal(err)
+		}
+		steps, viaCLI := 0, 0
+		for _, e := range es {
+			var d map[string]any
+			if json.Unmarshal(e.Details, &d) != nil || d["phase"] != "step" {
+				continue
+			}
+			steps++
+			if d["via"] == "flagsmith-cli" {
+				viaCLI++
+			}
+		}
+		if steps == 0 || viaCLI != steps {
+			t.Fatalf("Flagsmith CLI installed but only %d of %d changes went through it", viaCLI, steps)
+		}
+		t.Logf("MEASURED %d of %d changes applied through the Flagsmith CLI on a v2-versioned environment", viaCLI, steps)
+	}
 }

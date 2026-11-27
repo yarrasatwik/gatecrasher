@@ -64,8 +64,12 @@ type Config struct {
 	PropagationTimeoutS  int       `yaml:"propagation_timeout_s"`
 	ApprovalTTLMinutes   int       `yaml:"approval_ttl_minutes"`
 	StateDir             string    `yaml:"state_dir"`
-	ReportDir            string    `yaml:"report_dir"`
-	Watch                Watch     `yaml:"watch"`
+	// AI selects the AI provider: "api" (ANTHROPIC_API_KEY), "claude-code"
+	// (a signed-in Claude Code CLI) or "off". Empty means "api" when a key
+	// is set, else off.
+	AI        string `yaml:"ai"`
+	ReportDir string `yaml:"report_dir"`
+	Watch     Watch  `yaml:"watch"`
 
 	// From the environment (never YAML).
 	OrgAPIKey     string            `yaml:"-"`
@@ -178,6 +182,9 @@ func (c *Config) fromEnv() {
 	}
 	c.OrgAPIKey = get("GATECRASHER_ORG_API_KEY")
 	c.AnthropicKey = get("ANTHROPIC_API_KEY")
+	if v := get("GATECRASHER_AI"); v != "" {
+		c.AI = v
+	}
 	c.Model = get("GATECRASHER_MODEL")
 	c.WebhookSecret = get("GATECRASHER_WEBHOOK_SECRET")
 	c.SlackWebhook = get("GATECRASHER_SLACK_WEBHOOK_URL")

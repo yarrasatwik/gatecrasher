@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 )
 
 const (
@@ -25,6 +26,7 @@ type apiEnv struct {
 	APIKey            string `json:"api_key"`
 	AllowClientTraits bool   `json:"allow_client_traits"`
 	HideSensitiveData bool   `json:"hide_sensitive_data"`
+	UseV2Versioning   bool   `json:"use_v2_feature_versioning"`
 }
 
 type apiKey struct {
@@ -121,6 +123,26 @@ func (s *seeder) ensureProject(ctx context.Context) error {
 	return nil
 }
 
+// waitV2 polls until Flagsmith finishes the asynchronous switch to v2
+// feature versioning for an environment.
+func (s *seeder) waitV2(ctx context.Context, key string) error {
+	for i := 0; i < 60; i++ {
+		var env apiEnv
+		if err := s.api.call(ctx, s.admin, "GET", "environments/"+key+"/", nil, &env); err != nil {
+			return err
+		}
+		if env.UseV2Versioning {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+	return fmt.Errorf("environment did not switch to v2 feature versioning within 60s")
+}
+
 func (s *seeder) ensureEnvironments(ctx context.Context) error {
 	envs, err := list[apiEnv](ctx, s.api, s.admin, fmt.Sprintf("environments/?project=%d", s.state.ProjectID))
 	if err != nil {
@@ -142,6 +164,15 @@ func (s *seeder) ensureEnvironments(ctx context.Context) error {
 				return err
 			}
 			s.changed("%s: allow_client_traits=%t hide_sensitive_data=%t", name, want.AllowClientTraits, want.HideSensitiveData)
+		}
+		if s.opts.data.wantsV2(name) && !env.UseV2Versioning {
+			if err := s.api.call(ctx, s.admin, "POST", "environments/"+env.APIKey+"/enable-v2-versioning/", map[string]any{}, nil); err != nil {
+				return err
+			}
+			if err := s.waitV2(ctx, env.APIKey); err != nil {
+				return err
+			}
+			s.changed("%s: enabled v2 feature versioning", name)
 		}
 		server, err := s.ensureServerKey(ctx, name, env.APIKey)
 		if err != nil {
