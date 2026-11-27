@@ -432,8 +432,8 @@ func TestImpactLocations(t *testing.T) {
 func TestRedactionSafetyNet(t *testing.T) {
 	redact.Reset()
 	t.Cleanup(redact.Reset)
-	const key = "zq9-FAKE-CLIENT-KEY-77"
-	const secret = "p&ss<w0rd>-FAKE-SECRET"
+	const key = "zq9-SAMPLE-CLIENT-KEY-77"
+	const secret = "p&ss<w0rd>-SAMPLE-SECRET"
 	redact.Register(key, "CLIENT_KEY")
 	redact.Register(secret, "SECRET")
 

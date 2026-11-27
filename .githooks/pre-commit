@@ -9,7 +9,7 @@
 #   - added lines that look like credentials (Flagsmith server and org keys,
 #     lab keys, Anthropic/AWS/GitHub tokens, PEM private keys)
 # A line containing the marker  gatecrasher:allow-secret  is exempt (for
-# documented fake fixtures). The hook never prints the matching content.
+# documented sample fixtures). The hook never prints the matching content.
 
 blocked=0
 

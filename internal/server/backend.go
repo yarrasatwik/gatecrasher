@@ -71,7 +71,7 @@ type SafeConfigView struct {
 }
 
 // Backend is everything the UI needs from the rest of Gatecrasher. The
-// lead implements it; tests use a fake.
+// the app implements it; tests use a stub.
 type Backend interface {
 	// RunAudit runs a full audit, reporting progress, and returns the new report ID.
 	RunAudit(ctx context.Context, progress func(stage, msg string)) (reportID string, err error)

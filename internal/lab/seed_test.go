@@ -10,19 +10,19 @@ import (
 	"testing"
 )
 
-// seedFixture runs Seed against a fake Flagsmith with temp state/env files.
+// seedFixture runs Seed against a stub Flagsmith with temp state/env files.
 type seedFixture struct {
 	t    *testing.T
-	fake *fakeFlagsmith
+	stub *stubFlagsmith
 	opts Options
 }
 
 func newSeedFixture(t *testing.T) *seedFixture {
 	t.Helper()
-	fake := newFake()
-	srv := fake.start(t)
+	stub := newStub()
+	srv := stub.start(t)
 	dir := t.TempDir()
-	return &seedFixture{t: t, fake: fake, opts: Options{
+	return &seedFixture{t: t, stub: stub, opts: Options{
 		APIURL:    srv.URL + "/api/v1/",
 		RepoRoot:  dir,
 		DataPath:  filepath.Join("..", "..", "lab", "seed_data.yaml"),
@@ -43,7 +43,7 @@ func (s *seedFixture) seed() *State {
 func TestSeedCreatesDeclaredState(t *testing.T) {
 	fx := newSeedFixture(t)
 	st := fx.seed()
-	f := fx.fake
+	f := fx.stub
 	if len(f.projects) != 1 || len(f.envs) != 2 || len(f.features) != 11 || len(f.segments) != 4 {
 		t.Fatalf("projects=%d envs=%d features=%d segments=%d", len(f.projects), len(f.envs), len(f.features), len(f.segments))
 	}
@@ -72,13 +72,13 @@ func TestSeedCreatesDeclaredState(t *testing.T) {
 func TestSeedIsIdempotent(t *testing.T) {
 	fx := newSeedFixture(t)
 	first := fx.seed()
-	fx.fake.mutations = nil
+	fx.stub.mutations = nil
 	second := fx.seed()
 	if len(second.Changes) != 0 {
 		t.Fatalf("second run changed things: %v", second.Changes)
 	}
-	if len(fx.fake.mutations) != 0 {
-		t.Fatalf("second run sent mutating requests: %v", fx.fake.mutations)
+	if len(fx.stub.mutations) != 0 {
+		t.Fatalf("second run sent mutating requests: %v", fx.stub.mutations)
 	}
 	if first.PaymentSecret != second.PaymentSecret || first.OrgAPIKey != second.OrgAPIKey || first.AdminPassword != second.AdminPassword {
 		t.Fatal("generated credentials must be stable across runs")
@@ -103,7 +103,7 @@ func TestSeedWritesEnvWithoutLeakingSecrets(t *testing.T) {
 	}
 	state, _ := os.ReadFile(fx.opts.StatePath)
 	if !regexp.MustCompile(`acme_live_[0-9a-f]{32}`).Match(state) {
-		t.Error("state file should hold the generated fake secret")
+		t.Error("state file should hold the generated secret")
 	}
 }
 
@@ -114,7 +114,7 @@ func redactEnv(s string) string {
 func TestSeedStoresGeneratedSecretInFeatureValue(t *testing.T) {
 	fx := newSeedFixture(t)
 	st := fx.seed()
-	for _, ft := range fx.fake.features {
+	for _, ft := range fx.stub.features {
 		if ft["name"] == "payment_config" {
 			if v, _ := ft["initial_value"].(string); !strings.Contains(v, st.PaymentSecret) || strings.Contains(v, SecretPlaceholder) {
 				t.Fatalf("payment_config value not rendered: %q", v)
@@ -128,7 +128,7 @@ func TestSeedStoresGeneratedSecretInFeatureValue(t *testing.T) {
 func TestResetRestoresEveryVulnerability(t *testing.T) {
 	fx := newSeedFixture(t)
 	fx.seed()
-	f := fx.fake
+	f := fx.stub
 	// Simulate a "fix": harden an environment, hide a flag, edit a segment, drop an override.
 	f.envs[1]["allow_client_traits"] = false
 	f.envs[1]["hide_sensitive_data"] = true
@@ -156,7 +156,7 @@ func TestResetRestoresEveryVulnerability(t *testing.T) {
 			t.Errorf("%v still server-side only", ft["name"])
 		}
 	}
-	if ruleSig(segmentRulesFromFake(f.segments[0])) != ruleSig(segmentRules([]ConditionData{{Property: "plan", Operator: "EQUAL", Value: "gold"}})) {
+	if ruleSig(segmentRulesFromStub(f.segments[0])) != ruleSig(segmentRules([]ConditionData{{Property: "plan", Operator: "EQUAL", Value: "gold"}})) {
 		t.Error("segment rules not restored")
 	}
 	again, err := Reset(context.Background(), fx.opts)
@@ -165,7 +165,7 @@ func TestResetRestoresEveryVulnerability(t *testing.T) {
 	}
 }
 
-func segmentRulesFromFake(seg map[string]any) []apiRule {
+func segmentRulesFromStub(seg map[string]any) []apiRule {
 	raw, err := json.Marshal(seg["rules"])
 	if err != nil {
 		panic(err)
@@ -186,12 +186,12 @@ func TestResetRequiresExistingLab(t *testing.T) {
 
 func TestSeedRefusesForeignAdmin(t *testing.T) {
 	fx := newSeedFixture(t)
-	fx.fake.users["lab-admin@acmeshop.dev"] = "someone-elses-password"
+	fx.stub.users["lab-admin@acmeshop.dev"] = "someone-elses-password"
 	_, err := Seed(context.Background(), fx.opts)
 	if err == nil || !strings.Contains(err.Error(), "cannot log in or sign up") {
 		t.Fatalf("want a clear admin conflict error, got %v", err)
 	}
-	if len(fx.fake.projects) != 0 {
+	if len(fx.stub.projects) != 0 {
 		t.Fatal("nothing may be created after the admin step fails")
 	}
 }

@@ -1,4 +1,4 @@
-// Package testdoc builds synthetic Flagsmith environment documents for tests,
+// Package testdoc builds generated Flagsmith environment documents for tests,
 // in the shape the official engine parses (segments under project.segments,
 // overrides as segment feature_states, multivariate values per feature state).
 package testdoc

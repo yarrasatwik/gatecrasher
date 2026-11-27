@@ -23,8 +23,8 @@ const (
 	clientKey     = "AbCd3fGhJk5mNpQr7StUvW"
 )
 
-// fakeAnthropic replays canned text replies and records every request.
-type fakeAnthropic struct {
+// stubAnthropic replays canned text replies and records every request.
+type stubAnthropic struct {
 	mu      sync.Mutex
 	replies []string
 	bodies  []string
@@ -32,10 +32,10 @@ type fakeAnthropic struct {
 	url     string
 }
 
-func newFakeAnthropic(t *testing.T, replies ...string) *fakeAnthropic {
+func newStubAnthropic(t *testing.T, replies ...string) *stubAnthropic {
 	t.Helper()
 	redact.Reset()
-	f := &fakeAnthropic{replies: replies}
+	f := &stubAnthropic{replies: replies}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
 		f.mu.Lock()
@@ -51,9 +51,9 @@ func newFakeAnthropic(t *testing.T, replies ...string) *fakeAnthropic {
 	return f
 }
 
-func (f *fakeAnthropic) client() *Client { return newClient(testAPIKey, "", f.url) }
+func (f *stubAnthropic) client() *Client { return newClient(testAPIKey, "", f.url) }
 
-func (f *fakeAnthropic) count() int {
+func (f *stubAnthropic) count() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.bodies)
@@ -115,7 +115,7 @@ func TestClassifyAIFencedJSONAndMerge(t *testing.T) {
 	 {"flag":"banner_text","category":"PRICING","confidence":0.4,"rationale":"mentions $50"},
 	 {"flag":"partner_portal","category":"INTERNAL_URL","confidence":0.8,"rationale":"partner portal reference"}
 	]}` + "\n```"
-	f := newFakeAnthropic(t, reply)
+	f := newStubAnthropic(t, reply)
 	cs, mode := f.client().Classify(context.Background(), inventory())
 	if mode != "on (claude-sonnet-5-5)" {
 		t.Fatalf("mode = %q", mode)
@@ -136,7 +136,7 @@ func TestClassifyAIFencedJSONAndMerge(t *testing.T) {
 }
 
 func TestRequestShapeNoTools(t *testing.T) {
-	f := newFakeAnthropic(t, `{"classifications":[]}`)
+	f := newStubAnthropic(t, `{"classifications":[]}`)
 	f.client().Classify(context.Background(), inventory())
 	h := f.headers[0]
 	if h.Get("X-Api-Key") != testAPIKey || h.Get("Anthropic-Version") != "2023-06-01" {
@@ -161,7 +161,7 @@ func TestRequestShapeNoTools(t *testing.T) {
 
 func TestInvalidThenValidRetriesOnce(t *testing.T) {
 	good := `{"classifications":[{"flag":"partner_portal","category":"INTERNAL_URL","confidence":0.9,"rationale":"x"}]}`
-	f := newFakeAnthropic(t, "I think this is fine.", good)
+	f := newStubAnthropic(t, "I think this is fine.", good)
 	cs, mode := f.client().Classify(context.Background(), inventory())
 	if f.count() != 2 || !mode.On() {
 		t.Fatalf("requests=%d mode=%q", f.count(), mode)
@@ -183,7 +183,7 @@ func TestInvalidTwiceFallsBackWithLabel(t *testing.T) {
 	}
 	for name, reply := range tests {
 		t.Run(name, func(t *testing.T) {
-			f := newFakeAnthropic(t, reply)
+			f := newStubAnthropic(t, reply)
 			cs, mode := f.client().Classify(context.Background(), inventory())
 			if f.count() != 2 {
 				t.Fatalf("requests = %d, want exactly one retry", f.count())
@@ -210,7 +210,7 @@ func TestHTTPErrorFallsBack(t *testing.T) {
 }
 
 func TestNoRawSecretReachesPrompt(t *testing.T) {
-	f := newFakeAnthropic(t, `{"classifications":[]}`, `{"hypotheses":[{"trait_key":"plan","trait_value":"gold","why":"x"}]}`,
+	f := newStubAnthropic(t, `{"classifications":[]}`, `{"hypotheses":[{"trait_key":"plan","trait_value":"gold","why":"x"}]}`,
 		`{"title":"t","what_happened":"w","why_it_matters":"y","business_impact":"b","fix_summary":"f"}`,
 		`{"title":"t","body":"b","diff":""}`)
 	c := f.client()
@@ -246,7 +246,7 @@ func TestNoRawSecretReachesPrompt(t *testing.T) {
 }
 
 func TestGuardRefusesSecretsAndRegisteredKeys(t *testing.T) {
-	f := newFakeAnthropic(t, `{}`)
+	f := newStubAnthropic(t, `{}`)
 	c := f.client()
 	redact.Register(clientKey, "CLIENT_KEY")
 	for _, text := range []string{"value " + clientKey, "ser.AbCdEfGhIjKlMnOp12345", "AKIAIOSFODNN7EXAMPLE"} {
@@ -303,7 +303,7 @@ func TestHypothesize(t *testing.T) {
 		}
 	})
 	t.Run("ai valid", func(t *testing.T) {
-		f := newFakeAnthropic(t, "```\n"+`{"hypotheses":[{"trait_key":"role","trait_value":"admin","why":"admin flag"},{"trait_key":"role","trait_value":"admin","why":"dup"}]}`+"\n```")
+		f := newStubAnthropic(t, "```\n"+`{"hypotheses":[{"trait_key":"role","trait_value":"admin","why":"admin flag"},{"trait_key":"role","trait_value":"admin","why":"dup"}]}`+"\n```")
 		hs, mode := f.client().Hypothesize(context.Background(), []string{"admin_panel"}, nil, "acmeshop.dev")
 		if !mode.On() || len(hs) != 1 || hs[0].TraitKey != "role" {
 			t.Fatalf("mode=%q hs=%+v", mode, hs)
@@ -314,7 +314,7 @@ func TestHypothesize(t *testing.T) {
 		for i := 0; i < 41; i++ {
 			items = append(items, `{"trait_key":"k`+string(rune('a'+i%26))+string(rune('a'+i/26))+`","trait_value":"v","why":"w"}`)
 		}
-		f := newFakeAnthropic(t, `{"hypotheses":[`+strings.Join(items, ",")+`]}`)
+		f := newStubAnthropic(t, `{"hypotheses":[`+strings.Join(items, ",")+`]}`)
 		hs, mode := f.client().Hypothesize(context.Background(), nil, nil, "acmeshop.dev")
 		if mode.On() || f.count() != 2 || len(hs) == 0 {
 			t.Fatalf("mode=%q requests=%d", mode, f.count())
@@ -328,16 +328,16 @@ func sampleFinding() model.Finding {
 }
 
 func TestExplain(t *testing.T) {
-	good := `{"title":"Anyone can fake a gold plan","what_happened":"A visitor set plan=gold.","why_it_matters":"Traits are client controlled.","business_impact":"Free paid features.","fix_summary":"Disable client traits."}`
+	good := `{"title":"Anyone can stub a gold plan","what_happened":"A visitor set plan=gold.","why_it_matters":"Traits are client controlled.","business_impact":"Free paid features.","fix_summary":"Disable client traits."}`
 	t.Run("ai", func(t *testing.T) {
-		e := newFakeAnthropic(t, good).client().Explain(context.Background(), sampleFinding())
+		e := newStubAnthropic(t, good).client().Explain(context.Background(), sampleFinding())
 		if e.Source != "ai" || e.Title == "" {
 			t.Fatalf("%+v", e)
 		}
 	})
 	t.Run("over 120 words falls back to template", func(t *testing.T) {
 		long := strings.Repeat("word ", 130)
-		f := newFakeAnthropic(t, `{"title":"t","what_happened":"`+long+`","why_it_matters":"y","business_impact":"b","fix_summary":"f"}`)
+		f := newStubAnthropic(t, `{"title":"t","what_happened":"`+long+`","why_it_matters":"y","business_impact":"b","fix_summary":"f"}`)
 		e := f.client().Explain(context.Background(), sampleFinding())
 		if e.Source != "template" || f.count() != 2 {
 			t.Fatalf("source=%s requests=%d", e.Source, f.count())
@@ -377,13 +377,13 @@ func TestFixPR(t *testing.T) {
 	f := sampleFinding()
 	t.Run("ai", func(t *testing.T) {
 		reply := `{"title":"Send plan from server","body":"Moves plan.","diff":"--- a/app.js\n+++ b/app.js\n@@ -1 +1 @@\n-a\n+b"}`
-		d := newFakeAnthropic(t, reply).client().FixPR(context.Background(), f, impact)
+		d := newStubAnthropic(t, reply).client().FixPR(context.Background(), f, impact)
 		if d.Source != "ai" || !strings.HasPrefix(d.Diff, "--- a/app.js") {
 			t.Fatalf("%+v", d)
 		}
 	})
 	t.Run("bad diff falls back", func(t *testing.T) {
-		fk := newFakeAnthropic(t, `{"title":"t","body":"b","diff":"just edit the file"}`)
+		fk := newStubAnthropic(t, `{"title":"t","body":"b","diff":"just edit the file"}`)
 		d := fk.client().FixPR(context.Background(), f, impact)
 		if d.Source != "template" || fk.count() != 2 || !strings.Contains(d.Body, "app.js:12") {
 			t.Fatalf("%+v requests=%d", d, fk.count())

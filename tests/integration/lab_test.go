@@ -1,7 +1,7 @@
 //go:build lab
 
 // Package integration runs Gatecrasher end to end against the self-hosted
-// Flagsmith lab (make lab-up lab-seed; the demo shop on :3030). Run with:
+// Flagsmith lab (make lab-up lab-seed; the storefront on :3030). Run with:
 //
 //	go test -tags lab -count=1 -timeout 15m ./tests/integration/...
 package integration

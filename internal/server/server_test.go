@@ -20,7 +20,7 @@ import (
 
 type harness struct {
 	t      *testing.T
-	fb     *fakeBackend
+	fb     *stubBackend
 	srv    *Server
 	ts     *httptest.Server
 	client *http.Client
@@ -28,7 +28,7 @@ type harness struct {
 
 func newHarness(t *testing.T, mod func(*Options)) *harness {
 	t.Helper()
-	fb := newFakeBackend()
+	fb := newStubBackend()
 	opts := Options{Backend: fb}
 	if mod != nil {
 		mod(&opts)

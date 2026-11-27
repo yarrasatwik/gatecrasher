@@ -1,7 +1,7 @@
 # Declared vulnerable state of the Acme Shop lab (spec section 7).
 # `go run ./lab/seed` converges the running Flagsmith to exactly this, using
 # only the public REST API. `{{payment_secret}}` is replaced at seed time by a
-# generated fake secret (acme_live_ + 32 hex) that is never written to a
+# generated secret (acme_live_ + 32 hex) that is never written to a
 # tracked file.
 
 organisation: Acme Labs
@@ -36,7 +36,7 @@ segments:
     conditions:
       - {property: "$.identity.key", operator: PERCENTAGE_SPLIT, value: "10"}
 
-# Identities persisted with fake traits (identity-lookup vulnerability).
+# Identities persisted with sample traits (identity-lookup vulnerability).
 identities:
   - identifier: ceo@acmeshop.dev
     traits:

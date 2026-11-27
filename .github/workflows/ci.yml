@@ -69,7 +69,7 @@ jobs:
           while IFS='=' read -r k v; do
             case "$k" in GATECRASHER_*) [ -n "$v" ] && echo "::add-mask::$v"; echo "$k=$v" >> "$GITHUB_ENV";; esac
           done < .env
-      - name: Start the demo shop
+      - name: Start the storefront
         run: |
           go build -o bin/shop ./lab/shop
           ./bin/shop > shop.log 2>&1 &

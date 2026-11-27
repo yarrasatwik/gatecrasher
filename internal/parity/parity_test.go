@@ -37,9 +37,9 @@ func fixture() (testdoc.Doc, []flagsmith.Segment) {
 	return d, d.AdminSegments()
 }
 
-// fakeSDK serves POST identities/ from the given engine; tamper may alter the
+// stubSDK serves POST identities/ from the given engine; tamper may alter the
 // flags before they are returned.
-func fakeSDK(t *testing.T, eng *flagsmith.Engine, tamper func(id string, flags flagsmith.Flags)) *flagsmith.SDK {
+func stubSDK(t *testing.T, eng *flagsmith.Engine, tamper func(id string, flags flagsmith.Flags)) *flagsmith.SDK {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
@@ -80,7 +80,7 @@ func TestRunAgreesWithFaithfulLive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := parity.Run(context.Background(), eng, fakeSDK(t, eng, nil), 300, segs)
+	res, err := parity.Run(context.Background(), eng, stubSDK(t, eng, nil), 300, segs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestRunReportsMismatches(t *testing.T) {
 			flags["premium"] = f
 		}
 	}
-	res, err := parity.Run(context.Background(), eng, fakeSDK(t, eng, tamper), 300, segs)
+	res, err := parity.Run(context.Background(), eng, stubSDK(t, eng, tamper), 300, segs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestRunStopsWhenCancelled(t *testing.T) {
 	eng, _ := flagsmith.NewEngine(d.JSON())
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	res, err := parity.Run(ctx, eng, fakeSDK(t, eng, nil), 50, segs)
+	res, err := parity.Run(ctx, eng, stubSDK(t, eng, nil), 50, segs)
 	if err == nil || res.Checked == 50 {
 		t.Fatalf("cancelled run should stop early: %+v err=%v", res, err)
 	}
