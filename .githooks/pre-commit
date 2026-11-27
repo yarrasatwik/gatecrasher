@@ -1,0 +1,71 @@
+#!/bin/sh
+# Gatecrasher pre-commit hook (spec §3.3 rule 9).
+# Enable with:  git config core.hooksPath .githooks
+#
+# Blocks staged:
+#   - .env* files (except .env.example)
+#   - anything under .gatecrasher/ (state, plans, audit log)
+#   - lab/.state.json
+#   - added lines that look like credentials (Flagsmith server and org keys,
+#     lab keys, Anthropic/AWS/GitHub tokens, PEM private keys)
+# A line containing the marker  gatecrasher:allow-secret  is exempt (for
+# documented fake fixtures). The hook never prints the matching content.
+
+blocked=0
+
+block() {
+	printf 'gatecrasher pre-commit: blocked: %s\n' "$1" >&2
+	blocked=1
+}
+
+files=$(git -c core.quotepath=false diff --cached --name-only --diff-filter=ACMR)
+
+# "<name>|<extended regex>" per line. Written so this file does not match
+# its own patterns.
+patterns='Flagsmith server key|(^|[^A-Za-z0-9_])ser\.[A-Za-z0-9]{16,}
+Flagsmith org API key|(^|[^A-Za-z0-9])[A-Za-z0-9]{8}\.[A-Za-z0-9]{32}([^A-Za-z0-9]|$)
+lab live key|acme_live_[0-9a-f]{32}
+Anthropic API key|sk-ant[-][A-Za-z0-9_-]{10,}
+AWS access key id|AKIA[0-9A-Z]{16}
+GitHub token|ghp_[A-Za-z0-9]{20,}
+private key block|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+
+check_path() {
+	base=${1##*/}
+	case "$base" in
+	.env.example) ;;
+	.env | .env.*) block "$1 is an environment file (secrets belong outside git)" ;;
+	esac
+	case "$1" in
+	.gatecrasher/* | */.gatecrasher/*) block "$1 is Gatecrasher state (plans, audit log, secrets)" ;;
+	lab/.state.json | */lab/.state.json) block "$1 is lab state (contains generated keys)" ;;
+	esac
+}
+
+check_content() {
+	added=$(git diff --cached -U0 --no-color -- "$1" | grep '^+' | grep -v '^+++' | grep -v 'gatecrasher:allow-secret')
+	[ -n "$added" ] || return 0
+	while IFS= read -r entry; do
+		name=${entry%%|*}
+		re=${entry#*|}
+		if printf '%s\n' "$added" | grep -Eq -- "$re"; then
+			block "$1 contains what looks like a $name"
+		fi
+	done <<EOF
+$patterns
+EOF
+}
+
+while IFS= read -r f; do
+	[ -n "$f" ] || continue
+	check_path "$f"
+	check_content "$f"
+done <<EOF
+$files
+EOF
+
+if [ "$blocked" -ne 0 ]; then
+	printf 'gatecrasher pre-commit: commit aborted. Unstage the file(s) or remove the secret(s).\n' >&2
+	exit 1
+fi
+exit 0
