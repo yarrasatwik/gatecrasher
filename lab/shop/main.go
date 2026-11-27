@@ -113,12 +113,12 @@ func (s *shop) serverFlagValue(ctx context.Context, feature string) (string, err
 	req.Header.Set("X-Environment-Key", s.serverKey)
 	resp, err := s.http.Do(req)
 	if err != nil {
-		return "", errors.New("Flagsmith is unreachable")
+		return "", errors.New("flagsmith is unreachable")
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("Flagsmith answered HTTP %d", resp.StatusCode)
+		return "", fmt.Errorf("flagsmith answered HTTP %d", resp.StatusCode)
 	}
 	var flags []struct {
 		Feature struct {
