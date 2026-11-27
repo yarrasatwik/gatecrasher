@@ -1,18 +1,18 @@
 recon     fetching http://localhost:3030 and its scripts
 recon     client key found at app.js:4 key-shaped string near flagsmith; 11 flags visible
-classify  classifying flag names and values · AI off (heuristics)
-attack    testing 18 trait hypotheses and configured test identities
+classify  classifying flag names and values · AI on (claude-sonnet-5-5 via Claude Code)
+attack    testing 40 trait hypotheses and configured test identities
 map       reading settings, features and segments of Acme Shop / Production
 map       loading the environment document into Flagsmith's evaluation engine
 map       engine found 5 reachable flag states
 verify    cross-checking every engine result against the live Flags API (transient identities)
 parity    engine vs live parity over 1000 random identities
 severity  applying deterministic severity rules
-explain   explaining 16 findings · AI off (heuristics)
-done      16 ways in
+explain   explaining 18 findings · AI on (claude-sonnet-5-5 via Claude Code)
+done      18 ways in
 
-  16 ways in    3 critical · 5 high · 6 medium · 2 low
-  target http://localhost:3030 · env Production · AI off (heuristics) · 1352 requests · 31.0s
+  18 ways in    3 critical · 5 high · 7 medium · 3 low
+  target http://localhost:3030 · env Production · AI on (claude-sonnet-5-5 via Claude Code) · 1421 requests · 198.3s
   engine vs live parity: 1000/1000 agree
 
    CRIT  GC-8B6A1273 Secret in a client-visible flag value: payment_config
@@ -28,7 +28,9 @@ done      16 ways in
    MED   GC-B626FA94 Re-rolling the identifier unlocks early_access_ai (≈9% rollout, ~11 tries) ✓ reproduced live
    MED   GC-A60CCA1A Production: "Allow client SDKs to set user traits" is ON
    MED   GC-9FE52BC7 Production: "Hide sensitive data" is OFF
+   MED   GC-DEBD1D23 Unreleased product leaked through flag: early_access_ai
    MED   GC-07590992 Unreleased product leaked through flag: project_nightjar_launch_2026_12_15
+   LOW   GC-EA6AFCDF Sensitive flag "early_access_ai" is not "Server-side only"
    LOW   GC-03878136 Sensitive flag "internal_api_url" is not "Server-side only"
    LOW   GC-64038665 Sensitive flag "project_nightjar_launch_2026_12_15" is not "Server-side only"
 

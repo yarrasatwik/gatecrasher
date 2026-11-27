@@ -19,7 +19,7 @@ Track 02 · AI Agents and Feature Flags  ·  Track 03 · Build on Open Source Fl
 
 *Your flags are a security boundary. Gatecrasher proves whether it holds.*
 
-<img src="docs/screenshots/approval.png" alt="A Gatecrasher approval card: turn off client-set traits and hide sensitive data on Production, the eight findings it fixes, and the two lines of app code it will affect" width="860">
+<img src="docs/screenshots/hero.gif" alt="A visitor on the Free plan sets plan=gold in the browser and Premium Export unlocks; Gatecrasher plans the fix, a human approves it, and the same forgery is blocked" width="760">
 
 </div>
 
@@ -44,12 +44,13 @@ A real run against the self-hosted lab (full output in [`examples/acme-shop`](ex
 ```text
 $ gatecrasher audit
 recon     client key found at app.js:4; 11 flags visible
-attack    testing 18 trait hypotheses and configured test identities
+classify  classifying flag names and values · AI on (Claude)
+attack    testing 40 trait hypotheses and configured test identities
 map       engine found 5 reachable flag states
 verify    cross-checking every engine result against the live Flags API (transient identities)
 parity    engine vs live parity over 1000 random identities
 
-  16 ways in    3 critical · 5 high · 6 medium · 2 low
+  18 ways in    3 critical · 5 high · 7 medium · 3 low
   engine vs live parity: 1000/1000 agree
 
    CRIT  Secret in a client-visible flag value: payment_config
@@ -58,14 +59,17 @@ parity    engine vs live parity over 1000 random identities
    HIGH  Users can pick their own group in experiment "Pricing page price test"       ✓ reproduced live
    HIGH  Traits of ce***@acmeshop.dev are readable by anyone with the public client key ✓ reproduced live
    HIGH  Forging plan=gold unlocks premium_export (segment "gold_plan")               ✓ reproduced live
+   MED   Unreleased product leaked through flag: early_access_ai        ← spotted by Claude
    ...
 
 $ gatecrasher fix-all        # a human types "Production" to approve each change
-  14 findings  EXPLOITABLE → BLOCKED   ·   fixes live in 0.5–3.5 s  ·   storefront still works
+  17 findings  EXPLOITABLE → BLOCKED   ·   every change via the Flagsmith CLI   ·   checkout still works
 
 $ gatecrasher audit
   2 ways in    (identifier re-rolls — Gatecrasher drafts the server-side change for you)
 ```
+
+<img src="docs/screenshots/approval.png" alt="A Gatecrasher approval card: turn off client-set traits and hide sensitive data on Production, the eight findings it fixes, and the two lines of app code it will affect" width="860">
 
 | Every finding, explained and reproducible | Proof after the fix |
 |---|---|
@@ -73,6 +77,7 @@ $ gatecrasher audit
 
 ## What it does
 
+- **Thinks like an attacker, with Claude.** Claude reads the redacted flag inventory, spots secrets and roadmap leaks the rules miss, proposes the trait values most likely to unlock something, explains each finding in plain English and drafts the PR that fixes it. It never decides what is real or touches Flagsmith — deterministic code and a human do.
 - **Recon like an outsider.** Fetches your site, follows its scripts, extracts the Flagsmith client key and API host, and lists every flag a visitor receives.
 - **Attacks safely.** Forged traits (each confirmed twice, minimal trait sets only), identifier re-rolls, test-identity lookups, config leaks and experiment rigging — all with transient identities that Flagsmith never stores.
 - **Maps from the inside with Flagsmith's own engine.** Loads the environment document into the official SDK's evaluation engine, solves every segment rule (REGEX, PERCENTAGE_SPLIT, nested ALL/ANY/NONE, semver, modulo…) for the smallest forged input, and replays each answer against the live API.
@@ -125,8 +130,9 @@ flowchart LR
 | Environment document + **official SDK evaluation engine** | Offline evaluation with `flagsmith-go-client/v5` v5.7.0's engine; 1000/1000 parity with the live API ([`engine.go`](internal/flagsmith/engine.go), [`parity`](internal/parity)) |
 | **Flagsmith Experimentation** | Detects running experiments, flags rigging, protects them during fixes ([`audit.go`](internal/app/audit.go)) |
 | Organisation webhooks (HMAC-signed) | Watch mode, signature verified exactly as Flagsmith signs ([`watch`](internal/watch)) |
-| v2 feature versioning | Versioned writes where an environment uses them ([`applier.go`](internal/fixes/applier.go)) |
-| Admin API | Inside view, approved writes, rollback ([`admin.go`](internal/flagsmith/admin.go)) |
+| **Flagsmith CLI v2** | Applies approved changes (`flagsmith environment update`, `flagsmith api`); every lab change in CI goes through it ([`cli.go`](internal/fixes/cli.go)) |
+| v2 feature versioning | The lab keeps Development on v2 and Production on v1; audit, fix and rollback are proven on both ([`seed_data.yaml`](lab/seed_data.yaml)) |
+| Admin API | Inside view and rollback; fallback when the CLI is not installed ([`admin.go`](internal/flagsmith/admin.go)) |
 | Self-hosted official Docker images | One-command lab, also run end to end in CI ([`lab/compose.yaml`](lab/compose.yaml)) |
 
 Every endpoint was verified against a running Flagsmith before code relied on it — see [`docs/api-verification.md`](docs/api-verification.md) and the 29 recorded responses in [`tests/fixtures`](tests/fixtures).
@@ -197,7 +203,7 @@ Works with Flagsmith Cloud and self-hosted.
 2. Add keys to `.env` ([`.env.example`](.env.example)):
    - **Outside view:** none — Gatecrasher finds your public client key itself.
    - **Inside view:** `GATECRASHER_ORG_API_KEY` — a dedicated organisation key; read-only is enough for audits and CI.
-   - **AI:** `ANTHROPIC_API_KEY` adds Claude for classification, attack ideas, explanations and PR drafts.
+   - **AI:** Claude classifies values, proposes attack ideas, explains findings and drafts PRs. Use `ANTHROPIC_API_KEY`, or set `ai: claude-code` to run through a signed-in Claude Code CLI (no API key; every tool disabled).
 3. `gatecrasher audit` → `plan` → `approve --confirm <env>` → `apply` → `verify`.
 
 ### GitHub Action
@@ -236,18 +242,19 @@ From real runs against self-hosted Flagsmith 2.295.2 — on Windows 11 with Dock
 
 | Measure | Result |
 |---|---|
-| Planted misconfigurations found | **12 / 12**, zero false positives on control flags |
+| Planted misconfigurations found | **12 / 12**, zero false positives on control flags — plus one roadmap leak Claude spotted on its own |
 | Engine vs live API parity | **1000 / 1000** identities agree |
-| Full audit (outside + inside) | **~10 s** · with 300-identity parity 13–25 s |
-| Time for an approved fix to take effect on the live API | **0.5 – 3.5 s** |
-| Ways in after approved fixes | **16 → 2** (the remaining two are code changes Gatecrasher drafts) |
+| Ways in after approved fixes | **18 → 2** (17 findings EXPLOITABLE → BLOCKED; the remaining two are code changes Gatecrasher drafts) |
+| Claude vs deterministic classification | **91 %** agreement · Claude wrote 17 of 18 explanations and every PR draft |
+| Changes applied through the official Flagsmith CLI | **10 / 10** on a v2-versioned environment, all re-verified BLOCKED |
+| Time for an approved fix to take effect on the live API | **~0.7 s** for Server-side only · 3–16 s for the client-traits setting (Flagsmith's SDK cache) |
 | Watch alert after a dashboard change | **2.9 – 3.7 s** |
-| Environment document freshness on self-hosted | median **0.08 s** after a write |
-| Integration suite | 5 end-to-end scenarios against real Flagsmith on every PR |
+| Full audit | **~10 s** with built-in heuristics · ~3 min with Claude explaining every finding |
+| Integration suite | 6 end-to-end scenarios against real Flagsmith on every PR (v1 and v2 environments) |
 
 ## Tech stack
 
-Go (single static binary) · official Flagsmith Go SDK evaluation engine · Flagsmith Admin, Flags and Identities APIs · Flagsmith Experimentation · Anthropic Claude (optional) · `net/http` + `html/template` + HTMX web UI · SARIF 2.1.0 · Model Context Protocol · Docker Compose with official Flagsmith images · GitHub Actions.
+Go (single static binary) · official Flagsmith Go SDK evaluation engine · Flagsmith CLI v2 · Flagsmith Admin, Flags and Identities APIs · Flagsmith Experimentation · Anthropic Claude (API or Claude Code) · `net/http` + `html/template` + HTMX web UI · SARIF 2.1.0 · Model Context Protocol · Docker Compose with official Flagsmith images · GitHub Actions.
 
 ## Repository map
 

@@ -4,7 +4,7 @@ BIN     := bin/gatecrasher
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/yarrasatwik/gatecrasher/internal/app.Version=$(VERSION)
 
-.PHONY: verify install build hooks lab-up lab-seed lab-reset lab-down lab-nuke shop audit fix-all watch serve parity test test-lab check demo
+.PHONY: verify install build hooks lab-up lab-seed lab-reset lab-down lab-nuke shop audit fix-all watch serve parity test test-lab check walkthrough
 
 install: hooks build
 	@command -v flagsmith >/dev/null 2>&1 || echo "optional: install the Flagsmith CLI v2 (curl -fsSL https://get.flagsmith.com | sh) to apply fixes through it"
@@ -68,5 +68,5 @@ check:
 	$(GO) run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
 	$(GO) test -count=1 ./...
 
-demo: build
-	bash scripts/demo.sh
+walkthrough: build
+	bash scripts/walkthrough.sh

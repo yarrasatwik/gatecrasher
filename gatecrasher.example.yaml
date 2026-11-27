@@ -35,6 +35,11 @@ client_sets_identifier: true
 # App source to scan for client-side setTrait/getValue usage before proposing fixes.
 app_repo: lab/shop
 
+# AI provider: "api" uses ANTHROPIC_API_KEY; "claude-code" uses a signed-in
+# Claude Code CLI (no API key, every tool disabled); "off" uses the built-in
+# heuristics. Empty = "api" when a key is set, otherwise off.
+# ai: claude-code
+
 probes:
   reroll_samples: 200
   rate_per_sec: 60

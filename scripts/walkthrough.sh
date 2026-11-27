@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end Gatecrasher run against the self-hosted lab, for recording.
+# End-to-end Gatecrasher walkthrough against the self-hosted lab.
 # Prerequisites: make lab-up lab-seed, and the storefront running (make shop).
 set -euo pipefail
 cd "$(dirname "$0")/.."

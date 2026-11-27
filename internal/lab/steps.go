@@ -306,7 +306,7 @@ func (s *seeder) ensureSegments(ctx context.Context) error {
 
 // removeUndeclaredSegments deletes lab-project segments that are not in
 // seed_data.yaml (for example ones added while recording the watch-mode
-// demo), so a reset restores exactly the declared state. Feature-specific
+// walkthrough), so a reset restores exactly the declared state. Feature-specific
 // and system-managed (experiment) segments are never touched.
 func (s *seeder) removeUndeclaredSegments(ctx context.Context, path string, have []apiSegment) error {
 	declared := map[string]bool{}

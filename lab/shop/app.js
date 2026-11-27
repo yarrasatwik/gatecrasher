@@ -1,4 +1,4 @@
-// Acme Shop storefront: the demo target for Gatecrasher.
+// Acme Shop storefront: the reference app audited by Gatecrasher.
 // Deliberately careless, like many real apps: the client-side environment key
 // is baked in and the plan trait is set straight from the browser.
 const FLAGSMITH_ENV_KEY = "__FLAGSMITH_CLIENT_KEY__";

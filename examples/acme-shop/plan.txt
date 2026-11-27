@@ -1,5 +1,5 @@
 
-  plan-80360742   Production   Disable client-set traits on Production, hide sensitive data
+  plan-fa707a24   Production   Disable client-set traits on Production, hide sensitive data
     fixes 8 finding(s): GC-1305BD20, GC-1A45D85C, GC-58B8A822, GC-688647D2, GC-70850605, GC-914405C1, GC-9FE52BC7, GC-A60CCA1A
     change  Turn off "Allow client SDKs to set user traits" on Production (allow_client_traits: true → false)
     change  Turn on "Hide sensitive data" on Production (hide_sensitive_data: false → true)
@@ -7,27 +7,30 @@
     ⚠ will break app.js:56 — This will break: app.js:56 sets `plan` client-side. Move it to your server (PR draft attached).
     ⚠ will break app.js:62 — This will break: app.js:62 sets `plan` client-side. Move it to your server (PR draft attached).
 
-  plan-3a16141a   Production   Guidance for `early_access_ai` on Production
-    fixes 1 finding(s): GC-B626FA94
+  plan-03fcd145   Production   Mark `early_access_ai` Server-side only on Production
+    fixes 3 finding(s): GC-B626FA94, GC-DEBD1D23, GC-EA6AFCDF
+    change  Mark feature `early_access_ai` as Server-side only so client SDKs stop receiving it (is_server_key_only: false → true)
     manual  Draft a pull request to assign Flagsmith identifiers on the server (review and open it yourself; Gatecrasher never pushes code). 
+    manual  Consider renaming `early_access_ai` to a neutral name before release: flag names are visible to anyone holding the client key. Renaming is a code and Flagsmith change you make by hand. 
+    ⚠ will break app.js:31 — This will break: app.js:31 reads `early_access_ai` in client code. Server-side only flags are not sent to client SDKs; read it on your server (PR draft attached).
 
-  plan-92324481   Production   Mark `internal_api_url` Server-side only on Production
+  plan-c1a5d759   Production   Mark `internal_api_url` Server-side only on Production
     fixes 2 finding(s): GC-03878136, GC-63E8DE85
     change  Mark feature `internal_api_url` as Server-side only so client SDKs stop receiving it (is_server_key_only: false → true)
     manual  Draft a pull request to move this value to server-side config and read the flag on your server (review and open it yourself; Gatecrasher never pushes code). 
 
-  plan-3d805527   Production   Mark `payment_config` Server-side only on Production
+  plan-7a44605b   Production   Mark `payment_config` Server-side only on Production
     fixes 2 finding(s): GC-0B5C5F67, GC-8B6A1273
     change  Mark feature `payment_config` as Server-side only so client SDKs stop receiving it (is_server_key_only: false → true)
     manual  Draft a pull request to move this value to server-side config and read the flag on your server (review and open it yourself; Gatecrasher never pushes code). 
     manual  Rotate the secret exposed by `payment_config` at its issuer. Treat it as compromised: it was served to every browser. Gatecrasher cannot rotate secrets for you. 
 
-  plan-ec7805ea   Production   Guidance for `pricing_page` on Production
+  plan-282237c0   Production   Guidance for `pricing_page` on Production
     fixes 1 finding(s): GC-DED120AC
     manual  Draft a pull request to assign Flagsmith identifiers on the server (review and open it yourself; Gatecrasher never pushes code). 
     manual  After the fix is live, restart the experiment so its results are not biased by forged or re-rolled assignments. Gatecrasher never stops or restarts experiments itself. 
 
-  plan-ee6578b7   Production   Mark `project_nightjar_launch_2026_12_15` Server-side only on Production
+  plan-0e63bb82   Production   Mark `project_nightjar_launch_2026_12_15` Server-side only on Production
     fixes 2 finding(s): GC-07590992, GC-64038665
     change  Mark feature `project_nightjar_launch_2026_12_15` as Server-side only so client SDKs stop receiving it (is_server_key_only: false → true)
     manual  Consider renaming `project_nightjar_launch_2026_12_15` to a neutral name before release: flag names are visible to anyone holding the client key. Renaming is a code and Flagsmith change you make by hand. 
