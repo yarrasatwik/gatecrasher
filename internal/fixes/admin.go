@@ -83,15 +83,6 @@ func liveObject(ctx context.Context, a AdminAPI, path string) (map[string]any, e
 	return m, nil
 }
 
-// pick returns the named fields of m (missing fields become nil).
-func pick(m map[string]any, keys []string) map[string]any {
-	out := make(map[string]any, len(keys))
-	for _, k := range keys {
-		out[k] = m[k]
-	}
-	return out
-}
-
 // sortedKeys returns the keys of m in deterministic order.
 func sortedKeys(m map[string]any) []string {
 	keys := make([]string, 0, len(m))
