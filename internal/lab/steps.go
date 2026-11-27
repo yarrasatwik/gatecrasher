@@ -218,7 +218,7 @@ type apiSegment struct {
 func segmentRules(conds []ConditionData) []apiRule {
 	cs := make([]apiCondition, len(conds))
 	for i, c := range conds {
-		cs[i] = apiCondition{Property: c.Property, Operator: c.Operator, Value: c.Value}
+		cs[i] = apiCondition(c)
 	}
 	return []apiRule{{Type: "ALL", Conditions: []apiCondition{}, Rules: []apiRule{{Type: "ANY", Conditions: cs, Rules: []apiRule{}}}}}
 }

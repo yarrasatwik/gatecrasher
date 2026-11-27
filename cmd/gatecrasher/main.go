@@ -29,7 +29,8 @@ var commands []command
 
 func init() {
 	commands = []command{
-		{"audit", "recon + map + report (read-only)", cmdAudit},
+		{"lab", "self-hosted Flagsmith lab: up | seed | reset | down | nuke", cmdLab},
+		{"audit", "recon + attack + map + report (read-only)", cmdAudit},
 		{"recon", "outside view only: key from bundle, public flags, classification", cmdRecon},
 		{"map", "inside view only: settings, engine reachability, live cross-check", cmdMap},
 		{"plan", "build fix plans from the latest report", cmdPlan},

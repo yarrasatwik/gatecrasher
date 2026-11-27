@@ -574,7 +574,7 @@ func mergeMethods(a, b []model.Method) []model.Method {
 }
 
 func valueType(v any) string {
-	switch v.(type) {
+	switch t := v.(type) {
 	case nil:
 		return "null"
 	case bool:
@@ -582,7 +582,7 @@ func valueType(v any) string {
 	case float64:
 		return "number"
 	case string:
-		s := strings.TrimSpace(v.(string))
+		s := strings.TrimSpace(t)
 		if strings.HasPrefix(s, "{") || strings.HasPrefix(s, "[") {
 			return "json"
 		}

@@ -210,5 +210,5 @@ func (s *seeder) waitReady(ctx context.Context) error {
 		case <-time.After(2 * time.Second):
 		}
 	}
-	return fmt.Errorf("Flagsmith at %s is not healthy (is the lab up? make lab-up): %v", s.api.origin(), last)
+	return fmt.Errorf("flagsmith at %s is not healthy (is the lab up? make lab-up): %v", s.api.origin(), last)
 }
