@@ -1,0 +1,149 @@
+// Package report renders the canonical audit report (model.Report) into JSON,
+// compact JSON, Markdown, self-contained HTML and SARIF 2.1.0 (spec §8.13).
+//
+// Every writer works on a redacted deep copy of the report, so no registered
+// key or secret can reach any output format, and none of them mutates the
+// caller's report.
+package report
+
+import (
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/yarrasatwik/gatecrasher/internal/model"
+	"github.com/yarrasatwik/gatecrasher/internal/redact"
+	"github.com/yarrasatwik/gatecrasher/internal/severity"
+)
+
+// ToolName is the product name written into every report.
+const ToolName = "Gatecrasher"
+
+// Finalize makes r ready to publish: it stamps the schema version and tool
+// name, sorts findings (worst first) and recomputes Stats.BySeverity with a
+// count for every severity level. It is idempotent.
+func Finalize(r *model.Report) {
+	r.SchemaVersion = model.SchemaVersion
+	if r.Tool == "" {
+		r.Tool = ToolName
+	}
+	if r.Findings == nil {
+		r.Findings = []model.Finding{}
+	}
+	if r.Scope == nil {
+		r.Scope = []string{}
+	}
+	severity.Sort(r.Findings)
+	counts := make(map[string]int, int(model.SevCritical)+1)
+	for s := model.SevInfo; s <= model.SevCritical; s++ {
+		counts[s.String()] = 0
+	}
+	for _, f := range r.Findings {
+		counts[f.Severity.String()]++
+	}
+	r.Stats.BySeverity = counts
+}
+
+// WaysIn returns the number of distinct ways an attacker can get in: findings
+// that are not CONTROL_OK and not already BLOCKED.
+func WaysIn(r *model.Report) int {
+	n := 0
+	for _, f := range r.Findings {
+		if f.Type != model.FControlOK && f.Status != model.StatusBlocked {
+			n++
+		}
+	}
+	return n
+}
+
+// prepare returns a finalized, redacted deep copy of r for rendering.
+func prepare(r *model.Report) *model.Report {
+	cp := deepRedact(reflect.ValueOf(r)).Interface().(*model.Report)
+	Finalize(cp)
+	return cp
+}
+
+var timeType = reflect.TypeOf(time.Time{})
+
+// deepRedact returns a deep copy of v in which every string, including map
+// keys, has passed through redact.String.
+func deepRedact(v reflect.Value) reflect.Value {
+	switch v.Kind() {
+	case reflect.String:
+		out := reflect.New(v.Type()).Elem()
+		out.SetString(redact.String(v.String()))
+		return out
+	case reflect.Ptr:
+		if v.IsNil() {
+			return v
+		}
+		out := reflect.New(v.Type().Elem())
+		out.Elem().Set(deepRedact(v.Elem()))
+		return out
+	case reflect.Interface:
+		if v.IsNil() {
+			return v
+		}
+		out := reflect.New(v.Type()).Elem()
+		out.Set(deepRedact(v.Elem()))
+		return out
+	case reflect.Struct:
+		out := reflect.New(v.Type()).Elem()
+		out.Set(v)
+		if v.Type() == timeType {
+			return out
+		}
+		for i := 0; i < v.NumField(); i++ {
+			if out.Field(i).CanSet() {
+				out.Field(i).Set(deepRedact(v.Field(i)))
+			}
+		}
+		return out
+	case reflect.Slice:
+		if v.IsNil() {
+			return v
+		}
+		out := reflect.MakeSlice(v.Type(), v.Len(), v.Len())
+		for i := 0; i < v.Len(); i++ {
+			out.Index(i).Set(deepRedact(v.Index(i)))
+		}
+		return out
+	case reflect.Map:
+		if v.IsNil() {
+			return v
+		}
+		out := reflect.MakeMapWithSize(v.Type(), v.Len())
+		iter := v.MapRange()
+		for iter.Next() {
+			out.SetMapIndex(deepRedact(iter.Key()), deepRedact(iter.Value()))
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+// oneLine collapses all whitespace runs to single spaces and truncates to max
+// runes, adding an ellipsis when it cuts.
+func oneLine(s string, max int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	r := []rune(s)
+	if max > 0 && len(r) > max {
+		return string(r[:max-1]) + "…"
+	}
+	return s
+}
+
+// headline is the short human title of a finding: the explanation title when
+// present, else the finding title.
+func headline(f model.Finding) string {
+	if f.Explanation != nil && strings.TrimSpace(f.Explanation.Title) != "" {
+		return f.Explanation.Title
+	}
+	return f.Title
+}
+
+// severityOrder lists severities from worst to best, for display.
+func severityOrder() []model.Severity {
+	return []model.Severity{model.SevCritical, model.SevHigh, model.SevMedium, model.SevLow, model.SevInfo}
+}
