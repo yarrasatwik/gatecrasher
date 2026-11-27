@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, vet, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: test -z "$(gofmt -l . | tee /dev/stderr)"
+      - name: go vet
+        run: go vet ./...
+      - name: staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      - name: unit tests
+        run: go test -race -count=1 ./...
+      - name: build
+        run: go build -trimpath -o bin/gatecrasher ./cmd/gatecrasher
+
+  lab:
+    name: End-to-end against self-hosted Flagsmith
+    runs-on: ubuntu-latest
+    needs: check
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Start self-hosted Flagsmith (official images)
+        run: docker compose -f lab/compose.yaml up -d --wait
+      - name: Seed the vulnerable Acme Shop
+        run: go run ./lab/seed
+      - name: Start the demo shop
+        run: |
+          go build -o bin/shop ./lab/shop
+          ./bin/shop > shop.log 2>&1 &
+          for i in $(seq 1 30); do curl -fs http://localhost:3030/ >/dev/null && break; sleep 1; done
+      - name: Integration tests (full audit, fix, verify, rollback, stale plan)
+        run: go test -tags lab -count=1 -timeout 15m ./tests/integration/...
+      - name: Run the Gatecrasher action (inside view)
+        uses: ./
+        with:
+          api-url: http://localhost:8000/api/v1/
+          org-api-key: ${{ env.GATECRASHER_ORG_API_KEY }}
+          project: Acme Shop
+          environment: Production
+          fail-on: none
+          upload-sarif: ${{ github.event_name == 'push' }}
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gatecrasher-reports
+          path: |
+            reports/latest.*
+            shop.log
