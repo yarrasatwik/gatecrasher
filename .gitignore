@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+.gatecrasher/
+reports/
+/bin/
+/dist/
+*.exe
+coverage.out
+lab/.state.json
