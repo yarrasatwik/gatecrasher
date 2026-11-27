@@ -1,0 +1,50 @@
+{{define "sev"}}<span class="sev sev-{{.String}}"><span aria-hidden="true">{{sevGlyph .}}</span> {{upper .String}}</span>{{end}}
+
+{{define "status"}}<span class="chip status-{{lower (printf "%s" .)}}">{{if eq (printf "%s" .) "EXPLOITABLE"}}<span aria-hidden="true">✕</span> {{else if eq (printf "%s" .) "BLOCKED"}}<span aria-hidden="true">✓</span> {{else}}<span aria-hidden="true">?</span> {{end}}{{.}}</span>{{end}}
+
+{{define "run-lines"}}{{if .Lines}}<ol class="log" aria-live="off" aria-label="Audit progress log">{{range .Lines}}<li><time>{{time .At}}</time> <strong>{{.Stage}}</strong> {{.Msg}}</li>{{end}}</ol>{{end}}{{end}}
+
+{{define "run-status"}}{{if eq .State "running"}}<div class="run" hx-get="/run/status" hx-trigger="every 1s" hx-target="#run-panel" hx-swap="innerHTML">
+  <p class="run-head"><span class="spinner" aria-hidden="true"></span> <strong>Audit running.</strong> <span class="muted">Started {{time .Started}}</span></p>
+  {{template "run-lines" .}}
+</div>{{else if eq .State "done"}}<div class="run">
+  <p class="run-head"><span class="ok-mark" aria-hidden="true">✓</span> <strong>Audit complete.</strong> <a class="btn btn-small" href="/report/{{.ReportID}}">Open report</a></p>
+  {{template "run-lines" .}}
+</div>{{else if eq .State "failed"}}<div class="run">
+  <p class="run-head err-text"><span aria-hidden="true">!</span> <strong>Audit failed.</strong> {{.Err}}</p>
+  {{template "run-lines" .}}
+</div>{{else}}<p class="muted">No audit has been run in this session yet.</p>{{end}}{{end}}
+
+{{define "finding"}}<article class="card finding border-{{.Severity.String}}" id="f-{{.ID}}" aria-labelledby="t-{{.ID}}">
+  <header class="card-head">
+    <div class="card-title">{{template "sev" .Severity}}<h3 id="t-{{.ID}}">{{rd .Title}}</h3></div>
+    <p class="meta"><code>{{.ID}}</code> · {{.Type}}{{if .Environment}} · {{.Environment}}{{end}}{{if .Subject}} · <code>{{rd .Subject}}</code>{{end}}</p>
+  </header>
+  <p class="chips">{{template "status" .Status}}{{if .Confirmed}} <span class="chip">Confirmed by a probe or the engine</span>{{else}} <span class="chip">Not confirmed</span>{{end}}{{if .Category}} <span class="chip">{{.Category}}</span>{{end}}{{range .DetectedBy}} <span class="chip chip-quiet">{{.}}</span>{{end}}</p>
+  {{with .Explanation}}<div class="explain">
+    <p><strong>What happened.</strong> {{rd .WhatHappened}}</p>
+    <p><strong>Why it matters.</strong> {{rd .WhyItMatters}}</p>
+    <p><strong>Business impact.</strong> {{rd .BusinessImpact}}</p>
+    <p><strong>How to fix it.</strong> {{rd .FixSummary}}</p>
+    <p class="muted small">Explanation written by {{if eq .Source "ai"}}the AI (checked against a schema; severity is set by deterministic rules){{else}}a deterministic template{{end}}.</p>
+  </div>{{end}}
+  {{if .Traits}}<h4>Forged traits that unlock it</h4>
+  <div class="table-wrap"><table><thead><tr><th scope="col">Trait</th><th scope="col">Value</th></tr></thead><tbody>{{range $k, $v := .Traits}}<tr><th scope="row"><code>{{rd $k}}</code></th><td><code>{{rd $v}}</code></td></tr>{{end}}</tbody></table></div>{{end}}
+  {{if .Unlocked}}<h4>Flags that change</h4>
+  <div class="table-wrap"><table><thead><tr><th scope="col">Flag</th><th scope="col">Before</th><th scope="col">After</th></tr></thead><tbody>{{range .Unlocked}}<tr><th scope="row"><code>{{rd .Flag}}</code></th><td><code>{{rd .Before}}</code></td><td><code>{{rd .After}}</code></td></tr>{{end}}</tbody></table></div>{{end}}
+  {{if .Repro}}<h4>Reproduce it</h4><pre class="code" tabindex="0"><code>{{rd .Repro}}</code></pre>{{end}}
+  {{if .Evidence}}<details><summary>Evidence ({{len .Evidence}})</summary>{{range .Evidence}}<div class="evidence"><p class="meta">{{.Kind}}</p>{{if .Request}}<pre class="code" tabindex="0"><code>{{rd .Request}}</code></pre>{{end}}{{if .Response}}<pre class="code" tabindex="0"><code>{{rd .Response}}</code></pre>{{end}}{{if .Note}}<p>{{rd .Note}}</p>{{end}}</div>{{end}}</details>{{end}}
+  {{if .Notes}}<ul class="notes">{{range .Notes}}<li>{{rd .}}</li>{{end}}</ul>{{end}}
+  <p class="card-foot"><a href="/plans?finding={{.ID}}">View the fix plan{{if .FixPlanID}} ({{.FixPlanID}}){{end}}</a></p>
+</article>{{end}}
+
+{{define "alert-item"}}<li class="card alert-item" id="alert-{{.ID}}">
+  <header class="card-head">
+    <h3>{{if .Error}}Re-check failed{{else}}{{len .Findings}} new finding{{if ne (len .Findings) 1}}s{{end}}{{end}}</h3>
+    <p class="meta"><time>{{time .At}}</time> · {{.Change.Kind}}{{with .Change.Environment}} · {{.}}{{end}}{{with .Change.Feature}} · flag <code>{{rd .}}</code>{{end}}{{with .Change.Segment}} · segment <code>{{rd .}}</code>{{end}}</p>
+  </header>
+  <p class="latency">Detected <strong>{{ms .LatencyMS}}</strong> after the webhook arrived{{if .EventLatencyMS}}, <strong>{{ms .EventLatencyMS}}</strong> after the change event{{end}}.</p>
+  {{with .Error}}<p class="err-text">{{rd .}}</p>{{end}}
+  {{if .Findings}}<ul class="plain">{{range .Findings}}<li>{{template "sev" .Severity}} {{rd .Title}} <span class="muted"><code>{{.ID}}</code></span></li>{{end}}</ul>{{end}}
+  {{if .ReviewURL}}{{if .Findings}}<p><a class="btn btn-small" href="{{.ReviewURL}}">Review fix</a></p>{{end}}{{end}}
+</li>{{end}}
