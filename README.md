@@ -247,8 +247,9 @@ From real runs against self-hosted Flagsmith 2.295.2 — on Windows 11 with Dock
 | Ways in after approved fixes | **18 → 2** (17 findings EXPLOITABLE → BLOCKED; the remaining two are code changes Gatecrasher drafts) |
 | Claude vs deterministic classification | **91 %** agreement · Claude wrote 17 of 18 explanations and every PR draft |
 | Changes applied through the official Flagsmith CLI | **10 / 10** on a v2-versioned environment, all re-verified BLOCKED |
-| Time for an approved fix to take effect on the live API | **~0.7 – 1 s** for Server-side only · 3–18 s for the client-traits setting (Flagsmith's SDK cache) |
-| Watch alert after a dashboard change | **~3 s** typically (2.9 s on CI) · under 12 s in every run |
+| Approved change written to Flagsmith | **~1 s** (CLI or Admin API) |
+| …and proven on the live API | **~0.7 s** for Server-side only · the client-traits setting as soon as Flagsmith's SDK cache refreshes (3–18 s) — Gatecrasher waits and re-attacks |
+| Watch alert after a dashboard change | **2.9 – 4.5 s** (≈2 s of it is Flagsmith delivering the webhook) |
 | Full audit | **~10 s** with built-in heuristics · ~3 min with Claude explaining every finding |
 | Integration suite | 6 end-to-end scenarios against real Flagsmith on every PR (v1 and v2 environments) |
 

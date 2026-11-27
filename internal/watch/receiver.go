@@ -74,7 +74,7 @@ type Receiver struct {
 	ctx  context.Context
 	stop context.CancelFunc
 
-	procMu sync.Mutex // serialises re-checks
+	procSem chan struct{} // bounds concurrent re-checks
 
 	mu      sync.Mutex
 	pending map[string]*pendingChange
@@ -113,6 +113,7 @@ func NewReceiver(opts Options) (*Receiver, error) {
 		opts: opts, log: opts.Logger, ctx: ctx, stop: stop,
 		pending: map[string]*pendingChange{},
 		known:   map[string]struct{}{},
+		procSem: make(chan struct{}, 4),
 		subs:    map[int]chan Alert{},
 	}, nil
 }
@@ -215,8 +216,10 @@ func (r *Receiver) fire(key string) {
 }
 
 func (r *Receiver) process(c Change) {
-	r.procMu.Lock()
-	defer r.procMu.Unlock()
+	// Independent changes re-check in parallel (bounded), so an alert never
+	// queues behind an unrelated re-check; de-duplication is under r.mu.
+	r.procSem <- struct{}{}
+	defer func() { <-r.procSem }()
 	ctx, cancel := context.WithTimeout(r.ctx, defaultRecheckTimeout)
 	defer cancel()
 	findings, err := r.opts.Recheck(ctx, c)
