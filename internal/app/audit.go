@@ -94,6 +94,7 @@ func (a *App) Audit(ctx context.Context, o AuditOptions) (*model.Report, error) 
 		}
 	}
 	dedupe(r)
+	a.consolidate(r)
 	severity.AssignAll(r.Findings)
 	severity.Sort(r.Findings)
 	if o.Explain {
@@ -260,12 +261,15 @@ func (a *App) inside(ctx context.Context, r *model.Report, o AuditOptions, cls m
 	if err != nil {
 		return fmt.Errorf("segments: %w", err)
 	}
-	var envs []flagsmith.Environment
-	for _, e := range envMap {
-		if strings.EqualFold(e.Name, env.Name) {
-			envs = append(envs, e)
-		}
+	// Settings are security-relevant and change at runtime: always read them
+	// fresh instead of trusting the cached environment list.
+	fresh, err := a.Admin.Environment(ctx, env.APIKey)
+	if err != nil {
+		return fmt.Errorf("environment settings: %w", err)
 	}
+	env = *fresh
+	_ = envMap
+	envs := []flagsmith.Environment{env}
 	if len(cls) == 0 {
 		a.classifyFromAdmin(ctx, env, cls)
 	}
@@ -544,7 +548,7 @@ func dedupe(r *model.Report) {
 	out := r.Findings[:0]
 	for _, f := range r.Findings {
 		if i, ok := seen[f.ID]; ok {
-			out[i].DetectedBy = mergeMethods(out[i].DetectedBy, f.DetectedBy)
+			out[i] = merge(out[i], f)
 			continue
 		}
 		seen[f.ID] = len(out)

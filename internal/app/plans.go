@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yarrasatwik/gatecrasher/internal/attacks"
 	"github.com/yarrasatwik/gatecrasher/internal/fixes"
 	"github.com/yarrasatwik/gatecrasher/internal/flagsmith"
 	"github.com/yarrasatwik/gatecrasher/internal/model"
@@ -269,7 +270,17 @@ func (a *App) Recheck(ctx context.Context, f model.Finding) (model.Status, strin
 	switch f.Type {
 	case model.FSettingClientTraitsOn:
 		return statusIf(fresh.AllowClientTraits, fmt.Sprintf("allow_client_traits=%v", fresh.AllowClientTraits))
-	case model.FSettingSensitiveData, model.FIdentityTraitLeak, model.FIdentityOverrideLeak:
+	case model.FIdentityTraitLeak, model.FIdentityOverrideLeak:
+		// Replay the exact read-only lookup when the outside view has one: the
+		// public endpoint can serve cached data after the setting changes.
+		if strings.HasPrefix(f.ProofID, "test-") {
+			runner := attacks.New(sdk, attacks.Options{Environment: env.Name, TestIdentities: a.Cfg.TestIdentities})
+			if st, proof, err := runner.Recheck(ctx, f); err == nil {
+				return st, proof, nil
+			}
+		}
+		return statusIf(!fresh.HideSensitiveData, fmt.Sprintf("hide_sensitive_data=%v", fresh.HideSensitiveData))
+	case model.FSettingSensitiveData:
 		return statusIf(!fresh.HideSensitiveData, fmt.Sprintf("hide_sensitive_data=%v", fresh.HideSensitiveData))
 	case model.FSecretExposed, model.FInternalURL, model.FUnreleasedProduct, model.FPricingLeak, model.FPIILeak, model.FFlagNotServerOnly:
 		flags, ev, err := sdk.EnvironmentFlags(ctx)

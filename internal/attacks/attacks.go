@@ -38,8 +38,17 @@ type Runner struct {
 	mu   sync.Mutex
 }
 
+// New creates a runner. Zero limits select defaults; negative limits disable
+// that probe family. Limits are capped at 40 hypotheses, 24 pairs, 500 samples.
 func New(sdk *flagsmith.SDK, opts Options) *Runner {
 	opts.TestIdentities = append([]string(nil), opts.TestIdentities...)
+	if opts.RunningExperiments != nil {
+		copyMap := make(map[string]bool, len(opts.RunningExperiments))
+		for k, v := range opts.RunningExperiments {
+			copyMap[k] = v
+		}
+		opts.RunningExperiments = copyMap
+	}
 	opts.MaxHypotheses = bound(opts.MaxHypotheses, 40, 40)
 	opts.MaxCombos = bound(opts.MaxCombos, 24, 24)
 	opts.RerollSamples = bound(opts.RerollSamples, 200, 500)
@@ -72,8 +81,13 @@ func safeError(err error) error {
 	if err == nil {
 		return nil
 	}
-	return errors.New(redact.String(err.Error()))
+	return redactedError{err}
 }
+
+type redactedError struct{ cause error }
+
+func (e redactedError) Error() string { return redact.String(e.cause.Error()) }
+func (e redactedError) Unwrap() error { return e.cause }
 func (r *Runner) finding(t model.FindingType, subject string) model.Finding {
 	return model.Finding{ID: model.MakeFindingID(t, r.opts.Environment, subject), Type: t, Environment: r.opts.Environment, Subject: redact.String(subject), Title: redact.String(string(t) + ": " + subject), Confirmed: true, Status: model.StatusExploitable, DetectedBy: []model.Method{model.MethodProbe}}
 }
@@ -94,6 +108,9 @@ func (r *Runner) Run(ctx context.Context, baseline flagsmith.Flags, hypotheses [
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := []model.Finding{}
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
 	hs := []ai.Hypothesis{}
 	seen := map[string]bool{}
 	for _, h := range hypotheses {
