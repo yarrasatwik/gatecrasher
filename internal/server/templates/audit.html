@@ -1,0 +1,12 @@
+{{define "content"}}{{with .Body}}
+<h1>Audit log</h1>
+<p class="lead">Every plan, approval, apply, verify and rollback is recorded here. Each entry contains the hash of the one before it, so tampering breaks the chain.</p>
+{{if .Valid}}<div class="banner banner-ok" role="status"><span aria-hidden="true">✓</span> <span><strong>Chain valid.</strong> {{.N}} entr{{if eq .N 1}}y{{else}}ies{{end}} verified.</span></div>
+{{else}}<div class="banner banner-error" role="alert"><span aria-hidden="true">✕</span> <span><strong>Chain broken.</strong> The log was altered at or before entry #{{.N}}. Treat everything from that entry onward as untrusted.</span></div>{{end}}
+{{if .Rows}}<div class="table-wrap" role="region" aria-label="Audit log entries" tabindex="0"><table>
+<thead><tr><th scope="col">#</th><th scope="col">Time</th><th scope="col">Action</th><th scope="col">Subject</th><th scope="col">Actor</th><th scope="col">Detail</th><th scope="col">Hash</th><th scope="col">Previous</th></tr></thead>
+<tbody>{{range .Rows}}<tr{{if and (not $.Body.Valid) (eq .Seq $.Body.N)}} class="row-broken"{{end}}>
+<th scope="row">{{.Seq}}</th><td><time>{{time .Time}}</time></td><td>{{.Action}}</td><td>{{rd .Subject}}</td><td>{{.Actor}}</td><td>{{rd .Detail}}</td>
+<td><code title="{{.Hash}}">{{short .Hash}}</code></td><td><code title="{{.PrevHash}}">{{short .PrevHash}}</code></td></tr>{{end}}</tbody>
+</table></div>{{else}}<p class="empty">The log is empty.</p>{{end}}
+{{end}}{{end}}
