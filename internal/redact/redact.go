@@ -21,7 +21,7 @@ var rules = []rule{
 	{regexp.MustCompile(`ser\.[A-Za-z0-9_\-]{8,}`), "SERVER_KEY", 0},
 	{regexp.MustCompile(`(?i)(Api-Key|Token|Bearer)\s+[A-Za-z0-9._\-]{8,}`), "AUTH", 0},
 	{regexp.MustCompile(`(?i)((?:x-environment-key|x-api-key|authorization)["']?\s*[:=]\s*["']?)([A-Za-z0-9._\-]{8,})`), "KEY", 2},
-	{regexp.MustCompile(`[A-Za-z0-9]{8}\.[A-Za-z0-9]{32}`), "ORG_API_KEY", 0},
+	{regexp.MustCompile(`\b[A-Za-z0-9]{8}\.[A-Za-z0-9]{32}\b`), "ORG_API_KEY", 0},
 	{regexp.MustCompile(`sk-ant-[A-Za-z0-9_\-]{10,}`), "ANTHROPIC_KEY", 0},
 	{regexp.MustCompile(`acme_live_[0-9a-fA-F]{8,}`), "SECRET", 0},
 	{regexp.MustCompile(`\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{8,}`), "SECRET", 0},

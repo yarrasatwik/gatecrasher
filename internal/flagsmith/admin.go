@@ -100,41 +100,41 @@ type Project struct {
 
 // Environment carries the security-relevant environment settings.
 type Environment struct {
-	ID                       int    `json:"id"`
-	Name                     string `json:"name"`
-	APIKey                   string `json:"api_key"`
-	Project                  int    `json:"project"`
-	AllowClientTraits        bool   `json:"allow_client_traits"`
-	HideSensitiveData        bool   `json:"hide_sensitive_data"`
-	HideDisabledFlags        bool   `json:"hide_disabled_flags"`
-	UseV2FeatureVersioning   bool   `json:"use_v2_feature_versioning"`
-	UseIdentityCompositeKey  bool   `json:"use_identity_composite_key_for_hashing"`
+	ID                      int    `json:"id"`
+	Name                    string `json:"name"`
+	APIKey                  string `json:"api_key"`
+	Project                 int    `json:"project"`
+	AllowClientTraits       bool   `json:"allow_client_traits"`
+	HideSensitiveData       bool   `json:"hide_sensitive_data"`
+	HideDisabledFlags       bool   `json:"hide_disabled_flags"`
+	UseV2FeatureVersioning  bool   `json:"use_v2_feature_versioning"`
+	UseIdentityCompositeKey bool   `json:"use_identity_composite_key_for_hashing"`
 }
 
 // MVOption is a multivariate option.
 type MVOption struct {
-	ID                   int     `json:"id"`
-	Type                 string  `json:"type"`
-	StringValue          *string `json:"string_value"`
-	IntegerValue         *int    `json:"integer_value"`
-	BooleanValue         *bool   `json:"boolean_value"`
-	DefaultPercentage    float64 `json:"default_percentage_allocation"`
+	ID                int     `json:"id"`
+	Type              string  `json:"type"`
+	StringValue       *string `json:"string_value"`
+	IntegerValue      *int    `json:"integer_value"`
+	BooleanValue      *bool   `json:"boolean_value"`
+	DefaultPercentage float64 `json:"default_percentage_allocation"`
 }
 
 // Feature is a project feature.
 type Feature struct {
-	ID                  int        `json:"id"`
-	Name                string     `json:"name"`
-	Type                string     `json:"type"`
-	DefaultEnabled      bool       `json:"default_enabled"`
-	InitialValue        any        `json:"initial_value"`
-	Description         *string    `json:"description"`
-	Tags                []int      `json:"tags"`
-	IsServerKeyOnly     bool       `json:"is_server_key_only"`
-	IsArchived          bool       `json:"is_archived"`
-	MultivariateOptions []MVOption `json:"multivariate_options"`
-	NumSegmentOverrides *int       `json:"num_segment_overrides"`
-	NumIdentityOverrides *int      `json:"num_identity_overrides"`
+	ID                   int        `json:"id"`
+	Name                 string     `json:"name"`
+	Type                 string     `json:"type"`
+	DefaultEnabled       bool       `json:"default_enabled"`
+	InitialValue         any        `json:"initial_value"`
+	Description          *string    `json:"description"`
+	Tags                 []int      `json:"tags"`
+	IsServerKeyOnly      bool       `json:"is_server_key_only"`
+	IsArchived           bool       `json:"is_archived"`
+	MultivariateOptions  []MVOption `json:"multivariate_options"`
+	NumSegmentOverrides  *int       `json:"num_segment_overrides"`
+	NumIdentityOverrides *int       `json:"num_identity_overrides"`
 }
 
 // Tag is a project tag.
