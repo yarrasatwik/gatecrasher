@@ -22,10 +22,13 @@ type Data struct {
 	AdminEmail          string              `yaml:"admin_email"`
 	Environments        []string            `yaml:"environments"`
 	EnvironmentSettings EnvironmentSettings `yaml:"environment_settings"`
-	Tags                []string            `yaml:"tags"`
-	Segments            []SegmentData       `yaml:"segments"`
-	Identities          []IdentityData      `yaml:"identities"`
-	Features            []FeatureData       `yaml:"features"`
+	// V2Versioning lists environments that use Flagsmith v2 feature
+	// versioning, so the lab exercises both versioning modes.
+	V2Versioning []string       `yaml:"v2_versioning"`
+	Tags         []string       `yaml:"tags"`
+	Segments     []SegmentData  `yaml:"segments"`
+	Identities   []IdentityData `yaml:"identities"`
+	Features     []FeatureData  `yaml:"features"`
 }
 
 // EnvironmentSettings are the two security-relevant environment switches.

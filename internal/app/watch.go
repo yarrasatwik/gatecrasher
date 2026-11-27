@@ -46,7 +46,7 @@ func (a *App) StartWatch(ctx context.Context, publicURL, baseURL string) (*Watch
 	if err != nil {
 		return nil, err
 	}
-	base, err := a.Audit(ctx, AuditOptions{Inside: true})
+	base, err := a.Audit(ctx, AuditOptions{Inside: true, Fast: true})
 	if err != nil {
 		rcv.Close()
 		return nil, fmt.Errorf("baseline map: %w", err)
@@ -95,7 +95,7 @@ func (a *App) recheckChange(ctx context.Context, c watch.Change) ([]model.Findin
 	}
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	r, err := a.Audit(ctx, AuditOptions{Inside: true, Environment: env})
+	r, err := a.Audit(ctx, AuditOptions{Inside: true, Environment: env, Fast: true})
 	if err != nil {
 		return nil, err
 	}

@@ -153,7 +153,7 @@ func Seed(ctx context.Context, opts Options) (*State, error) {
 }
 
 // Reset restores every planted vulnerability (environment settings,
-// server-side-only flags, segment rules, flag values and targeting) so the demo
+// server-side-only flags, segment rules, flag values and targeting) so the walkthrough
 // can be recorded again. The lab must have been seeded before.
 func Reset(ctx context.Context, opts Options) (*State, error) {
 	r, err := opts.resolve()
@@ -185,6 +185,7 @@ func (s *seeder) run(ctx context.Context) error {
 		{"features", s.ensureFeatures},
 		{"identities", s.ensureIdentities},
 		{"per-environment state", s.ensureEnvironmentState},
+		{"feature versioning", s.ensureVersioning},
 	}
 	for _, st := range steps {
 		s.logf("%s", st.name)

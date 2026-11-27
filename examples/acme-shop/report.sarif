@@ -434,7 +434,7 @@
           "ruleIndex": 6,
           "level": "error",
           "message": {
-            "text": "Secret in a client-visible flag value: payment_config: The flag payment_config serves a credential to every visitor."
+            "text": "Payment secret exposed in a public feature flag: Anyone holding the client key, which ships inside the app, can request the production flag list and read the payment_config flag. It contains what looks like a live payment provider API secret."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-8B6A1273"
@@ -469,7 +469,7 @@
           "ruleIndex": 0,
           "level": "error",
           "message": {
-            "text": "Forging role=admin unlocks admin_panel (segment \"admins\"): Anyone can claim user attributes such as role=admin from the browser and Flagsmith accepts them, unlocking admin_panel."
+            "text": "Anyone can switch on the admin panel by claiming to be an admin: In Production, the app trusts a self-reported 'role' value sent by the client. Testing with an outside-style request claiming role=admin turned the 'admin_panel' flag from off to on. No password or special access was needed."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-70850605"
@@ -504,7 +504,7 @@
           "ruleIndex": 0,
           "level": "error",
           "message": {
-            "text": "Forging email=a@acmeshop.dev unlocks staff_preview (segment \"staff\"): Anyone can claim user attributes such as email=a@acmeshop.dev from the browser and Flagsmith accepts them, unlocking staff_preview."
+            "text": "Anyone can unlock staff-only features by typing a staff email: Using only the public client key, a test request claimed the email a@acmeshop.dev. The system trusted it and switched the staff_preview flag from off to on in Production. No login or proof was needed."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-1A45D85C"
@@ -574,7 +574,7 @@
           "ruleIndex": 13,
           "level": "error",
           "message": {
-            "text": "Sensitive flag \"payment_config\" is not \"Server-side only\": The flag payment_config is visible to browsers but looks server-only."
+            "text": "Payment settings flag is sent to client apps: The production flag \"payment_config\" is marked secret, but its \"Server-side only\" setting is off. This means client SDKs, such as those in browsers or mobile apps, receive it."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-0B5C5F67"
@@ -609,7 +609,7 @@
           "ruleIndex": 4,
           "level": "error",
           "message": {
-            "text": "Traits of ce***@acmeshop.dev are readable by anyone with the public client key: Looking up identity ce***@acmeshop.dev with the public key returned stored traits."
+            "text": "Customer profile data readable with a public key: Anyone holding the public client key, which ships inside the app, can look up a customer by email and get back the 3 traits stored on their profile. The test confirmed the traits are returned; their contents were not read."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-914405C1"
@@ -644,7 +644,7 @@
           "ruleIndex": 4,
           "level": "error",
           "message": {
-            "text": "Traits of qa***@acmeshop.dev are readable by anyone with the public client key: Looking up identity qa***@acmeshop.dev with the public key returned stored traits."
+            "text": "User profile data readable with a public key: Anyone holding the public client key, which ships inside the app, can request a user's stored traits from the production identities endpoint. The test confirmed it for one account and returned one trait. Values were masked in our evidence."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-1305BD20"
@@ -679,7 +679,7 @@
           "ruleIndex": 0,
           "level": "error",
           "message": {
-            "text": "Forging plan=gold unlocks premium_export (segment \"gold_plan\"): Anyone can claim user attributes such as plan=gold from the browser and Flagsmith accepts them, unlocking premium_export."
+            "text": "Anyone can unlock the premium export by claiming to be a gold customer: Using only the public client key, an outsider sent a request saying their plan was \"gold\". The system accepted it and switched the premium_export feature from off to on. No login or payment was needed."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-688647D2"
@@ -714,7 +714,7 @@
           "ruleIndex": 5,
           "level": "warning",
           "message": {
-            "text": "Identity override on beta_dashboard is readable by anyone who knows the identifier: Looking up identity beta_dashboard with the public key exposed per-user flag overrides."
+            "text": "Per-user feature override can be read by outsiders: Anyone who knows a user's identifier and the public client key can request that user's settings and see that their beta_dashboard flag differs from the default. The check showed it turning from off to on in Production. The actual values were masked."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-58B8A822"
@@ -749,7 +749,7 @@
           "ruleIndex": 7,
           "level": "warning",
           "message": {
-            "text": "Internal URL leaked to every browser: internal_api_url: The flag internal_api_url reveals an internal address or hostname."
+            "text": "Internal admin address exposed to all website visitors: Anyone holding the public client key can request the flag list and see a setting named internal_api_url. It reveals a private network address pointing to an admin endpoint."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-63E8DE85"
@@ -784,7 +784,7 @@
           "ruleIndex": 1,
           "level": "warning",
           "message": {
-            "text": "Re-rolling the identifier unlocks early_access_ai (≈9% rollout, ~11 tries): A visitor can keep choosing new identifiers until they land in the rollout group for early_access_ai."
+            "text": "Unreleased AI feature can be unlocked by guessing identifiers: The early_access_ai feature is meant for a 10% test group. Anyone can send a made-up user identifier to the public API and see whether the feature turns on. About 1 in 11 tries succeeds, so an outsider can quickly find an identifier that unlocks it."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-B626FA94"
@@ -819,7 +819,7 @@
           "ruleIndex": 11,
           "level": "warning",
           "message": {
-            "text": "Production: \"Allow client SDKs to set user traits\" is ON: The environment allow_client_traits allows client-side traits."
+            "text": "Production lets users set their own traits: In Production, the setting that lets client SDKs set user traits is on. Anyone with the public client key can assign themselves any traits they like."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-A60CCA1A"
@@ -854,7 +854,7 @@
           "ruleIndex": 12,
           "level": "warning",
           "message": {
-            "text": "Production: \"Hide sensitive data\" is OFF: The environment hide_sensitive_data does not hide sensitive data."
+            "text": "Production feature flag data is not hidden: The \"Hide sensitive data\" setting is turned off in the Production environment. This means sensitive values tied to feature flags are not masked in that environment's dashboard."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-9FE52BC7"
@@ -889,7 +889,42 @@
           "ruleIndex": 8,
           "level": "warning",
           "message": {
-            "text": "Unreleased product leaked through flag: project_nightjar_launch_2026_12_15: The flag project_nightjar_launch_2026_12_15 names an unreleased product or launch date."
+            "text": "Flag name reveals an unreleased AI feature: Anyone holding the public client key can list your feature flags in Production. The flag named \"early_access_ai\" appears in the list, even though its value is empty."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-DEBD1D23"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/early_access_ai"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "early_access_ai",
+                  "fullyQualifiedName": "Production/early_access_ai",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "5.5",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "UNRELEASED_PRODUCT_LEAK",
+          "ruleIndex": 8,
+          "level": "warning",
+          "message": {
+            "text": "Flag name reveals an unreleased product: Anyone holding the public client key can list the feature flags in Production. One flag's name, project_nightjar_launch_2026_12_15, exposes an unreleased product's codename and planned launch date."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-07590992"
@@ -924,7 +959,42 @@
           "ruleIndex": 13,
           "level": "note",
           "message": {
-            "text": "Sensitive flag \"internal_api_url\" is not \"Server-side only\": The flag internal_api_url is visible to browsers but looks server-only."
+            "text": "Unreleased AI feature flag is visible to client apps: The flag \"early_access_ai\", which marks an unreleased product, is not set to \"Server-side only\" in Production. Because of that, client SDKs receive it, so anyone inspecting the app's flag data could see it exists."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-EA6AFCDF"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/early_access_ai"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "early_access_ai",
+                  "fullyQualifiedName": "Production/early_access_ai",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "3.0",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "FLAG_NOT_SERVER_ONLY",
+          "ruleIndex": 13,
+          "level": "note",
+          "message": {
+            "text": "Internal API address exposed to client apps: In Production, the flag \"internal_api_url\" is not marked \"Server-side only\", so client SDKs receive it. Anyone using the app or SDK could potentially read it."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-03878136"
@@ -959,7 +1029,7 @@
           "ruleIndex": 13,
           "level": "note",
           "message": {
-            "text": "Sensitive flag \"project_nightjar_launch_2026_12_15\" is not \"Server-side only\": The flag project_nightjar_launch_2026_12_15 is visible to browsers but looks server-only."
+            "text": "Unreleased product flag is visible to client apps: The flag named for an unreleased product launch in Production is not set to \"Server-side only\", so client SDKs receive it. Anyone using the public app or website can potentially read the flag's name."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-64038665"
@@ -993,7 +1063,7 @@
       "invocations": [
         {
           "executionSuccessful": true,
-          "endTimeUtc": "2026-11-27T19:15:24Z"
+          "endTimeUtc": "2026-11-27T20:21:38Z"
         }
       ]
     }

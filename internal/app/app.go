@@ -59,11 +59,28 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("plan store: %w", err)
 	}
 	hc := httpx.New(cfg.Lock(), httpx.WithRate(cfg.Probes.RatePerSec), httpx.WithTimeout(15*time.Second))
-	a := &App{Cfg: cfg, HTTP: hc, AI: ai.New(cfg.AnthropicKey, cfg.Model), Log: lg, Store: st, alerts: newAlertHub()}
+	aiClient, err := newAI(cfg)
+	if err != nil {
+		return nil, err
+	}
+	a := &App{Cfg: cfg, HTTP: hc, AI: aiClient, Log: lg, Store: st, alerts: newAlertHub()}
 	if cfg.OrgAPIKey != "" {
 		a.Admin = flagsmith.NewAdmin(hc, cfg.Flagsmith.APIURL, cfg.OrgAPIKey)
 	}
 	return a, nil
+}
+
+// newAI picks the AI provider from configuration.
+func newAI(cfg *config.Config) (*ai.Client, error) {
+	switch strings.ToLower(strings.TrimSpace(cfg.AI)) {
+	case "claude-code", "claude-cli", "claude":
+		return ai.NewClaudeCode("", cfg.Model)
+	case "off", "none":
+		return ai.New("", cfg.Model), nil
+	case "", "api":
+		return ai.New(cfg.AnthropicKey, cfg.Model), nil
+	}
+	return nil, fmt.Errorf("unknown ai provider %q (want api, claude-code or off)", cfg.AI)
 }
 
 // InsideView reports whether admin access is configured.
@@ -149,7 +166,7 @@ func (a *App) Applier(ctx context.Context) (*fixes.Applier, error) {
 	cfg := fixes.Config{Admin: a.Admin, Store: a.Store, Audit: a.Log, ProjectID: p.ID, EnvKeys: keys,
 		UseCLI: a.Cfg.Flagsmith.UseCLI, Timeout: a.Cfg.PropagationTimeout(), PollInterval: 500 * time.Millisecond}
 	if a.Cfg.Flagsmith.UseCLI {
-		if cli, err := fixes.NewExecCLI(ctx, nil); err == nil {
+		if cli, err := fixes.NewExecCLI(ctx, a.Cfg.Flagsmith.APIURL, a.Cfg.OrgAPIKey, p.ID); err == nil {
 			cfg.CLI = cli
 		}
 	}

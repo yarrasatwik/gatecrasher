@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"time"
 )
 
 const (
@@ -25,6 +26,7 @@ type apiEnv struct {
 	APIKey            string `json:"api_key"`
 	AllowClientTraits bool   `json:"allow_client_traits"`
 	HideSensitiveData bool   `json:"hide_sensitive_data"`
+	UseV2Versioning   bool   `json:"use_v2_feature_versioning"`
 }
 
 type apiKey struct {
@@ -119,6 +121,51 @@ func (s *seeder) ensureProject(ctx context.Context) error {
 	}
 	s.state.ProjectID = p.ID
 	return nil
+}
+
+// ensureVersioning switches the declared environments to v2 feature
+// versioning. It runs last: Flagsmith migrates the existing feature states
+// into the first version, exactly as it does for a real team switching over,
+// and v1-only endpoints used while seeding are no longer accepted afterwards.
+func (s *seeder) ensureVersioning(ctx context.Context) error {
+	envs, err := list[apiEnv](ctx, s.api, s.admin, fmt.Sprintf("environments/?project=%d", s.state.ProjectID))
+	if err != nil {
+		return err
+	}
+	for _, name := range s.opts.data.V2Versioning {
+		env, ok := findEnv(envs, name)
+		if !ok || env.UseV2Versioning {
+			continue
+		}
+		if err := s.api.call(ctx, s.admin, "POST", "environments/"+env.APIKey+"/enable-v2-versioning/", map[string]any{}, nil); err != nil {
+			return err
+		}
+		if err := s.waitV2(ctx, env.APIKey); err != nil {
+			return err
+		}
+		s.changed("%s: enabled v2 feature versioning", name)
+	}
+	return nil
+}
+
+// waitV2 polls until Flagsmith finishes the asynchronous switch to v2
+// feature versioning for an environment.
+func (s *seeder) waitV2(ctx context.Context, key string) error {
+	for i := 0; i < 60; i++ {
+		var env apiEnv
+		if err := s.api.call(ctx, s.admin, "GET", "environments/"+key+"/", nil, &env); err != nil {
+			return err
+		}
+		if env.UseV2Versioning {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+	return fmt.Errorf("environment did not switch to v2 feature versioning within 60s")
 }
 
 func (s *seeder) ensureEnvironments(ctx context.Context) error {
@@ -275,7 +322,7 @@ func (s *seeder) ensureSegments(ctx context.Context) error {
 
 // removeUndeclaredSegments deletes lab-project segments that are not in
 // seed_data.yaml (for example ones added while recording the watch-mode
-// demo), so a reset restores exactly the declared state. Feature-specific
+// walkthrough), so a reset restores exactly the declared state. Feature-specific
 // and system-managed (experiment) segments are never touched.
 func (s *seeder) removeUndeclaredSegments(ctx context.Context, path string, have []apiSegment) error {
 	declared := map[string]bool{}

@@ -96,7 +96,7 @@ Method: `PATCH` a feature state in Production, then poll every 100 ms from the w
 | Org webhook delivered to a host listener | 1.40 s | 1.70 s | 1.97 s |
 
 So on self-hosted the document lag is **seconds, not the 60 to 75 s seen on Cloud**. Keep the polling (max 150 s, configurable) but
-expect convergence in under 3 s. The webhook-driven "alert in under 10 seconds" demo target is realistic: webhook arrival is about
+expect convergence in under 3 s. The webhook-driven "alert in under 10 seconds" target is realistic: webhook arrival is about
 2 s after the dashboard write, and the document needed for the map re-run is already fresh by then.
 
 Other timings: cold lab (`down -v` then `up -d --wait`) about 75 s; first seed about 10 s; a no-op re-seed about 11 s.

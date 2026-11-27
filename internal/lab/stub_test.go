@@ -165,6 +165,23 @@ func (f *stubFlagsmith) routeProject(h handler) {
 		}
 		return 404, nil
 	})
+	h("GET /api/v1/environments/{key}/", func(r *http.Request, _ map[string]any) (int, any) {
+		for _, e := range f.envs {
+			if e["api_key"] == r.PathValue("key") {
+				return 200, e
+			}
+		}
+		return 404, nil
+	})
+	h("POST /api/v1/environments/{key}/enable-v2-versioning/", func(r *http.Request, _ map[string]any) (int, any) {
+		for _, e := range f.envs {
+			if e["api_key"] == r.PathValue("key") {
+				e["use_v2_feature_versioning"] = true
+				return 202, nil
+			}
+		}
+		return 404, nil
+	})
 	h("GET /api/v1/environments/{key}/api-keys/", func(r *http.Request, _ map[string]any) (int, any) {
 		return 200, f.envKeys[r.PathValue("key")]
 	})

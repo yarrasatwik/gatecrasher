@@ -1,4 +1,4 @@
-// Command shop serves the fictional Acme Shop storefront, the demo target of
+// Command shop serves the fictional Acme Shop storefront, the reference app of
 // Gatecrasher's lab. It loads the Production client-side key into app.js at
 // serve time (so nothing is committed) and exposes /api/checkout-config, which
 // reads payment_config with the server-side key and returns only non-secret

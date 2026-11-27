@@ -11,6 +11,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/yarrasatwik/gatecrasher/internal/ai"
@@ -43,6 +44,9 @@ type AuditOptions struct {
 	ParitySamples int
 	// Explain asks the AI (or templates) for plain-English explanations.
 	Explain bool
+	// Fast skips AI calls (deterministic classification only); watch-mode
+	// re-checks use it so an alert never waits on a model round-trip.
+	Fast bool
 	// Progress receives stage updates; may be nil.
 	Progress Progress
 }
@@ -100,9 +104,17 @@ func (a *App) Audit(ctx context.Context, o AuditOptions) (*model.Report, error) 
 	if o.Explain {
 		_ = stage("explain", func() error {
 			say("explain", fmt.Sprintf("explaining %d findings · AI %s", len(r.Findings), a.AI.Mode()))
+			sem := make(chan struct{}, 4)
+			var wg sync.WaitGroup
 			for i := range r.Findings {
-				r.Findings[i].Explanation = a.AI.Explain(ctx, r.Findings[i])
+				wg.Add(1)
+				sem <- struct{}{}
+				go func(i int) {
+					defer func() { <-sem; wg.Done() }()
+					r.Findings[i].Explanation = a.AI.Explain(ctx, r.Findings[i])
+				}(i)
 			}
+			wg.Wait()
 			return nil
 		})
 	}
@@ -271,7 +283,7 @@ func (a *App) inside(ctx context.Context, r *model.Report, o AuditOptions, cls m
 	_ = envMap
 	envs := []flagsmith.Environment{env}
 	if len(cls) == 0 {
-		a.classifyFromAdmin(ctx, env, cls)
+		a.classifyFromAdmin(ctx, env, cls, o.Fast)
 	}
 	settings, setFindings := mapper.SettingsAudit(envs, features, cls)
 	r.Settings = settings
@@ -334,7 +346,7 @@ func (a *App) envDocument(ctx context.Context, env flagsmith.Environment) (json.
 
 // classifyFromAdmin classifies flag values from the environment's own
 // /flags/ response when the audit has no outside stage (CI mode).
-func (a *App) classifyFromAdmin(ctx context.Context, env flagsmith.Environment, cls map[string]model.Category) {
+func (a *App) classifyFromAdmin(ctx context.Context, env flagsmith.Environment, cls map[string]model.Category, fast bool) {
 	sdk := flagsmith.NewSDK(a.HTTP, a.Cfg.Flagsmith.APIURL, env.APIKey)
 	flags, _, err := sdk.EnvironmentFlags(ctx)
 	if err != nil {
@@ -345,6 +357,12 @@ func (a *App) classifyFromAdmin(ctx context.Context, env flagsmith.Environment, 
 		f := flags[n]
 		inv.Flags = append(inv.Flags, model.FlagView{Name: n, FeatureID: f.FeatureID, Enabled: f.Enabled, RawValue: f.Value,
 			ValueType: valueType(f.Value), Preview: redact.String(trim(flagsmith.ValueString(f.Value), 80))})
+	}
+	if fast {
+		for _, f := range inv.Flags {
+			cls[f.Name] = secrets.Classify(f).Category
+		}
+		return
 	}
 	classes, _ := a.AI.Classify(ctx, inv)
 	for _, c := range classes {
@@ -418,21 +436,31 @@ func findingKey(f model.Finding) string {
 // with a transient identity and records whether Flagsmith agrees.
 func (a *App) crossCheck(ctx context.Context, sdk *flagsmith.SDK, reach []model.Reachable) map[string]liveResult {
 	out := map[string]liveResult{}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 6) // bounded; the scoped client also rate-limits
 	for i := range reach {
-		rc := &reach[i]
-		id := rc.Identifier
-		if id == "" {
-			id = probeID()
-		}
-		res, err := sdk.Identify(ctx, id, rc.ForgedTraits)
-		if err != nil {
-			continue
-		}
-		got, ok := res.Flags[rc.Flag]
-		match := ok && got.Enabled == rc.Enabled && flagsmith.ValueString(got.Value) == rc.Value
-		rc.LiveVerified = &match
-		out[reachKey(rc.Environment, rc.Flag, rc.Segment, rc.ForgedTraits, rc.Identifier)] = liveResult{ok: match, evidence: res.Evidence, repro: res.Evidence.Request}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(rc *model.Reachable) {
+			defer func() { <-sem; wg.Done() }()
+			id := rc.Identifier
+			if id == "" {
+				id = probeID()
+			}
+			res, err := sdk.Identify(ctx, id, rc.ForgedTraits)
+			if err != nil {
+				return
+			}
+			got, ok := res.Flags[rc.Flag]
+			match := ok && got.Enabled == rc.Enabled && flagsmith.ValueString(got.Value) == rc.Value
+			rc.LiveVerified = &match
+			mu.Lock()
+			out[reachKey(rc.Environment, rc.Flag, rc.Segment, rc.ForgedTraits, rc.Identifier)] = liveResult{ok: match, evidence: res.Evidence, repro: res.Evidence.Request}
+			mu.Unlock()
+		}(&reach[i])
 	}
+	wg.Wait()
 	return out
 }
 
