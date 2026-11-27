@@ -4,7 +4,7 @@ BIN     := bin/gatecrasher
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/yarrasatwik/gatecrasher/internal/app.Version=$(VERSION)
 
-.PHONY: install build hooks lab-up lab-seed lab-reset lab-down lab-nuke shop audit fix-all watch serve parity test test-lab check demo
+.PHONY: verify install build hooks lab-up lab-seed lab-reset lab-down lab-nuke shop audit fix-all watch serve parity test test-lab check demo
 
 install: hooks build
 	@command -v flagsmith >/dev/null 2>&1 || echo "optional: install the Flagsmith CLI v2 (curl -fsSL https://get.flagsmith.com | sh) to apply fixes through it"
@@ -50,6 +50,13 @@ parity: build
 
 test:
 	$(GO) test -count=1 ./...
+
+# verify: the 60-second check for judges. No Docker, no keys.
+verify:
+	$(GO) vet ./...
+	$(GO) test -count=1 ./...
+	$(GO) build -trimpath -o $(BIN) ./cmd/gatecrasher
+	@echo "verified: vet clean, all tests pass, $(BIN) built"
 
 test-lab:
 	$(GO) test -tags lab -count=1 -timeout 20m -v ./tests/integration/...

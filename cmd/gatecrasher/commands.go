@@ -470,9 +470,14 @@ func cmdFixAll(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	recs, err := a.MakePlans(ctx, "latest", "")
+	recs, err := pendingPlans(a)
 	if err != nil {
 		return err
+	}
+	if len(recs) == 0 {
+		if recs, err = a.MakePlans(ctx, "latest", ""); err != nil {
+			return err
+		}
 	}
 	var applied []string
 	for _, rec := range recs {
@@ -522,6 +527,22 @@ func cmdFixAll(ctx context.Context, args []string) error {
 		return findingsErr{1}
 	}
 	return nil
+}
+
+// pendingPlans returns plans still waiting for a decision, so fix-all reuses
+// plans built earlier (CLI or web UI) instead of duplicating them.
+func pendingPlans(a *app.App) ([]*model.PlanRecord, error) {
+	all, err := a.Store.List()
+	if err != nil {
+		return nil, err
+	}
+	var out []*model.PlanRecord
+	for _, r := range all {
+		if r.State == model.PlanPending {
+			out = append(out, r)
+		}
+	}
+	return out, nil
 }
 
 func hasAutomatic(p model.Plan) bool {

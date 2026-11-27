@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Gatecrasher report r-20261127-191524-324992</title>
+<style>
+:root{
+  --bg:#f6f7f9;--surface:#ffffff;--surface-2:#f0f2f5;--text:#141a24;--muted:#4a5568;--border:#d5dae2;
+  --accent:#1d4ed8;--focus:#1d4ed8;--code-bg:#0f1623;--code-text:#e6ebf3;--code-muted:#9fb0c8;
+  --critical-bg:#fde8e8;--critical-fg:#9b1c1c;
+  --high-bg:#ffedd5;--high-fg:#9a3412;
+  --medium-bg:#fef3c7;--medium-fg:#854d0e;
+  --low-bg:#dbeafe;--low-fg:#1e40af;
+  --info-bg:#e5e7eb;--info-fg:#374151;
+  --good-fg:#166534;--bad-fg:#9b1c1c;--shadow:0 1px 2px rgba(15,22,35,.06),0 4px 16px rgba(15,22,35,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b0f17;--surface:#121926;--surface-2:#192131;--text:#e7ebf2;--muted:#a0abbd;--border:#273146;
+    --accent:#8ab4ff;--focus:#8ab4ff;--code-bg:#080b12;--code-text:#e6ebf3;--code-muted:#8fa1bb;
+    --critical-bg:#3b1416;--critical-fg:#ffb4b4;
+    --high-bg:#3b200c;--high-fg:#ffc796;
+    --medium-bg:#35290b;--medium-fg:#fcd979;
+    --low-bg:#10264a;--low-fg:#a5c6ff;
+    --info-bg:#1f2937;--info-fg:#cbd5e1;
+    --good-fg:#86efac;--bad-fg:#ffb4b4;--shadow:none;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+a{color:var(--accent)}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:2px}
+.skip{position:absolute;left:-999px;top:8px;background:var(--surface);color:var(--text);padding:8px 12px;border:2px solid var(--focus);z-index:10}
+.skip:focus{left:8px}
+.wrap{max-width:980px;margin:0 auto;padding:0 16px}
+header.top{padding:20px 0 4px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.02em}
+.brand .mark{width:12px;height:12px;border-radius:3px;background:var(--critical-fg)}
+.brand small{font-weight:500;color:var(--muted);margin-left:auto;font-size:.85rem}
+nav.sections ul{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.92rem}
+h1,h2,h3{line-height:1.25;margin:0}
+h2{font-size:1.35rem;margin:40px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+h3{font-size:1.08rem}
+section{scroll-margin-top:12px}
+.hero{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px 24px;margin-top:16px;box-shadow:var(--shadow)}
+.hero h1{font-size:1rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.big{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:8px 0 14px}
+.big .n{font-size:clamp(3.4rem,14vw,5.5rem);font-weight:800;line-height:1;letter-spacing:-.03em}
+.big .l{font-size:1.5rem;font-weight:600;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px;padding:0;list-style:none}
+.chip,.badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 11px;font-size:.85rem;font-weight:600;white-space:nowrap}
+.chip b{font-variant-numeric:tabular-nums}
+.sev-critical{background:var(--critical-bg);color:var(--critical-fg)}
+.sev-high{background:var(--high-bg);color:var(--high-fg)}
+.sev-medium{background:var(--medium-bg);color:var(--medium-fg)}
+.sev-low{background:var(--low-bg);color:var(--low-fg)}
+.sev-info{background:var(--info-bg);color:var(--info-fg)}
+dl.meta{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:0;font-size:.95rem}
+dl.meta dt{color:var(--muted)}
+dl.meta dd{margin:0;overflow-wrap:anywhere}
+.scope-list{margin:0;padding-left:1.1em}
+.card{background:var(--surface);border:1px solid var(--border);border-left-width:5px;border-radius:12px;padding:18px 18px 14px;margin:0 0 16px;box-shadow:var(--shadow)}
+.card.critical{border-left-color:var(--critical-fg)}.card.high{border-left-color:var(--high-fg)}
+.card.medium{border-left-color:var(--medium-fg)}.card.low{border-left-color:var(--low-fg)}.card.info{border-left-color:var(--info-fg)}
+.card header{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin-bottom:6px}
+.card header h3{flex:1 1 220px}
+.facts{display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--muted);font-size:.88rem;margin:0 0 10px;padding:0;list-style:none}
+.facts code,.card code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em}
+.facts code{overflow-wrap:anywhere}
+.badge{background:var(--surface-2);color:var(--text);border:1px solid var(--border);font-weight:500;font-size:.78rem;padding:1px 9px}
+.badges{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px;padding:0;list-style:none}
+.status{font-weight:700;font-size:.85rem}
+.status.bad{color:var(--bad-fg)}.status.good{color:var(--good-fg)}.status.unk{color:var(--muted)}
+.card p{margin:0 0 10px}
+.card .lbl{font-weight:600}
+.codewrap{position:relative;margin:6px 0 12px}
+pre{margin:0;background:var(--code-bg);color:var(--code-text);border-radius:8px;padding:12px 14px;overflow-x:auto;font:.84rem/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.copy{position:absolute;top:6px;right:6px;background:#26334a;color:#eaf0fb;border:1px solid #3b4a66;border-radius:6px;padding:3px 10px;font:600 .78rem system-ui,sans-serif;cursor:pointer}
+.copy[hidden]{display:none}
+.sub{font-size:.78rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:10px 0 2px;font-weight:700}
+details{margin:8px 0;border:1px solid var(--border);border-radius:8px;background:var(--surface-2)}
+details>summary{cursor:pointer;padding:8px 12px;font-weight:600;font-size:.92rem}
+details>div{padding:0 12px 10px}
+.fix{margin:10px 0 0;padding:10px 12px;border-radius:8px;background:var(--surface-2);font-size:.95rem}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:.93rem}
+caption{text-align:left;padding:10px 14px;color:var(--muted);font-size:.88rem}
+th,td{text-align:left;padding:10px 14px;border-top:1px solid var(--border);vertical-align:top}
+thead th{border-top:0;background:var(--surface-2);font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);white-space:nowrap}
+td.ok{color:var(--good-fg);font-weight:600}td.no{color:var(--bad-fg);font-weight:600}td.unk{color:var(--muted);font-weight:600}
+td.wrap,td code{overflow-wrap:anywhere}
+.empty{color:var(--muted);padding:12px 0}
+footer{margin:48px 0 32px;color:var(--muted);font-size:.85rem}
+@media (max-width:480px){
+  .hero{padding:20px 16px}.card{padding:14px 12px 10px}
+  dl.meta{grid-template-columns:1fr}dl.meta dt{margin-top:6px}
+}
+@media print{
+  :root{--bg:#fff}
+  body{font-size:11pt}
+  .skip,nav.sections,.copy{display:none!important}
+  .hero,.card,.tablewrap{box-shadow:none;break-inside:avoid}
+  pre{white-space:pre-wrap}
+  a{color:inherit}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to report</a>
+<header class="top"><div class="wrap">
+  <div class="brand"><span class="mark" aria-hidden="true"></span>Gatecrasher<small>Security report</small></div>
+  <nav class="sections" aria-label="Report sections"><ul>
+    <li><a href="#summary">Summary</a></li>
+    <li><a href="#findings">Findings</a></li>
+    <li><a href="#settings">Settings</a></li>
+    <li><a href="#reachability">Reachability</a></li>
+    
+    <li><a href="#method">Method &amp; scope</a></li>
+  </ul></nav>
+</div></header>
+<main id="main" class="wrap">
+
+<section id="summary" aria-labelledby="summary-h" class="hero">
+  <h1 id="summary-h">Audit summary &middot; Acme Shop</h1>
+  <p class="big"><span class="n">16</span><span class="l">ways in</span></p>
+  <ul class="chips" aria-label="Findings by severity">
+    <li class="chip sev-critical"><b>3</b> Critical</li>
+    <li class="chip sev-high"><b>5</b> High</li>
+    <li class="chip sev-medium"><b>6</b> Medium</li>
+    <li class="chip sev-low"><b>2</b> Low</li>
+    <li class="chip sev-info"><b>0</b> Info</li>
+    
+  </ul>
+  <dl class="meta">
+    <dt>Target</dt><dd>http://localhost:3030</dd>
+    <dt>Environment</dt><dd>Production</dd>
+    <dt>Scope</dt><dd><ul class="scope-list"><li><code>localhost</code></li><li><code>localhost:8000</code></li></ul></dd>
+    <dt>AI mode</dt><dd>off (heuristics)</dd>
+    <dt>Generated</dt><dd><time datetime="2026-11-27T19:15:24Z">27 Nov 2026, 19:15 UTC</time></dd>
+  </dl>
+</section>
+
+<section id="findings" aria-labelledby="findings-h">
+  <h2 id="findings-h">Findings, ranked by severity</h2>
+  
+  <article class="card critical" id="GC-8B6A1273" aria-labelledby="GC-8B6A1273-h">
+    <header>
+      <span class="chip sev-critical">Critical</span>
+      <h3 id="GC-8B6A1273-h">Secret in a client-visible flag value: payment_config</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-8B6A1273</code></li>
+      <li>Type <code>SECRET_IN_CLIENT_VALUE</code></li>
+      <li>Subject <code>payment_config</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">deterministic</li></ul>
+    <p><span class="lbl">What happened.</span> The flag payment_config serves a credential to every visitor.</p>
+    <p><span class="lbl">Why it matters.</span> Flag values in a client-side environment are public; a key stored there is already exposed.</p>
+    <p><span class="lbl">Business impact.</span> Someone could use the credential to act as your service.</p>
+    
+    
+    <p class="sub">Reproduce (key shown as &lt;CLIENT_KEY&gt;)</p>
+    <div class="codewrap"><pre id="GC-8B6A1273-repro"><code>curl -s &#39;http://localhost:8000/api/v1/flags/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39;</code></pre><button type="button" class="copy" data-copy="GC-8B6A1273-repro" hidden>Copy</button></div>
+    
+    
+    <details><summary>Evidence (1)</summary><div>
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s &#39;http://localhost:8000/api/v1/flags/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39;</code></pre>
+      <pre><code>payment_config = {&#34;provider&#34;:&#34;acmepay&#34;,&#34;api_secret&#34;:&#34;[SECRET len=42 prefix=acme…]&#34;,&#34;webhook&#34;:&#34;ht… (126 bytes)</code></pre>
+      <p>secret detected in value at $.api_secret (acme_live_key)</p>
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Rotate the credential, then move it to server-side configuration or mark the flag server-side only.</p>
+  </article>
+  
+  <article class="card critical" id="GC-70850605" aria-labelledby="GC-70850605-h">
+    <header>
+      <span class="chip sev-critical">Critical</span>
+      <h3 id="GC-70850605-h">Forging role=admin unlocks admin_panel (segment &#34;admins&#34;)</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-70850605</code></li>
+      <li>Type <code>TRAIT_FORGERY</code></li>
+      <li>Subject <code>admins</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">flagsmith-engine</li><li class="badge">live-probe</li></ul>
+    <p><span class="lbl">What happened.</span> Anyone can claim user attributes such as role=admin from the browser and Flagsmith accepts them, unlocking admin_panel.</p>
+    <p><span class="lbl">Why it matters.</span> The environment lets client-side code set traits, so targeting rules based on traits are not a security boundary.</p>
+    <p><span class="lbl">Business impact.</span> Paid or privileged features can be used without paying or being authorised.</p>
+    
+    
+    <p class="sub">Reproduce (key shown as &lt;CLIENT_KEY&gt;)</p>
+    <div class="codewrap"><pre id="GC-70850605-repro"><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-3489d293-7174-47bd-aabe-1c01515af216&#34;,&#34;traits&#34;:[{&#34;trait_key&#34;:&#34;role&#34;,&#34;trait_value&#34;:&#34;admin&#34;,&#34;transient&#34;:true}],&#34;transient&#34;:true}&#39;</code></pre><button type="button" class="copy" data-copy="GC-70850605-repro" hidden>Copy</button></div>
+    
+    
+    <details><summary>Evidence (4)</summary><div>
+      
+      <p class="sub">engine</p>
+      
+      
+      <p>Flagsmith&#39;s engine serves on instead of off for flag &#34;admin_panel&#34; to an identity with trait/identifier role=&#34;admin&#34; (segment &#34;admins&#34;; forgeable: yes).</p>
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-3489d293-7174-47bd-aabe-1c01515af216&#34;,&#34;traits&#34;:[{&#34;trait_key&#34;:&#34;role&#34;,&#34;trait_value&#34;:&#34;admin&#34;,&#34;transient&#34;:true}],&#34;transient&#34;:true}&#39;</code></pre>
+      <pre><code>HTTP 200 {&#34;identifier&#34;:&#34;gc-probe-3489d293-7174-47bd-aabe-1c01515af216&#34;,&#34;traits&#34;:[{&#34;id&#34;:null,&#34;trait_key&#34;:&#34;role&#34;,&#34;trait_value&#34;:&#34;admin&#34;,&#34;transient&#34;:true}],&#34;flags&#34;:[{&#34;id&#34;:2,&#34;feature&#34;:{&#34;id&#34;:1,&#34;name&#34;:&#34;premium_export&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.396897Z&#34;,&#34;description&#34;:&#34;Paid feature gated on the plan trait (trait forgery).&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:null,&#34;enabled&#34;:false,&#34;reason&#34;:&#34;DEFAULT&#34;,&#34;variant&#34;:null},{&#34;id&#34;:30,&#34;feature&#34;:{&#34;id&#34;:2,&#34;name&#34;:&#34;admin_panel&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.583758Z&#34;,&#34;description&#34;:&#34;Admin UI gated on the role trait (privilege escalation).&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:7,&#34;enabled&#34;:true,&#34;reason&#34;:&#34;TARGETING_MATCH; segment=admins&#34;,&#34;variant&#34;:null},{&#34;id&#34;:6,&#34;feature&#34;:{&#34;id&#34;:3,&#34;name&#34;:&#34;staff_preview&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.752189Z&#34;,&#34;description&#34;:&#34;Staff-only preview gated on an email regex.&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:null,&#34;enabled&#34;:false,&#34;reason&#34;:&#34;DEFAULT&#34;,&#34;variant&#34;:null},{&#34;id&#34;:8,&#34;feature&#34;:{&#34;id&#34;:4,&#34;name&#34;:&#34;early_access_ai&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.938841Z&#34;,&#34;description&#34;:&#34;10 percent canary rollout (identifier re-roll).&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;…</code></pre>
+      
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-f83663b4c1cd99851b79a7e8858e7a6a&#34;,&#34;traits&#34;:[{&#34;trait_key&#34;:&#34;role&#34;,&#34;trait_value&#34;:&#34;admin&#34;,&#34;transient&#34;:true}],&#34;transient&#34;:true}&#39;</code></pre>
+      
+      <p>Transient SDK evaluation; raw response omitted to protect trait and flag values.</p>
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-5ee0a649065a6fd77169aefd1d04774a&#34;,&#34;traits&#34;:[{&#34;trait_key&#34;:&#34;role&#34;,&#34;trait_value&#34;:&#34;admin&#34;,&#34;transient&#34;:true}],&#34;transient&#34;:true}&#39;</code></pre>
+      
+      <p>Transient SDK evaluation; raw response omitted to protect trait and flag values.</p>
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Turn off client-side traits for this environment, or move the decision to your server.</p>
+  </article>
+  
+  <article class="card critical" id="GC-1A45D85C" aria-labelledby="GC-1A45D85C-h">
+    <header>
+      <span class="chip sev-critical">Critical</span>
+      <h3 id="GC-1A45D85C-h">Forging email=a@acmeshop.dev unlocks staff_preview (segment &#34;staff&#34;)</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-1A45D85C</code></li>
+      <li>Type <code>TRAIT_FORGERY</code></li>
+      <li>Subject <code>staff</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">flagsmith-engine</li><li class="badge">live-probe</li></ul>
+    <p><span class="lbl">What happened.</span> Anyone can claim user attributes such as email=a@acmeshop.dev from the browser and Flagsmith accepts them, unlocking staff_preview.</p>
+    <p><span class="lbl">Why it matters.</span> The environment lets client-side code set traits, so targeting rules based on traits are not a security boundary.</p>
+    <p><span class="lbl">Business impact.</span> Paid or privileged features can be used without paying or being authorised.</p>
+    
+    
+    <p class="sub">Reproduce (key shown as &lt;CLIENT_KEY&gt;)</p>
+    <div class="codewrap"><pre id="GC-1A45D85C-repro"><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-a4579772-20fe-4c67-8a54-26a9e3b98da6&#34;,&#34;traits&#34;:[{&#34;trait_key&#34;:&#34;email&#34;,&#34;trait_value&#34;:&#34;a@acmeshop.dev&#34;,&#34;transient&#34;:true}],&#34;transient&#34;:true}&#39;</code></pre><button type="button" class="copy" data-copy="GC-1A45D85C-repro" hidden>Copy</button></div>
+    
+    
+    <details><summary>Evidence (2)</summary><div>
+      
+      <p class="sub">engine</p>
+      
+      
+      <p>Flagsmith&#39;s engine serves on instead of off for flag &#34;staff_preview&#34; to an identity with trait/identifier email=&#34;a@acmeshop.dev&#34; (segment &#34;staff&#34;; forgeable: yes).</p>
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-a4579772-20fe-4c67-8a54-26a9e3b98da6&#34;,&#34;traits&#34;:[{&#34;trait_key&#34;:&#34;email&#34;,&#34;trait_value&#34;:&#34;a@acmeshop.dev&#34;,&#34;transient&#34;:true}],&#34;transient&#34;:true}&#39;</code></pre>
+      <pre><code>HTTP 200 {&#34;identifier&#34;:&#34;gc-probe-a4579772-20fe-4c67-8a54-26a9e3b98da6&#34;,&#34;traits&#34;:[{&#34;id&#34;:null,&#34;trait_key&#34;:&#34;email&#34;,&#34;trait_value&#34;:&#34;a@acmeshop.dev&#34;,&#34;transient&#34;:true}],&#34;flags&#34;:[{&#34;id&#34;:2,&#34;feature&#34;:{&#34;id&#34;:1,&#34;name&#34;:&#34;premium_export&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.396897Z&#34;,&#34;description&#34;:&#34;Paid feature gated on the plan trait (trait forgery).&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:null,&#34;enabled&#34;:false,&#34;reason&#34;:&#34;DEFAULT&#34;,&#34;variant&#34;:null},{&#34;id&#34;:4,&#34;feature&#34;:{&#34;id&#34;:2,&#34;name&#34;:&#34;admin_panel&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.583758Z&#34;,&#34;description&#34;:&#34;Admin UI gated on the role trait (privilege escalation).&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:null,&#34;enabled&#34;:false,&#34;reason&#34;:&#34;DEFAULT&#34;,&#34;variant&#34;:null},{&#34;id&#34;:31,&#34;feature&#34;:{&#34;id&#34;:3,&#34;name&#34;:&#34;staff_preview&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.752189Z&#34;,&#34;description&#34;:&#34;Staff-only preview gated on an email regex.&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:8,&#34;enabled&#34;:true,&#34;reason&#34;:&#34;TARGETING_MATCH; segment=staff&#34;,&#34;variant&#34;:null},{&#34;id&#34;:8,&#34;feature&#34;:{&#34;id&#34;:4,&#34;name&#34;:&#34;early_access_ai&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.938841Z&#34;,&#34;description&#34;:&#34;10 percent canary rollout (identifier re-roll).&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_valu…</code></pre>
+      
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Turn off client-side traits for this environment, or move the decision to your server.</p>
+  </article>
+  
+  <article class="card high" id="GC-DED120AC" aria-labelledby="GC-DED120AC-h">
+    <header>
+      <span class="chip sev-high">High</span>
+      <h3 id="GC-DED120AC-h">Users can pick their own group in experiment &#34;Pricing page price test&#34; (pricing_page)</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-DED120AC</code></li>
+      <li>Type <code>EXPERIMENT_RIGGING</code></li>
+      <li>Subject <code>pricing_page</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">flagsmith-engine</li><li class="badge">live-probe</li></ul>
+    <p><span class="lbl">What happened.</span> An outsider can steer which variant of pricing_page they receive and feed results into the experiment.</p>
+    <p><span class="lbl">Why it matters.</span> Experiment results can be manipulated by anyone who knows the public key.</p>
+    <p><span class="lbl">Business impact.</span> Decisions based on the experiment may be wrong.</p>
+    
+    
+    <p class="sub">Reproduce (key shown as &lt;CLIENT_KEY&gt;)</p>
+    <div class="codewrap"><pre id="GC-DED120AC-repro"><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-map-0&#34;,&#34;traits&#34;:[],&#34;transient&#34;:true}&#39;</code></pre><button type="button" class="copy" data-copy="GC-DED120AC-repro" hidden>Copy</button></div>
+    
+    
+    <details><summary>Evidence (3)</summary><div>
+      
+      <p class="sub">engine</p>
+      
+      
+      <p>Variant spread over 1000 identifiers: map[price_high:516 price_low:484]</p>
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-map-0&#34;,&#34;traits&#34;:[],&#34;transient&#34;:true}&#39;</code></pre>
+      <pre><code>HTTP 200 {&#34;identifier&#34;:&#34;gc-probe-map-0&#34;,&#34;traits&#34;:[],&#34;flags&#34;:[{&#34;id&#34;:2,&#34;feature&#34;:{&#34;id&#34;:1,&#34;name&#34;:&#34;premium_export&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.396897Z&#34;,&#34;description&#34;:&#34;Paid feature gated on the plan trait (trait forgery).&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:null,&#34;enabled&#34;:false,&#34;reason&#34;:&#34;DEFAULT&#34;,&#34;variant&#34;:null},{&#34;id&#34;:4,&#34;feature&#34;:{&#34;id&#34;:2,&#34;name&#34;:&#34;admin_panel&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.583758Z&#34;,&#34;description&#34;:&#34;Admin UI gated on the role trait (privilege escalation).&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:null,&#34;enabled&#34;:false,&#34;reason&#34;:&#34;DEFAULT&#34;,&#34;variant&#34;:null},{&#34;id&#34;:6,&#34;feature&#34;:{&#34;id&#34;:3,&#34;name&#34;:&#34;staff_preview&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.752189Z&#34;,&#34;description&#34;:&#34;Staff-only preview gated on an email regex.&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:null,&#34;enabled&#34;:false,&#34;reason&#34;:&#34;DEFAULT&#34;,&#34;variant&#34;:null},{&#34;id&#34;:8,&#34;feature&#34;:{&#34;id&#34;:4,&#34;name&#34;:&#34;early_access_ai&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.938841Z&#34;,&#34;description&#34;:&#34;10 percent canary rollout (identifier re-roll).&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:null,&#34;enabled&#34;:false,&#34;reason&#34;:&#34;DEFAULT&#34;,&#34;variant&#34;:null},{&#34;id&#34;:33,&#34;featur…</code></pre>
+      
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-e337e89129bb67b8e520fb3e429aca2f&#34;,&#34;traits&#34;:[],&#34;transient&#34;:true}&#39;</code></pre>
+      
+      <p>Transient SDK evaluation; raw response omitted to protect trait and flag values.</p>
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Keep experiment identifiers server-side and review the results for contamination.</p>
+  </article>
+  
+  <article class="card high" id="GC-0B5C5F67" aria-labelledby="GC-0B5C5F67-h">
+    <header>
+      <span class="chip sev-high">High</span>
+      <h3 id="GC-0B5C5F67-h">Sensitive flag &#34;payment_config&#34; is not &#34;Server-side only&#34;</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-0B5C5F67</code></li>
+      <li>Type <code>FLAG_NOT_SERVER_ONLY</code></li>
+      <li>Subject <code>payment_config</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">admin-settings</li></ul>
+    <p><span class="lbl">What happened.</span> The flag payment_config is visible to browsers but looks server-only.</p>
+    <p><span class="lbl">Why it matters.</span> Only flags marked server-side only are kept out of client responses.</p>
+    <p><span class="lbl">Business impact.</span> Server configuration is readable by anyone.</p>
+    
+    
+    
+    <details><summary>Evidence (1)</summary><div>
+      
+      <p class="sub">setting</p>
+      
+      
+      <p>Feature &#34;payment_config&#34; is classified SECRET but the dashboard setting &#34;Server-side only&#34; is off, so client SDKs receive it.</p>
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Mark the flag as server-side only.</p>
+  </article>
+  
+  <article class="card high" id="GC-914405C1" aria-labelledby="GC-914405C1-h">
+    <header>
+      <span class="chip sev-high">High</span>
+      <h3 id="GC-914405C1-h">Traits of ce***@acmeshop.dev are readable by anyone with the public client key</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-914405C1</code></li>
+      <li>Type <code>IDENTITY_TRAIT_LEAK</code></li>
+      <li>Subject <code>ce***@acmeshop.dev</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">live-probe</li><li class="badge">admin-settings</li></ul>
+    <p><span class="lbl">What happened.</span> Looking up identity ce***@acmeshop.dev with the public key returned stored traits.</p>
+    <p><span class="lbl">Why it matters.</span> Public keys can read identity data when an identifier is known or guessable.</p>
+    <p><span class="lbl">Business impact.</span> Personal or commercial data about a customer is exposed.</p>
+    
+    
+    <p class="sub">Reproduce (key shown as &lt;CLIENT_KEY&gt;)</p>
+    <div class="codewrap"><pre id="GC-914405C1-repro"><code>curl -s &#39;http://localhost:8000/api/v1/identities/?identifier=&lt;TEST_IDENTITY&gt;&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39;</code></pre><button type="button" class="copy" data-copy="GC-914405C1-repro" hidden>Copy</button></div>
+    
+    
+    <details><summary>Evidence (2)</summary><div>
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s &#39;http://localhost:8000/api/v1/identities/?identifier=&lt;TEST_IDENTITY&gt;&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39;</code></pre>
+      <pre><code>3 traits exposed; all values [MASKED]</code></pre>
+      
+      
+      <p class="sub">setting</p>
+      
+      
+      <p>Identity stores 3 trait(s); &#34;Hide sensitive data&#34; is off, so GET identities/?identifier= returns them. Trait values are not read by Gatecrasher.</p>
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Stop storing sensitive traits in Flagsmith or restrict identity reads.</p>
+  </article>
+  
+  <article class="card high" id="GC-1305BD20" aria-labelledby="GC-1305BD20-h">
+    <header>
+      <span class="chip sev-high">High</span>
+      <h3 id="GC-1305BD20-h">Traits of qa***@acmeshop.dev are readable by anyone with the public client key</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-1305BD20</code></li>
+      <li>Type <code>IDENTITY_TRAIT_LEAK</code></li>
+      <li>Subject <code>qa***@acmeshop.dev</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">live-probe</li></ul>
+    <p><span class="lbl">What happened.</span> Looking up identity qa***@acmeshop.dev with the public key returned stored traits.</p>
+    <p><span class="lbl">Why it matters.</span> Public keys can read identity data when an identifier is known or guessable.</p>
+    <p><span class="lbl">Business impact.</span> Personal or commercial data about a customer is exposed.</p>
+    
+    
+    <p class="sub">Reproduce (key shown as &lt;CLIENT_KEY&gt;)</p>
+    <div class="codewrap"><pre id="GC-1305BD20-repro"><code>curl -s &#39;http://localhost:8000/api/v1/identities/?identifier=&lt;TEST_IDENTITY&gt;&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39;</code></pre><button type="button" class="copy" data-copy="GC-1305BD20-repro" hidden>Copy</button></div>
+    
+    
+    <details><summary>Evidence (1)</summary><div>
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s &#39;http://localhost:8000/api/v1/identities/?identifier=&lt;TEST_IDENTITY&gt;&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39;</code></pre>
+      <pre><code>1 traits exposed; all values [MASKED]</code></pre>
+      
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Stop storing sensitive traits in Flagsmith or restrict identity reads.</p>
+  </article>
+  
+  <article class="card high" id="GC-688647D2" aria-labelledby="GC-688647D2-h">
+    <header>
+      <span class="chip sev-high">High</span>
+      <h3 id="GC-688647D2-h">Forging plan=gold unlocks premium_export (segment &#34;gold_plan&#34;)</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-688647D2</code></li>
+      <li>Type <code>TRAIT_FORGERY</code></li>
+      <li>Subject <code>gold_plan</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">flagsmith-engine</li><li class="badge">live-probe</li></ul>
+    <p><span class="lbl">What happened.</span> Anyone can claim user attributes such as plan=gold from the browser and Flagsmith accepts them, unlocking premium_export.</p>
+    <p><span class="lbl">Why it matters.</span> The environment lets client-side code set traits, so targeting rules based on traits are not a security boundary.</p>
+    <p><span class="lbl">Business impact.</span> Paid or privileged features can be used without paying or being authorised.</p>
+    
+    
+    <p class="sub">Reproduce (key shown as &lt;CLIENT_KEY&gt;)</p>
+    <div class="codewrap"><pre id="GC-688647D2-repro"><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-71ca5c19-fbb0-4924-9ad1-caccf7842ce0&#34;,&#34;traits&#34;:[{&#34;trait_key&#34;:&#34;plan&#34;,&#34;trait_value&#34;:&#34;gold&#34;,&#34;transient&#34;:true}],&#34;transient&#34;:true}&#39;</code></pre><button type="button" class="copy" data-copy="GC-688647D2-repro" hidden>Copy</button></div>
+    
+    
+    <details><summary>Evidence (4)</summary><div>
+      
+      <p class="sub">engine</p>
+      
+      
+      <p>Flagsmith&#39;s engine serves on instead of off for flag &#34;premium_export&#34; to an identity with trait/identifier plan=&#34;gold&#34; (segment &#34;gold_plan&#34;; forgeable: yes).</p>
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-71ca5c19-fbb0-4924-9ad1-caccf7842ce0&#34;,&#34;traits&#34;:[{&#34;trait_key&#34;:&#34;plan&#34;,&#34;trait_value&#34;:&#34;gold&#34;,&#34;transient&#34;:true}],&#34;transient&#34;:true}&#39;</code></pre>
+      <pre><code>HTTP 200 {&#34;identifier&#34;:&#34;gc-probe-71ca5c19-fbb0-4924-9ad1-caccf7842ce0&#34;,&#34;traits&#34;:[{&#34;id&#34;:null,&#34;trait_key&#34;:&#34;plan&#34;,&#34;trait_value&#34;:&#34;gold&#34;,&#34;transient&#34;:true}],&#34;flags&#34;:[{&#34;id&#34;:29,&#34;feature&#34;:{&#34;id&#34;:1,&#34;name&#34;:&#34;premium_export&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.396897Z&#34;,&#34;description&#34;:&#34;Paid feature gated on the plan trait (trait forgery).&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:6,&#34;enabled&#34;:true,&#34;reason&#34;:&#34;TARGETING_MATCH; segment=gold_plan&#34;,&#34;variant&#34;:null},{&#34;id&#34;:4,&#34;feature&#34;:{&#34;id&#34;:2,&#34;name&#34;:&#34;admin_panel&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.583758Z&#34;,&#34;description&#34;:&#34;Admin UI gated on the role trait (privilege escalation).&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:null,&#34;enabled&#34;:false,&#34;reason&#34;:&#34;DEFAULT&#34;,&#34;variant&#34;:null},{&#34;id&#34;:6,&#34;feature&#34;:{&#34;id&#34;:3,&#34;name&#34;:&#34;staff_preview&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.752189Z&#34;,&#34;description&#34;:&#34;Staff-only preview gated on an email regex.&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:null,&#34;enabled&#34;:false,&#34;reason&#34;:&#34;DEFAULT&#34;,&#34;variant&#34;:null},{&#34;id&#34;:8,&#34;feature&#34;:{&#34;id&#34;:4,&#34;name&#34;:&#34;early_access_ai&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.938841Z&#34;,&#34;description&#34;:&#34;10 percent canary rollout (identifier re-roll).&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null…</code></pre>
+      
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-aaac923b57c397c13bd693e8fef6f356&#34;,&#34;traits&#34;:[{&#34;trait_key&#34;:&#34;plan&#34;,&#34;trait_value&#34;:&#34;gold&#34;,&#34;transient&#34;:true}],&#34;transient&#34;:true}&#39;</code></pre>
+      
+      <p>Transient SDK evaluation; raw response omitted to protect trait and flag values.</p>
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-4f5f395e1c51756ea0ac82bd672abbe5&#34;,&#34;traits&#34;:[{&#34;trait_key&#34;:&#34;plan&#34;,&#34;trait_value&#34;:&#34;gold&#34;,&#34;transient&#34;:true}],&#34;transient&#34;:true}&#39;</code></pre>
+      
+      <p>Transient SDK evaluation; raw response omitted to protect trait and flag values.</p>
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Turn off client-side traits for this environment, or move the decision to your server.</p>
+  </article>
+  
+  <article class="card medium" id="GC-58B8A822" aria-labelledby="GC-58B8A822-h">
+    <header>
+      <span class="chip sev-medium">Medium</span>
+      <h3 id="GC-58B8A822-h">Identity override on beta_dashboard is readable by anyone who knows the identifier</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-58B8A822</code></li>
+      <li>Type <code>IDENTITY_OVERRIDE_LEAK</code></li>
+      <li>Subject <code>beta_dashboard</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">flagsmith-engine</li><li class="badge">admin-settings</li><li class="badge">live-probe</li></ul>
+    <p><span class="lbl">What happened.</span> Looking up identity beta_dashboard with the public key exposed per-user flag overrides.</p>
+    <p><span class="lbl">Why it matters.</span> Identity overrides reveal who has special access.</p>
+    <p><span class="lbl">Business impact.</span> Information about VIP users and their entitlements is exposed.</p>
+    
+    
+    <p class="sub">Reproduce (key shown as &lt;CLIENT_KEY&gt;)</p>
+    <div class="codewrap"><pre id="GC-58B8A822-repro"><code>curl -s &#39;http://localhost:8000/api/v1/identities/?identifier=&lt;TEST_IDENTITY&gt;&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39;</code></pre><button type="button" class="copy" data-copy="GC-58B8A822-repro" hidden>Copy</button></div>
+    
+    
+    <details><summary>Evidence (2)</summary><div>
+      
+      <p class="sub">engine</p>
+      
+      
+      <p>Identity override present in the environment document while &#34;Hide sensitive data&#34; is off.</p>
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s &#39;http://localhost:8000/api/v1/identities/?identifier=&lt;TEST_IDENTITY&gt;&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39;</code></pre>
+      <pre><code>Identity override differs from baseline; values [MASKED]</code></pre>
+      
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Remove sensitive identity overrides or avoid identifiers that are easy to guess.</p>
+  </article>
+  
+  <article class="card medium" id="GC-63E8DE85" aria-labelledby="GC-63E8DE85-h">
+    <header>
+      <span class="chip sev-medium">Medium</span>
+      <h3 id="GC-63E8DE85-h">Internal URL leaked to every browser: internal_api_url</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-63E8DE85</code></li>
+      <li>Type <code>INTERNAL_URL_LEAK</code></li>
+      <li>Subject <code>internal_api_url</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">deterministic</li></ul>
+    <p><span class="lbl">What happened.</span> The flag internal_api_url reveals an internal address or hostname.</p>
+    <p><span class="lbl">Why it matters.</span> Internal URLs map your network and help targeted attacks.</p>
+    <p><span class="lbl">Business impact.</span> Attackers learn where internal systems live.</p>
+    
+    
+    <p class="sub">Reproduce (key shown as &lt;CLIENT_KEY&gt;)</p>
+    <div class="codewrap"><pre id="GC-63E8DE85-repro"><code>curl -s &#39;http://localhost:8000/api/v1/flags/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39;</code></pre><button type="button" class="copy" data-copy="GC-63E8DE85-repro" hidden>Copy</button></div>
+    
+    
+    <details><summary>Evidence (1)</summary><div>
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s &#39;http://localhost:8000/api/v1/flags/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39;</code></pre>
+      <pre><code>internal_api_url = http://10.0.3.7:8080/admin (26 bytes)</code></pre>
+      <p>internal url detected in value at $ (private_ip)</p>
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Remove the value from client-visible flags or mark the flag server-side only.</p>
+  </article>
+  
+  <article class="card medium" id="GC-B626FA94" aria-labelledby="GC-B626FA94-h">
+    <header>
+      <span class="chip sev-medium">Medium</span>
+      <h3 id="GC-B626FA94-h">Re-rolling the identifier unlocks early_access_ai (≈9% rollout, ~11 tries)</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-B626FA94</code></li>
+      <li>Type <code>PERCENTAGE_REROLL</code></li>
+      <li>Subject <code>early_access_ai</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">flagsmith-engine</li><li class="badge">live-probe</li></ul>
+    <p><span class="lbl">What happened.</span> A visitor can keep choosing new identifiers until they land in the rollout group for early_access_ai.</p>
+    <p><span class="lbl">Why it matters.</span> Percentage rollouts are decided by the identifier, which the client controls.</p>
+    <p><span class="lbl">Business impact.</span> Gated or early-access features can be reached on demand, and rollout numbers become unreliable.</p>
+    
+    
+    <p class="sub">Reproduce (key shown as &lt;CLIENT_KEY&gt;)</p>
+    <div class="codewrap"><pre id="GC-B626FA94-repro"><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-map-9&#34;,&#34;traits&#34;:[],&#34;transient&#34;:true}&#39;</code></pre><button type="button" class="copy" data-copy="GC-B626FA94-repro" hidden>Copy</button></div>
+    
+    
+    <details><summary>Evidence (3)</summary><div>
+      
+      <p class="sub">engine</p>
+      
+      
+      <p>Flagsmith&#39;s engine serves on instead of off for flag &#34;early_access_ai&#34; to an identity with trait/identifier identifier=&#34;gc-probe-map-9&#34; (segment &#34;canary_10&#34;; forgeable: yes).</p>
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-map-9&#34;,&#34;traits&#34;:[],&#34;transient&#34;:true}&#39;</code></pre>
+      <pre><code>HTTP 200 {&#34;identifier&#34;:&#34;gc-probe-map-9&#34;,&#34;traits&#34;:[],&#34;flags&#34;:[{&#34;id&#34;:2,&#34;feature&#34;:{&#34;id&#34;:1,&#34;name&#34;:&#34;premium_export&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.396897Z&#34;,&#34;description&#34;:&#34;Paid feature gated on the plan trait (trait forgery).&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:null,&#34;enabled&#34;:false,&#34;reason&#34;:&#34;DEFAULT&#34;,&#34;variant&#34;:null},{&#34;id&#34;:4,&#34;feature&#34;:{&#34;id&#34;:2,&#34;name&#34;:&#34;admin_panel&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.583758Z&#34;,&#34;description&#34;:&#34;Admin UI gated on the role trait (privilege escalation).&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:null,&#34;enabled&#34;:false,&#34;reason&#34;:&#34;DEFAULT&#34;,&#34;variant&#34;:null},{&#34;id&#34;:6,&#34;feature&#34;:{&#34;id&#34;:3,&#34;name&#34;:&#34;staff_preview&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.752189Z&#34;,&#34;description&#34;:&#34;Staff-only preview gated on an email regex.&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:null,&#34;enabled&#34;:false,&#34;reason&#34;:&#34;DEFAULT&#34;,&#34;variant&#34;:null},{&#34;id&#34;:32,&#34;feature&#34;:{&#34;id&#34;:4,&#34;name&#34;:&#34;early_access_ai&#34;,&#34;created_date&#34;:&#34;2026-11-27T18:01:21.938841Z&#34;,&#34;description&#34;:&#34;10 percent canary rollout (identifier re-roll).&#34;,&#34;initial_value&#34;:null,&#34;default_enabled&#34;:false,&#34;type&#34;:&#34;STANDARD&#34;},&#34;feature_state_value&#34;:null,&#34;environment&#34;:2,&#34;identity&#34;:null,&#34;feature_segment&#34;:9,&#34;enabled&#34;:true,&#34;reason&#34;:&#34;TARGETING_MATCH; segment=canary_10&#34;,&#34;variant…</code></pre>
+      
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s -X POST &#39;http://localhost:8000/api/v1/identities/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39; -H &#39;Content-Type: application/json&#39; -d &#39;{&#34;identifier&#34;:&#34;gc-probe-0e62fd1fac37c9f62d74e98305802e65&#34;,&#34;traits&#34;:[],&#34;transient&#34;:true}&#39;</code></pre>
+      
+      <p>Transient SDK evaluation; raw response omitted to protect trait and flag values.</p>
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Do not use percentage rollouts as access control; derive identifiers on the server.</p>
+  </article>
+  
+  <article class="card medium" id="GC-A60CCA1A" aria-labelledby="GC-A60CCA1A-h">
+    <header>
+      <span class="chip sev-medium">Medium</span>
+      <h3 id="GC-A60CCA1A-h">Production: &#34;Allow client SDKs to set user traits&#34; is ON</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-A60CCA1A</code></li>
+      <li>Type <code>SETTING_CLIENT_TRAITS_ON</code></li>
+      <li>Subject <code>allow_client_traits</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">admin-settings</li></ul>
+    <p><span class="lbl">What happened.</span> The environment allow_client_traits allows client-side traits.</p>
+    <p><span class="lbl">Why it matters.</span> Anyone with the public key can send traits that change flag results.</p>
+    <p><span class="lbl">Business impact.</span> Trait-based targeting can be bypassed.</p>
+    
+    
+    
+    <details><summary>Evidence (1)</summary><div>
+      
+      <p class="sub">setting</p>
+      
+      
+      <p>Environment &#34;Production&#34;: dashboard setting &#34;Allow client SDKs to set user traits&#34; is ON (allow_client_traits). Anyone holding the public client key can set their own traits, so any segment keyed on a trait can be forged. Turn this setting off for every environment that uses segments for access control.</p>
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Disable client traits after confirming no app code needs them.</p>
+  </article>
+  
+  <article class="card medium" id="GC-9FE52BC7" aria-labelledby="GC-9FE52BC7-h">
+    <header>
+      <span class="chip sev-medium">Medium</span>
+      <h3 id="GC-9FE52BC7-h">Production: &#34;Hide sensitive data&#34; is OFF</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-9FE52BC7</code></li>
+      <li>Type <code>SETTING_SENSITIVE_DATA_VISIBLE</code></li>
+      <li>Subject <code>hide_sensitive_data</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">admin-settings</li></ul>
+    <p><span class="lbl">What happened.</span> The environment hide_sensitive_data does not hide sensitive data.</p>
+    <p><span class="lbl">Why it matters.</span> Sensitive flag data is returned to client-side requests.</p>
+    <p><span class="lbl">Business impact.</span> Secrets and internal details reach browsers.</p>
+    
+    
+    
+    <details><summary>Evidence (1)</summary><div>
+      
+      <p class="sub">setting</p>
+      
+      
+      <p>Environment &#34;Production&#34;: dashboard setting &#34;Hide sensitive data&#34; is OFF (hide_sensitive_data). Sensitive data is not hidden in this environment. Turn this setting on.</p>
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Enable the hide sensitive data setting.</p>
+  </article>
+  
+  <article class="card medium" id="GC-07590992" aria-labelledby="GC-07590992-h">
+    <header>
+      <span class="chip sev-medium">Medium</span>
+      <h3 id="GC-07590992-h">Unreleased product leaked through flag: project_nightjar_launch_2026_12_15</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-07590992</code></li>
+      <li>Type <code>UNRELEASED_PRODUCT_LEAK</code></li>
+      <li>Subject <code>project_nightjar_launch_2026_12_15</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">deterministic</li></ul>
+    <p><span class="lbl">What happened.</span> The flag project_nightjar_launch_2026_12_15 names an unreleased product or launch date.</p>
+    <p><span class="lbl">Why it matters.</span> Flag names are visible to anyone with the public key.</p>
+    <p><span class="lbl">Business impact.</span> Competitors or press can learn about the launch early.</p>
+    
+    
+    <p class="sub">Reproduce (key shown as &lt;CLIENT_KEY&gt;)</p>
+    <div class="codewrap"><pre id="GC-07590992-repro"><code>curl -s &#39;http://localhost:8000/api/v1/flags/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39;</code></pre><button type="button" class="copy" data-copy="GC-07590992-repro" hidden>Copy</button></div>
+    
+    
+    <details><summary>Evidence (1)</summary><div>
+      
+      <p class="sub">request</p>
+      <pre><code>curl -s &#39;http://localhost:8000/api/v1/flags/&#39; -H &#39;X-Environment-Key: &lt;CLIENT_KEY&gt;&#39;</code></pre>
+      <pre><code>project_nightjar_launch_2026_12_15 =  (0 bytes)</code></pre>
+      <p>unreleased product detected in flag name (codename_launch)</p>
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Rename the flag to something neutral or mark it server-side only.</p>
+  </article>
+  
+  <article class="card low" id="GC-03878136" aria-labelledby="GC-03878136-h">
+    <header>
+      <span class="chip sev-low">Low</span>
+      <h3 id="GC-03878136-h">Sensitive flag &#34;internal_api_url&#34; is not &#34;Server-side only&#34;</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-03878136</code></li>
+      <li>Type <code>FLAG_NOT_SERVER_ONLY</code></li>
+      <li>Subject <code>internal_api_url</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">admin-settings</li></ul>
+    <p><span class="lbl">What happened.</span> The flag internal_api_url is visible to browsers but looks server-only.</p>
+    <p><span class="lbl">Why it matters.</span> Only flags marked server-side only are kept out of client responses.</p>
+    <p><span class="lbl">Business impact.</span> Server configuration is readable by anyone.</p>
+    
+    
+    
+    <details><summary>Evidence (1)</summary><div>
+      
+      <p class="sub">setting</p>
+      
+      
+      <p>Feature &#34;internal_api_url&#34; is classified INTERNAL_URL but the dashboard setting &#34;Server-side only&#34; is off, so client SDKs receive it.</p>
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Mark the flag as server-side only.</p>
+  </article>
+  
+  <article class="card low" id="GC-64038665" aria-labelledby="GC-64038665-h">
+    <header>
+      <span class="chip sev-low">Low</span>
+      <h3 id="GC-64038665-h">Sensitive flag &#34;project_nightjar_launch_2026_12_15&#34; is not &#34;Server-side only&#34;</h3>
+      <span class="status bad">✗ EXPLOITABLE</span>
+    </header>
+    <ul class="facts">
+      <li>ID <code>GC-64038665</code></li>
+      <li>Type <code>FLAG_NOT_SERVER_ONLY</code></li>
+      <li>Subject <code>project_nightjar_launch_2026_12_15</code></li>
+      <li>Environment <code>Production</code></li>
+    </ul>
+    <ul class="badges" aria-label="Detected by"><li class="badge">admin-settings</li></ul>
+    <p><span class="lbl">What happened.</span> The flag project_nightjar_launch_2026_12_15 is visible to browsers but looks server-only.</p>
+    <p><span class="lbl">Why it matters.</span> Only flags marked server-side only are kept out of client responses.</p>
+    <p><span class="lbl">Business impact.</span> Server configuration is readable by anyone.</p>
+    
+    
+    
+    <details><summary>Evidence (1)</summary><div>
+      
+      <p class="sub">setting</p>
+      
+      
+      <p>Feature &#34;project_nightjar_launch_2026_12_15&#34; is classified UNRELEASED_PRODUCT but the dashboard setting &#34;Server-side only&#34; is off, so client SDKs receive it.</p>
+      
+    </div></details>
+    
+    
+    <p class="fix"><span class="lbl">Fix.</span> Mark the flag as server-side only.</p>
+  </article>
+  
+</section>
+
+<section id="settings" aria-labelledby="settings-h">
+  <h2 id="settings-h">Environment security settings</h2>
+  
+  <div class="tablewrap" role="region" aria-label="Environment security settings" tabindex="0"><table>
+    <caption>A check mark means the setting is secure; a cross means it is not.</caption>
+    <thead><tr><th scope="col">Environment</th><th scope="col">Client traits</th><th scope="col">Sensitive data</th><th scope="col">Server-only flags</th><th scope="col">Client-visible flags</th></tr></thead>
+    <tbody>
+      <tr><th scope="row">Production</th>
+        <td class="no">✗ Allowed (clients can write traits)</td>
+        <td class="no">✗ Visible to clients</td>
+        <td>0</td><td>11</td></tr>
+    </tbody></table></div>
+  
+</section>
+
+<section id="reachability" aria-labelledby="reach-h">
+  <h2 id="reach-h">Reachability map</h2>
+  
+  <div class="tablewrap" role="region" aria-label="Reachability map" tabindex="0"><table>
+    <caption>Flag states an outsider can reach with the public key.</caption>
+    <thead><tr><th scope="col">Flag</th><th scope="col">Reachable value</th><th scope="col">Reached via</th><th scope="col">Engine-verified</th><th scope="col">Live-verified</th></tr></thead>
+    <tbody>
+      <tr><th scope="row"><code>premium_export</code></th><td class="wrap">enabled</td><td class="wrap">forged traits plan=gold, segment gold_plan</td>
+        <td class="ok">✓ Yes</td><td class="ok">✓ Yes</td></tr>
+      <tr><th scope="row"><code>admin_panel</code></th><td class="wrap">enabled</td><td class="wrap">forged traits role=admin, segment admins</td>
+        <td class="ok">✓ Yes</td><td class="ok">✓ Yes</td></tr>
+      <tr><th scope="row"><code>staff_preview</code></th><td class="wrap">enabled</td><td class="wrap">forged traits email=a@acmeshop.dev, segment staff</td>
+        <td class="ok">✓ Yes</td><td class="ok">✓ Yes</td></tr>
+      <tr><th scope="row"><code>early_access_ai</code></th><td class="wrap">enabled</td><td class="wrap">identifier gc-probe-map-9, segment canary_10</td>
+        <td class="ok">✓ Yes</td><td class="ok">✓ Yes</td></tr>
+      <tr><th scope="row"><code>pricing_page</code></th><td class="wrap">enabled, value price_low</td><td class="wrap">identifier gc-probe-map-0</td>
+        <td class="ok">✓ Yes</td><td class="ok">✓ Yes</td></tr>
+    </tbody></table></div>
+  
+</section>
+
+
+
+<section id="method" aria-labelledby="method-h">
+  <h2 id="method-h">Method and scope</h2>
+  <dl class="meta">
+    <dt>Scope</dt><dd><ul class="scope-list"><li><code>localhost</code></li><li><code>localhost:8000</code></li></ul></dd>
+    <dt>Probes sent</dt><dd>1352</dd>
+    <dt>Duration</dt><dd>31.0 s (explain 6 ms, map 19.6 s, recon 11.4 s)</dd>
+    <dt>Engine parity</dt><dd>1000/1000 probes agree with the engine</dd>
+    
+    <dt>Evaluation engine</dt><dd>v5.7.0</dd>
+    <dt>Tool</dt><dd>Gatecrasher dev</dd>
+    <dt>Report ID</dt><dd><code>r-20261127-191524-324992</code> (schema 1.0)</dd>
+    <dt>Note</dt><dd>skipped out-of-scope script cdn.jsdelivr.net/npm/flagsmith@10.0.0/index.js: host not in allowed_domains</dd>
+  </dl>
+</section>
+
+</main>
+<footer><div class="wrap">Generated by Gatecrasher. Every key and secret in this report is redacted. Read-only checks only; nothing was changed in the audited environment.</div></footer>
+<script>
+(function(){
+  document.querySelectorAll('[data-copy]').forEach(function(b){
+    b.hidden=false;
+    b.addEventListener('click',function(){
+      var el=document.getElementById(b.getAttribute('data-copy'));
+      if(el&&navigator.clipboard){navigator.clipboard.writeText(el.textContent).then(function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)})}
+    });
+  });
+  window.addEventListener('beforeprint',function(){document.querySelectorAll('details').forEach(function(d){d.open=true})});
+})();
+</script>
+</body>
+</html>

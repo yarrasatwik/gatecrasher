@@ -99,7 +99,7 @@ func (a *App) Audit(ctx context.Context, o AuditOptions) (*model.Report, error) 
 	severity.Sort(r.Findings)
 	if o.Explain {
 		_ = stage("explain", func() error {
-			say("explain", fmt.Sprintf("explaining %d findings (%s)", len(r.Findings), a.AI.Mode()))
+			say("explain", fmt.Sprintf("explaining %d findings · AI %s", len(r.Findings), a.AI.Mode()))
 			for i := range r.Findings {
 				r.Findings[i].Explanation = a.AI.Explain(ctx, r.Findings[i])
 			}
@@ -144,7 +144,7 @@ func (a *App) outside(ctx context.Context, r *model.Report, target string, cls m
 		})
 	}
 	say("recon", fmt.Sprintf("client key found at %s; %d flags visible", strings.Join(res.Inventory.KeySources, ", "), len(res.Inventory.Flags)))
-	say("classify", "classifying flag names and values ("+string(a.AI.Mode())+")")
+	say("classify", "classifying flag names and values · AI "+string(a.AI.Mode()))
 	classes, mode := a.AI.Classify(ctx, res.Inventory)
 	r.AIMode = string(mode)
 	r.Classifications = classes

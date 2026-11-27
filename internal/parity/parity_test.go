@@ -107,7 +107,7 @@ func TestRunReportsMismatches(t *testing.T) {
 		t.Fatalf("tampered live API must produce mismatches: %+v", res)
 	}
 	m := res.Mismatches[0]
-	if m.Flag != "premium" || m.Engine != "on:on" || m.Live != "on:off" {
+	if m.Flag != "premium" || m.Engine != "on: on" || m.Live != "on: off" {
 		t.Errorf("mismatch detail: %+v", m)
 	}
 }

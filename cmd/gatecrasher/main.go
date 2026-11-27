@@ -47,6 +47,7 @@ func init() {
 		{"serve", "web UI on 127.0.0.1:8787 (with optional --watch)", cmdServe},
 		{"ci", "inside-view audit for CI: SARIF + job summary, exit 1 at --fail-on", cmdCI},
 		{"audit-log", "show and verify the hash-chained audit log", cmdAuditLog},
+		{"mcp", "read-only MCP server for coding agents (stdio)", cmdMCP},
 		{"version", "print version", cmdVersion},
 	}
 }

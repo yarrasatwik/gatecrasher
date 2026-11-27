@@ -11,3 +11,6 @@ lab/.state.json
 docs/BUILD_SPEC.md
 .claude/
 gatecrasher.yaml
+serve.log
+.local/
+*.log
