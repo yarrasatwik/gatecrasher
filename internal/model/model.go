@@ -96,22 +96,22 @@ type FindingType string
 
 // Finding types (spec §8, docs/findings-catalog.md).
 const (
-	FTraitForgery           FindingType = "TRAIT_FORGERY"
-	FPercentageReroll       FindingType = "PERCENTAGE_REROLL"
-	FVariantReroll          FindingType = "VARIANT_REROLL"
-	FExperimentRigging      FindingType = "EXPERIMENT_RIGGING"
-	FIdentityTraitLeak      FindingType = "IDENTITY_TRAIT_LEAK"
-	FIdentityOverrideLeak   FindingType = "IDENTITY_OVERRIDE_LEAK"
-	FSecretExposed          FindingType = "SECRET_IN_CLIENT_VALUE"
-	FInternalURL            FindingType = "INTERNAL_URL_LEAK"
-	FUnreleasedProduct      FindingType = "UNRELEASED_PRODUCT_LEAK"
-	FPricingLeak            FindingType = "PRICING_LEAK"
-	FPIILeak                FindingType = "PII_IN_CLIENT_VALUE"
-	FSettingClientTraitsOn  FindingType = "SETTING_CLIENT_TRAITS_ON"
-	FSettingSensitiveData   FindingType = "SETTING_SENSITIVE_DATA_VISIBLE"
-	FFlagNotServerOnly      FindingType = "FLAG_NOT_SERVER_ONLY"
-	FSegmentForgeable       FindingType = "SEGMENT_FORGEABLE"
-	FControlOK              FindingType = "CONTROL_OK"
+	FTraitForgery          FindingType = "TRAIT_FORGERY"
+	FPercentageReroll      FindingType = "PERCENTAGE_REROLL"
+	FVariantReroll         FindingType = "VARIANT_REROLL"
+	FExperimentRigging     FindingType = "EXPERIMENT_RIGGING"
+	FIdentityTraitLeak     FindingType = "IDENTITY_TRAIT_LEAK"
+	FIdentityOverrideLeak  FindingType = "IDENTITY_OVERRIDE_LEAK"
+	FSecretExposed         FindingType = "SECRET_IN_CLIENT_VALUE"
+	FInternalURL           FindingType = "INTERNAL_URL_LEAK"
+	FUnreleasedProduct     FindingType = "UNRELEASED_PRODUCT_LEAK"
+	FPricingLeak           FindingType = "PRICING_LEAK"
+	FPIILeak               FindingType = "PII_IN_CLIENT_VALUE"
+	FSettingClientTraitsOn FindingType = "SETTING_CLIENT_TRAITS_ON"
+	FSettingSensitiveData  FindingType = "SETTING_SENSITIVE_DATA_VISIBLE"
+	FFlagNotServerOnly     FindingType = "FLAG_NOT_SERVER_ONLY"
+	FSegmentForgeable      FindingType = "SEGMENT_FORGEABLE"
+	FControlOK             FindingType = "CONTROL_OK"
 )
 
 // Method records which mechanism produced or confirmed a finding.
@@ -274,13 +274,13 @@ type VerifyRow struct {
 
 // Stats holds measured numbers for the README and report.
 type Stats struct {
-	ProbesSent      int64          `json:"probes_sent"`
-	DurationMS      int64          `json:"duration_ms"`
-	StageMS         map[string]int64 `json:"stage_ms,omitempty"`
-	BySeverity      map[string]int `json:"by_severity"`
-	ParityChecked   int            `json:"parity_checked,omitempty"`
-	ParityAgreed    int            `json:"parity_agreed,omitempty"`
-	AIHeuristicAgree *float64      `json:"ai_heuristic_agreement,omitempty"`
+	ProbesSent       int64            `json:"probes_sent"`
+	DurationMS       int64            `json:"duration_ms"`
+	StageMS          map[string]int64 `json:"stage_ms,omitempty"`
+	BySeverity       map[string]int   `json:"by_severity"`
+	ParityChecked    int              `json:"parity_checked,omitempty"`
+	ParityAgreed     int              `json:"parity_agreed,omitempty"`
+	AIHeuristicAgree *float64         `json:"ai_heuristic_agreement,omitempty"`
 }
 
 // Report is the canonical audit output; every other format derives from it.

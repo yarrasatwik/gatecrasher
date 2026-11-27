@@ -9,3 +9,4 @@ reports/
 coverage.out
 lab/.state.json
 docs/BUILD_SPEC.md
+.claude/
