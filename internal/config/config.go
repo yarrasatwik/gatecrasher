@@ -53,28 +53,28 @@ type Watch struct {
 
 // Config is the full runtime configuration.
 type Config struct {
-	TargetURL           string    `yaml:"target_url"`
-	AllowedDomains      []string  `yaml:"allowed_domains"`
-	Flagsmith           Flagsmith `yaml:"flagsmith"`
-	TestIdentities      []string  `yaml:"test_identities"`
-	ServerOnlyTraits    []string  `yaml:"server_only_traits"`
-	ClientSetsIdentifier *bool    `yaml:"client_sets_identifier"`
-	AppRepo             string    `yaml:"app_repo"`
-	Probes              Probes    `yaml:"probes"`
-	PropagationTimeoutS int       `yaml:"propagation_timeout_s"`
-	ApprovalTTLMinutes  int       `yaml:"approval_ttl_minutes"`
-	StateDir            string    `yaml:"state_dir"`
-	ReportDir           string    `yaml:"report_dir"`
-	Watch               Watch     `yaml:"watch"`
+	TargetURL            string    `yaml:"target_url"`
+	AllowedDomains       []string  `yaml:"allowed_domains"`
+	Flagsmith            Flagsmith `yaml:"flagsmith"`
+	TestIdentities       []string  `yaml:"test_identities"`
+	ServerOnlyTraits     []string  `yaml:"server_only_traits"`
+	ClientSetsIdentifier *bool     `yaml:"client_sets_identifier"`
+	AppRepo              string    `yaml:"app_repo"`
+	Probes               Probes    `yaml:"probes"`
+	PropagationTimeoutS  int       `yaml:"propagation_timeout_s"`
+	ApprovalTTLMinutes   int       `yaml:"approval_ttl_minutes"`
+	StateDir             string    `yaml:"state_dir"`
+	ReportDir            string    `yaml:"report_dir"`
+	Watch                Watch     `yaml:"watch"`
 
 	// From the environment (never YAML).
-	OrgAPIKey    string            `yaml:"-"`
-	ServerKeys   map[string]string `yaml:"-"` // env name -> ser. key
-	ClientKeys   map[string]string `yaml:"-"` // env name -> client key (optional)
-	AnthropicKey string            `yaml:"-"`
-	Model        string            `yaml:"-"`
-	WebhookSecret string           `yaml:"-"`
-	SlackWebhook string            `yaml:"-"`
+	OrgAPIKey     string            `yaml:"-"`
+	ServerKeys    map[string]string `yaml:"-"` // env name -> ser. key
+	ClientKeys    map[string]string `yaml:"-"` // env name -> client key (optional)
+	AnthropicKey  string            `yaml:"-"`
+	Model         string            `yaml:"-"`
+	WebhookSecret string            `yaml:"-"`
+	SlackWebhook  string            `yaml:"-"`
 
 	Path string `yaml:"-"`
 	lock *scope.Lock
