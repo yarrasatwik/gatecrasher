@@ -207,9 +207,11 @@ type apiRule struct {
 }
 
 type apiSegment struct {
-	ID    int       `json:"id"`
-	Name  string    `json:"name"`
-	Rules []apiRule `json:"rules"`
+	ID        int       `json:"id"`
+	Name      string    `json:"name"`
+	Rules     []apiRule `json:"rules"`
+	Feature   *int      `json:"feature"`
+	ManagedBy any       `json:"managed_by"`
 }
 
 // segmentRules builds the canonical ALL -> ANY -> conditions rule tree.
@@ -267,6 +269,27 @@ func (s *seeder) ensureSegments(ctx context.Context) error {
 		default:
 			s.segmentIDs[want.Name] = cur.ID
 		}
+	}
+	return s.removeUndeclaredSegments(ctx, path, have)
+}
+
+// removeUndeclaredSegments deletes lab-project segments that are not in
+// seed_data.yaml (for example ones added while recording the watch-mode
+// demo), so a reset restores exactly the declared state. Feature-specific
+// and system-managed (experiment) segments are never touched.
+func (s *seeder) removeUndeclaredSegments(ctx context.Context, path string, have []apiSegment) error {
+	declared := map[string]bool{}
+	for _, d := range s.opts.data.Segments {
+		declared[d.Name] = true
+	}
+	for _, seg := range have {
+		if declared[seg.Name] || seg.Feature != nil || (seg.ManagedBy != nil && seg.ManagedBy != "") {
+			continue
+		}
+		if err := s.api.call(ctx, s.admin, "DELETE", fmt.Sprintf("%s%d/", path, seg.ID), nil, nil); err != nil {
+			return err
+		}
+		s.changed("removed undeclared segment %q", seg.Name)
 	}
 	return nil
 }

@@ -104,8 +104,91 @@ func (a *App) Apply(ctx context.Context, id string) (*model.PlanRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = ap.Apply(ctx, rec)
+	if err := ap.Apply(ctx, rec); err != nil {
+		return rec, err
+	}
+	// The applier waits for the environment document. The SDK endpoints can
+	// serve a cached environment for a while longer, so also wait until the
+	// live API stops reproducing the addressed findings. The measured time
+	// is what "the fix took effect" means to a user.
+	took, err := a.waitLive(ctx, rec)
+	if err == nil {
+		rec.TookMS = took.Milliseconds()
+		err = a.Store.Save(rec)
+	}
 	return rec, err
+}
+
+// waitLive polls Recheck for every automatically fixable finding of the
+// plan until all are BLOCKED or the propagation timeout passes.
+func (a *App) waitLive(ctx context.Context, rec *model.PlanRecord) (time.Duration, error) {
+	start := time.Now()
+	if rec.AppliedAt != nil {
+		start = *rec.AppliedAt
+	}
+	fs := a.planFindings(rec)
+	deadline := time.Now().Add(a.Cfg.PropagationTimeout())
+	for {
+		pending := 0
+		for _, f := range fs {
+			if !autoFixable(f) {
+				continue
+			}
+			if st, _, err := a.Recheck(ctx, f); err == nil && st == model.StatusExploitable {
+				pending++
+			}
+		}
+		if pending == 0 {
+			return time.Since(start), nil
+		}
+		if time.Now().After(deadline) {
+			return time.Since(start), fmt.Errorf("%d finding(s) still reproduce after %s; run verify later", pending, a.Cfg.PropagationTimeout())
+		}
+		select {
+		case <-ctx.Done():
+			return time.Since(start), ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+}
+
+// autoFixable reports whether an applied plan is expected to block f.
+func autoFixable(f model.Finding) bool {
+	switch f.Type {
+	case model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging:
+		return false
+	}
+	return true
+}
+
+// planFindings returns the latest report's findings addressed by rec, with
+// their status as first reported (so before/after stays honest on re-runs).
+func (a *App) planFindings(rec *model.PlanRecord) []model.Finding {
+	r, err := a.LoadReport("latest")
+	if err != nil {
+		return nil
+	}
+	want := map[string]bool{}
+	for _, id := range rec.Plan.FindingsAddressed {
+		want[id] = true
+	}
+	first := map[string]model.Status{}
+	for _, row := range rec.Verify {
+		first[row.FindingID] = row.Before
+	}
+	var fs []model.Finding
+	for _, f := range r.Findings {
+		if !want[f.ID] {
+			continue
+		}
+		if st, ok := first[f.ID]; ok {
+			f.Status = st
+		} else if f.Status == model.StatusBlocked {
+			f.Status = model.StatusExploitable
+		}
+		fs = append(fs, f)
+	}
+	return fs
 }
 
 // Rollback restores the plan's before-snapshot.
@@ -129,19 +212,10 @@ func (a *App) Verify(ctx context.Context, id, by string) (*model.PlanRecord, err
 	if err != nil {
 		return nil, err
 	}
+	fs := a.planFindings(rec)
 	r, err := a.LoadReport("latest")
 	if err != nil {
 		return nil, err
-	}
-	want := map[string]bool{}
-	for _, fid := range rec.Plan.FindingsAddressed {
-		want[fid] = true
-	}
-	var fs []model.Finding
-	for _, f := range r.Findings {
-		if want[f.ID] {
-			fs = append(fs, f)
-		}
 	}
 	rows := verify.Rerun(ctx, rec, fs, a.Recheck)
 	ap, err := a.Applier(ctx)
@@ -195,7 +269,7 @@ func (a *App) Recheck(ctx context.Context, f model.Finding) (model.Status, strin
 	switch f.Type {
 	case model.FSettingClientTraitsOn:
 		return statusIf(fresh.AllowClientTraits, fmt.Sprintf("allow_client_traits=%v", fresh.AllowClientTraits))
-	case model.FSettingSensitiveData:
+	case model.FSettingSensitiveData, model.FIdentityTraitLeak, model.FIdentityOverrideLeak:
 		return statusIf(!fresh.HideSensitiveData, fmt.Sprintf("hide_sensitive_data=%v", fresh.HideSensitiveData))
 	case model.FSecretExposed, model.FInternalURL, model.FUnreleasedProduct, model.FPricingLeak, model.FPIILeak, model.FFlagNotServerOnly:
 		flags, ev, err := sdk.EnvironmentFlags(ctx)

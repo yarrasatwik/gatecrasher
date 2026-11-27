@@ -7,12 +7,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/yarrasatwik/gatecrasher/internal/ai"
+	"github.com/yarrasatwik/gatecrasher/internal/attacks"
 	"github.com/yarrasatwik/gatecrasher/internal/flagsmith"
 	"github.com/yarrasatwik/gatecrasher/internal/mapper"
 	"github.com/yarrasatwik/gatecrasher/internal/model"
@@ -86,6 +88,11 @@ func (a *App) Audit(ctx context.Context, o AuditOptions) (*model.Report, error) 
 		}
 	}
 	say("severity", "applying deterministic severity rules")
+	for i := range r.Findings {
+		if r.Findings[i].Environment == "" {
+			r.Findings[i].Environment = o.Environment
+		}
+	}
 	dedupe(r)
 	severity.AssignAll(r.Findings)
 	severity.Sort(r.Findings)
@@ -157,6 +164,41 @@ func (a *App) outside(ctx context.Context, r *model.Report, target string, cls m
 			v := float64(agree) / float64(n)
 			r.Stats.AIHeuristicAgree = &v
 		}
+	}
+	return a.outsideAttacks(ctx, r, cls, say)
+}
+
+// outsideAttacks consumes the classified public inventory using only the SDK.
+func (a *App) outsideAttacks(ctx context.Context, r *model.Report, cls map[string]model.Category, say Progress) error {
+	inv := r.Inventory
+	sdk := flagsmith.NewSDK(a.HTTP, inv.APIURL, inv.Key)
+	base, err := sdk.Identify(ctx, probeID(), nil)
+	if err != nil {
+		return fmt.Errorf("attack baseline: %w", err)
+	}
+	names := make([]string, 0, len(inv.Flags))
+	for _, f := range inv.Flags {
+		names = append(names, f.Name)
+	}
+	u, _ := url.Parse(inv.TargetURL)
+	hs, mode := a.AI.Hypothesize(ctx, names, inv.TraitKeys, u.Hostname())
+	if !mode.On() {
+		r.AIMode = string(mode)
+	}
+	say("attack", fmt.Sprintf("testing %d trait hypotheses and configured test identities", len(hs)))
+	clientIDs := a.Cfg.ClientSetsIdentifier == nil || *a.Cfg.ClientSetsIdentifier
+	runner := attacks.New(sdk, attacks.Options{Environment: r.Environment, TestIdentities: a.Cfg.TestIdentities,
+		MaxHypotheses: a.Cfg.Probes.MaxHypotheses, MaxCombos: a.Cfg.Probes.MaxCombos,
+		RerollSamples: a.Cfg.Probes.RerollSamples, ClientSetsIdentifier: clientIDs})
+	findings, err := runner.Run(ctx, base.Flags, hs)
+	for i := range findings {
+		if c, ok := cls[findings[i].Subject]; ok {
+			findings[i].Category = c
+		}
+	}
+	r.Findings = append(r.Findings, findings...)
+	if err != nil {
+		return fmt.Errorf("outside attacks: %w", err)
 	}
 	return nil
 }
@@ -256,12 +298,13 @@ func (a *App) inside(ctx context.Context, r *model.Report, o AuditOptions, cls m
 	findings := mapper.ForgeableFindings(reach, opts)
 	findings = append(findings, variantFindings(eng, reach, env.Name)...)
 	for i := range findings {
-		refine(&findings[i], eng, running, expKnown)
 		if v, ok := verified[findingKey(findings[i])]; ok {
 			markLive(&findings[i], v)
 		}
+		refine(&findings[i], eng, running, expKnown)
 	}
 	r.Findings = append(r.Findings, findings...)
+	r.Findings = append(r.Findings, a.identityExposure(ctx, eng, env)...)
 
 	if o.ParitySamples > 0 {
 		say("parity", fmt.Sprintf("engine vs live parity over %d random identities", o.ParitySamples))
@@ -342,6 +385,19 @@ func reachKey(env, flag, seg string, traits map[string]string, id string) string
 	return env + "|" + flag + "|" + seg + "|" + strings.Join(keys, "&") + "|" + id
 }
 
+func traitString(t map[string]string) string {
+	keys := make([]string, 0, len(t))
+	for k := range t {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, k+"="+t[k])
+	}
+	return strings.Join(parts, " + ")
+}
+
 func findingKey(f model.Finding) string {
 	flag := ""
 	if len(f.Unlocked) > 0 {
@@ -398,8 +454,15 @@ func refine(f *model.Finding, eng *flagsmith.Engine, running map[string]string, 
 		return
 	}
 	flag := f.Unlocked[0].Flag
+	if f.Type == model.FSegmentForgeable && len(f.Traits) > 0 && f.Status == model.StatusExploitable {
+		f.Type = model.FTraitForgery
+		f.ID = model.MakeFindingID(f.Type, f.Environment, flag, traitString(f.Traits))
+		f.Title = fmt.Sprintf("Forging %s unlocks %s (segment %q)", traitString(f.Traits), flag, f.Subject)
+	}
 	if f.Type == model.FSegmentForgeable && len(f.Traits) == 0 && f.ProofID != "" {
 		f.Type = model.FPercentageReroll
+		f.Notes = append(f.Notes, fmt.Sprintf("Percentage-split segment %q; the browser chooses its own identifier.", f.Subject))
+		f.Subject = flag
 		f.HitRate = hitRate(eng, flag, f.Unlocked[0].After)
 		if f.HitRate > 0 {
 			f.Attempts = 1 / f.HitRate
