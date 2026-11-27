@@ -1,0 +1,41 @@
+{
+  "count": 1,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": 1,
+      "uuid": "eca0a170-0ab0-4143-b01e-2024313a5819",
+      "name": "Acme Labs",
+      "created_date": "2026-11-27T18:01:10.020274Z",
+      "webhook_notification_email": null,
+      "num_seats": 1,
+      "subscription": {
+        "id": 1,
+        "has_active_billing_periods": false,
+        "current_billing_period": null,
+        "deleted_at": null,
+        "uuid": "75b28f59-efdf-41e5-b07e-4b0ceba4eb2a",
+        "subscription_id": null,
+        "subscription_date": null,
+        "plan": "free",
+        "max_seats": 1,
+        "max_api_calls": 50000,
+        "cancellation_date": null,
+        "customer_id": null,
+        "billing_status": null,
+        "payment_method": null,
+        "notes": null
+      },
+      "role": "ADMIN",
+      "persist_trait_data": true,
+      "block_access_to_admin": false,
+      "stop_serving_flags": false,
+      "api_limit_restriction_enabled": false,
+      "api_limit_grace_period_used": false,
+      "overage_billing_eligible": false,
+      "restrict_project_create_to_admin": false,
+      "force_2fa": false
+    }
+  ]
+}

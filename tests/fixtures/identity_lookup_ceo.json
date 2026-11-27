@@ -1,0 +1,241 @@
+{
+  "identifier": "ceo@acmeshop.dev",
+  "traits": [
+    {
+      "id": 5,
+      "trait_key": "lifetime_value",
+      "trait_value": 48200,
+      "transient": false
+    },
+    {
+      "id": 6,
+      "trait_key": "phone",
+      "trait_value": "+1-555-0100",
+      "transient": false
+    },
+    {
+      "id": 7,
+      "trait_key": "plan",
+      "trait_value": "enterprise",
+      "transient": false
+    }
+  ],
+  "flags": [
+    {
+      "id": 2,
+      "feature": {
+        "id": 1,
+        "name": "premium_export",
+        "created_date": "2026-11-27T18:01:21.396897Z",
+        "description": "Paid feature gated on the plan trait (trait forgery).",
+        "initial_value": null,
+        "default_enabled": false,
+        "type": "STANDARD"
+      },
+      "feature_state_value": null,
+      "environment": 2,
+      "identity": null,
+      "feature_segment": null,
+      "enabled": false,
+      "reason": "DEFAULT",
+      "variant": null
+    },
+    {
+      "id": 4,
+      "feature": {
+        "id": 2,
+        "name": "admin_panel",
+        "created_date": "2026-11-27T18:01:21.583758Z",
+        "description": "Admin UI gated on the role trait (privilege escalation).",
+        "initial_value": null,
+        "default_enabled": false,
+        "type": "STANDARD"
+      },
+      "feature_state_value": null,
+      "environment": 2,
+      "identity": null,
+      "feature_segment": null,
+      "enabled": false,
+      "reason": "DEFAULT",
+      "variant": null
+    },
+    {
+      "id": 6,
+      "feature": {
+        "id": 3,
+        "name": "staff_preview",
+        "created_date": "2026-11-27T18:01:21.752189Z",
+        "description": "Staff-only preview gated on an email regex.",
+        "initial_value": null,
+        "default_enabled": false,
+        "type": "STANDARD"
+      },
+      "feature_state_value": null,
+      "environment": 2,
+      "identity": null,
+      "feature_segment": null,
+      "enabled": false,
+      "reason": "DEFAULT",
+      "variant": null
+    },
+    {
+      "id": 8,
+      "feature": {
+        "id": 4,
+        "name": "early_access_ai",
+        "created_date": "2026-11-27T18:01:21.938841Z",
+        "description": "10 percent canary rollout (identifier re-roll).",
+        "initial_value": null,
+        "default_enabled": false,
+        "type": "STANDARD"
+      },
+      "feature_state_value": null,
+      "environment": 2,
+      "identity": null,
+      "feature_segment": null,
+      "enabled": false,
+      "reason": "DEFAULT",
+      "variant": null
+    },
+    {
+      "id": 33,
+      "feature": {
+        "id": 5,
+        "name": "pricing_page",
+        "created_date": "2026-11-27T18:01:22.099975Z",
+        "description": "Multivariate price test (variant re-roll, experiment rigging).",
+        "initial_value": "price_high",
+        "default_enabled": true,
+        "type": "MULTIVARIATE"
+      },
+      "feature_state_value": "price_low",
+      "environment": 2,
+      "identity": null,
+      "feature_segment": 10,
+      "enabled": true,
+      "reason": "SPLIT; weight=50.0",
+      "variant": null,
+      "metadata": {
+        "experiment": {
+          "id": 2,
+          "name": "Pricing page price test",
+          "in_experiment": true
+        }
+      }
+    },
+    {
+      "id": 12,
+      "feature": {
+        "id": 6,
+        "name": "payment_config",
+        "created_date": "2026-11-27T18:01:22.304894Z",
+        "description": "Remote config that carries a secret in a client-visible value.",
+        "initial_value": "{\"provider\":\"acmepay\",\"api_secret\":\"acme_live_<redacted>\",\"webhook\":\"https://internal.acmeshop.dev/pay\"}",
+        "default_enabled": true,
+        "type": "STANDARD"
+      },
+      "feature_state_value": "{\"provider\":\"acmepay\",\"api_secret\":\"acme_live_<redacted>\",\"webhook\":\"https://internal.acmeshop.dev/pay\"}",
+      "environment": 2,
+      "identity": null,
+      "feature_segment": null,
+      "enabled": true,
+      "reason": "STATIC",
+      "variant": null
+    },
+    {
+      "id": 14,
+      "feature": {
+        "id": 7,
+        "name": "internal_api_url",
+        "created_date": "2026-11-27T18:01:22.467601Z",
+        "description": "Remote config that leaks an internal URL.",
+        "initial_value": "http://10.0.3.7:8080/admin",
+        "default_enabled": true,
+        "type": "STANDARD"
+      },
+      "feature_state_value": "http://10.0.3.7:8080/admin",
+      "environment": 2,
+      "identity": null,
+      "feature_segment": null,
+      "enabled": true,
+      "reason": "STATIC",
+      "variant": null
+    },
+    {
+      "id": 16,
+      "feature": {
+        "id": 8,
+        "name": "project_nightjar_launch_2026_12_15",
+        "created_date": "2026-11-27T18:01:22.634528Z",
+        "description": "Flag name leaks an unreleased product and its launch date.",
+        "initial_value": null,
+        "default_enabled": false,
+        "type": "STANDARD"
+      },
+      "feature_state_value": null,
+      "environment": 2,
+      "identity": null,
+      "feature_segment": null,
+      "enabled": false,
+      "reason": "STATIC",
+      "variant": null
+    },
+    {
+      "id": 34,
+      "feature": {
+        "id": 9,
+        "name": "beta_dashboard",
+        "created_date": "2026-11-27T18:01:22.846219Z",
+        "description": "Beta dashboard enabled for the CEO through an identity override.",
+        "initial_value": null,
+        "default_enabled": false,
+        "type": "STANDARD"
+      },
+      "feature_state_value": null,
+      "environment": 2,
+      "identity": 3,
+      "feature_segment": null,
+      "enabled": true,
+      "reason": "TARGETING_MATCH; segment=identity_overrides",
+      "variant": null
+    },
+    {
+      "id": 20,
+      "feature": {
+        "id": 10,
+        "name": "maintenance_mode",
+        "created_date": "2026-11-27T18:01:23.033419Z",
+        "description": "Harmless control flag (must not be reported).",
+        "initial_value": null,
+        "default_enabled": false,
+        "type": "STANDARD"
+      },
+      "feature_state_value": null,
+      "environment": 2,
+      "identity": null,
+      "feature_segment": null,
+      "enabled": false,
+      "reason": "STATIC",
+      "variant": null
+    },
+    {
+      "id": 22,
+      "feature": {
+        "id": 11,
+        "name": "banner_text",
+        "created_date": "2026-11-27T18:01:23.227969Z",
+        "description": "Harmless control value (must not be reported).",
+        "initial_value": "Free shipping over $50",
+        "default_enabled": true,
+        "type": "STANDARD"
+      },
+      "feature_state_value": "Free shipping over $50",
+      "environment": 2,
+      "identity": null,
+      "feature_segment": null,
+      "enabled": true,
+      "reason": "STATIC",
+      "variant": null
+    }
+  ]
+}

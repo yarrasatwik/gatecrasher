@@ -1,0 +1,12 @@
+{
+  "count": 1,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": 3,
+      "identifier": "ceo@acmeshop.dev",
+      "environment": 2
+    }
+  ]
+}

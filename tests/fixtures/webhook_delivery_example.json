@@ -1,0 +1,64 @@
+{
+  "headers": {
+    "Host": "host.docker.internal:9999",
+    "User-Agent": "python-requests/2.33.1",
+    "Accept-Encoding": "gzip, deflate, zstd",
+    "Accept": "*/*",
+    "Connection": "keep-alive",
+    "content-type": "application/json",
+    "X-Flagsmith-Signature": "a30733e9591b56e641b1028a6b47690a3e0b8746a3a5957464bfe5ea2069a3f3",
+    "Content-Length": "1420"
+  },
+  "body": {
+    "data": {
+      "author": null,
+      "created_date": "2026-11-27T18:04:25.729903Z",
+      "environment": {
+        "allow_client_traits": true,
+        "api_key": "REDACTED_PRODUCTION_CLIENT_KEY",
+        "banner_colour": null,
+        "banner_text": null,
+        "description": null,
+        "hide_disabled_flags": null,
+        "hide_sensitive_data": false,
+        "id": 2,
+        "is_creating": false,
+        "minimum_change_request_approvals": null,
+        "name": "Production",
+        "project": 1,
+        "use_identity_composite_key_for_hashing": true,
+        "use_identity_overrides_in_local_eval": true,
+        "use_mv_v2_evaluation": true,
+        "use_v2_feature_versioning": false,
+        "uuid": "097c78e2-821f-4822-b72f-655f63075aea"
+      },
+      "id": 68,
+      "is_system_event": false,
+      "log": "Remote config value updated for feature: banner_text",
+      "organisation": null,
+      "project": {
+        "edge_v2_migration_status": "NOT_STARTED",
+        "enable_dynamo_db": false,
+        "enable_realtime_updates": false,
+        "enforce_feature_owners": false,
+        "feature_name_regex": null,
+        "hide_disabled_flags": false,
+        "id": 1,
+        "migration_status": "NOT_APPLICABLE",
+        "minimum_change_request_approvals": null,
+        "name": "Acme Shop",
+        "only_allow_lower_case_feature_names": true,
+        "organisation": 1,
+        "prevent_flag_defaults": false,
+        "show_edge_identity_overrides_for_feature": false,
+        "stale_flags_limit_days": 30,
+        "use_edge_identities": false,
+        "uuid": "a4bebfb6-18ff-4947-aeed-dfd96a3cb5f0"
+      },
+      "related_object_id": 22,
+      "related_object_type": "FEATURE_STATE",
+      "related_object_uuid": null
+    },
+    "event_type": "AUDIT_LOG_CREATED"
+  }
+}

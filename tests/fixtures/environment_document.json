@@ -1,0 +1,467 @@
+{
+  "id": 2,
+  "api_key": "REDACTED_PRODUCTION_CLIENT_KEY",
+  "project": {
+    "id": 1,
+    "name": "Acme Shop",
+    "organisation": {
+      "id": 1,
+      "name": "Acme Labs",
+      "feature_analytics": false,
+      "stop_serving_flags": false,
+      "persist_trait_data": true
+    },
+    "hide_disabled_flags": false,
+    "segments": [
+      {
+        "id": 1,
+        "name": "gold_plan",
+        "rules": [
+          {
+            "type": "ALL",
+            "rules": [
+              {
+                "type": "ANY",
+                "rules": [],
+                "conditions": [
+                  {
+                    "operator": "EQUAL",
+                    "value": "gold",
+                    "property_": "plan"
+                  }
+                ]
+              }
+            ],
+            "conditions": []
+          }
+        ],
+        "feature_states": [
+          {
+            "feature": {
+              "id": 1,
+              "name": "premium_export",
+              "type": "STANDARD"
+            },
+            "enabled": true,
+            "django_id": 29,
+            "feature_segment": {
+              "priority": 0
+            },
+            "featurestate_uuid": "9653f90f-3d31-4db4-92a7-de857cdf7ae4",
+            "feature_state_value": null,
+            "multivariate_feature_state_values": []
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "admins",
+        "rules": [
+          {
+            "type": "ALL",
+            "rules": [
+              {
+                "type": "ANY",
+                "rules": [],
+                "conditions": [
+                  {
+                    "operator": "EQUAL",
+                    "value": "admin",
+                    "property_": "role"
+                  }
+                ]
+              }
+            ],
+            "conditions": []
+          }
+        ],
+        "feature_states": [
+          {
+            "feature": {
+              "id": 2,
+              "name": "admin_panel",
+              "type": "STANDARD"
+            },
+            "enabled": true,
+            "django_id": 30,
+            "feature_segment": {
+              "priority": 0
+            },
+            "featurestate_uuid": "cef40b91-5047-467c-9702-9269eda1d09b",
+            "feature_state_value": null,
+            "multivariate_feature_state_values": []
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "name": "staff",
+        "rules": [
+          {
+            "type": "ALL",
+            "rules": [
+              {
+                "type": "ANY",
+                "rules": [],
+                "conditions": [
+                  {
+                    "operator": "REGEX",
+                    "value": ".*@acmeshop\\.dev$",
+                    "property_": "email"
+                  }
+                ]
+              }
+            ],
+            "conditions": []
+          }
+        ],
+        "feature_states": [
+          {
+            "feature": {
+              "id": 3,
+              "name": "staff_preview",
+              "type": "STANDARD"
+            },
+            "enabled": true,
+            "django_id": 31,
+            "feature_segment": {
+              "priority": 0
+            },
+            "featurestate_uuid": "2fc564d9-d2fb-4a3b-aa01-ec4e00ea53a6",
+            "feature_state_value": null,
+            "multivariate_feature_state_values": []
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "name": "canary_10",
+        "rules": [
+          {
+            "type": "ALL",
+            "rules": [
+              {
+                "type": "ANY",
+                "rules": [],
+                "conditions": [
+                  {
+                    "operator": "PERCENTAGE_SPLIT",
+                    "value": "10",
+                    "property_": "$.identity.key"
+                  }
+                ]
+              }
+            ],
+            "conditions": []
+          }
+        ],
+        "feature_states": [
+          {
+            "feature": {
+              "id": 4,
+              "name": "early_access_ai",
+              "type": "STANDARD"
+            },
+            "enabled": true,
+            "django_id": 32,
+            "feature_segment": {
+              "priority": 0
+            },
+            "featurestate_uuid": "21923280-3b2f-44bf-a9a0-4f87c172699d",
+            "feature_state_value": null,
+            "multivariate_feature_state_values": []
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "name": "experiment-1-rollout",
+        "rules": [
+          {
+            "type": "ALL",
+            "rules": [],
+            "conditions": [
+              {
+                "operator": "PERCENTAGE_SPLIT",
+                "value": "100.0",
+                "property_": "$.identity.key"
+              }
+            ]
+          }
+        ],
+        "feature_states": []
+      },
+      {
+        "id": 6,
+        "name": "experiment-2-rollout",
+        "rules": [
+          {
+            "type": "ALL",
+            "rules": [],
+            "conditions": [
+              {
+                "operator": "PERCENTAGE_SPLIT",
+                "value": "100.0",
+                "property_": "$.identity.key"
+              }
+            ]
+          }
+        ],
+        "feature_states": [
+          {
+            "feature": {
+              "id": 5,
+              "name": "pricing_page",
+              "type": "MULTIVARIATE"
+            },
+            "enabled": true,
+            "django_id": 33,
+            "feature_segment": {
+              "priority": 0
+            },
+            "featurestate_uuid": "6ff6f715-2534-4d7c-a978-bf344cb69fad",
+            "feature_state_value": "price_high",
+            "multivariate_feature_state_values": [
+              {
+                "multivariate_feature_option": {
+                  "value": "price_low",
+                  "id": 1,
+                  "key": null
+                },
+                "percentage_allocation": 50.0,
+                "id": 7,
+                "mv_fs_value_uuid": "d7b306fd-75f6-4289-929f-b1a65fdd9727"
+              },
+              {
+                "multivariate_feature_option": {
+                  "value": "price_high",
+                  "id": 2,
+                  "key": null
+                },
+                "percentage_allocation": 50.0,
+                "id": 8,
+                "mv_fs_value_uuid": "cc7499b9-5078-4c7b-a170-d9826d93767d"
+              }
+            ],
+            "metadata": {
+              "experiment": {
+                "id": 2,
+                "name": "Pricing page price test",
+                "in_experiment": true
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "enable_realtime_updates": false,
+    "server_key_only_feature_ids": []
+  },
+  "feature_states": [
+    {
+      "feature": {
+        "id": 1,
+        "name": "premium_export",
+        "type": "STANDARD"
+      },
+      "enabled": false,
+      "django_id": 2,
+      "feature_segment": null,
+      "featurestate_uuid": "2084a8a1-5586-4522-ace0-6d5b6780e6d9",
+      "feature_state_value": null,
+      "multivariate_feature_state_values": []
+    },
+    {
+      "feature": {
+        "id": 2,
+        "name": "admin_panel",
+        "type": "STANDARD"
+      },
+      "enabled": false,
+      "django_id": 4,
+      "feature_segment": null,
+      "featurestate_uuid": "c72a643f-c65e-456e-8f9c-e692548d5ec1",
+      "feature_state_value": null,
+      "multivariate_feature_state_values": []
+    },
+    {
+      "feature": {
+        "id": 3,
+        "name": "staff_preview",
+        "type": "STANDARD"
+      },
+      "enabled": false,
+      "django_id": 6,
+      "feature_segment": null,
+      "featurestate_uuid": "51199b93-14e7-4c2d-a7f9-6f61c01634d7",
+      "feature_state_value": null,
+      "multivariate_feature_state_values": []
+    },
+    {
+      "feature": {
+        "id": 4,
+        "name": "early_access_ai",
+        "type": "STANDARD"
+      },
+      "enabled": false,
+      "django_id": 8,
+      "feature_segment": null,
+      "featurestate_uuid": "c0a54d5f-29f8-47f3-99d5-7a161ac26186",
+      "feature_state_value": null,
+      "multivariate_feature_state_values": []
+    },
+    {
+      "feature": {
+        "id": 5,
+        "name": "pricing_page",
+        "type": "MULTIVARIATE"
+      },
+      "enabled": true,
+      "django_id": 10,
+      "feature_segment": null,
+      "featurestate_uuid": "c0402502-9bd0-4194-913b-cd1e0557233f",
+      "feature_state_value": "price_high",
+      "multivariate_feature_state_values": [
+        {
+          "multivariate_feature_option": {
+            "value": "price_low",
+            "id": 1,
+            "key": null
+          },
+          "percentage_allocation": 0.0,
+          "id": 2,
+          "mv_fs_value_uuid": "0f58ca9e-8055-49a4-be12-81560b0c3783"
+        },
+        {
+          "multivariate_feature_option": {
+            "value": "price_high",
+            "id": 2,
+            "key": null
+          },
+          "percentage_allocation": 0.0,
+          "id": 4,
+          "mv_fs_value_uuid": "91df6868-f338-4bdb-a54a-e2b5b0876a39"
+        }
+      ],
+      "metadata": {
+        "experiment": {
+          "id": 2,
+          "name": "Pricing page price test",
+          "in_experiment": false
+        }
+      }
+    },
+    {
+      "feature": {
+        "id": 6,
+        "name": "payment_config",
+        "type": "STANDARD"
+      },
+      "enabled": true,
+      "django_id": 12,
+      "feature_segment": null,
+      "featurestate_uuid": "66a7c3a0-4d68-452e-abee-f4cd379cca2c",
+      "feature_state_value": "{\"provider\":\"acmepay\",\"api_secret\":\"acme_live_<redacted>\",\"webhook\":\"https://internal.acmeshop.dev/pay\"}",
+      "multivariate_feature_state_values": []
+    },
+    {
+      "feature": {
+        "id": 7,
+        "name": "internal_api_url",
+        "type": "STANDARD"
+      },
+      "enabled": true,
+      "django_id": 14,
+      "feature_segment": null,
+      "featurestate_uuid": "c96d6363-466f-4c7e-a403-1f11393fad5e",
+      "feature_state_value": "http://10.0.3.7:8080/admin",
+      "multivariate_feature_state_values": []
+    },
+    {
+      "feature": {
+        "id": 8,
+        "name": "project_nightjar_launch_2026_12_15",
+        "type": "STANDARD"
+      },
+      "enabled": false,
+      "django_id": 16,
+      "feature_segment": null,
+      "featurestate_uuid": "afbac043-9b5a-493f-9027-cdbb2c530ed1",
+      "feature_state_value": null,
+      "multivariate_feature_state_values": []
+    },
+    {
+      "feature": {
+        "id": 9,
+        "name": "beta_dashboard",
+        "type": "STANDARD"
+      },
+      "enabled": false,
+      "django_id": 18,
+      "feature_segment": null,
+      "featurestate_uuid": "27f6ac39-01dd-4fa1-8a0f-8f81405a77ac",
+      "feature_state_value": null,
+      "multivariate_feature_state_values": []
+    },
+    {
+      "feature": {
+        "id": 10,
+        "name": "maintenance_mode",
+        "type": "STANDARD"
+      },
+      "enabled": false,
+      "django_id": 20,
+      "feature_segment": null,
+      "featurestate_uuid": "ae26b19b-bb41-4ec5-8f11-f2548bffc847",
+      "feature_state_value": null,
+      "multivariate_feature_state_values": []
+    },
+    {
+      "feature": {
+        "id": 11,
+        "name": "banner_text",
+        "type": "STANDARD"
+      },
+      "enabled": true,
+      "django_id": 22,
+      "feature_segment": null,
+      "featurestate_uuid": "13d0d078-25a1-42ba-ab77-b50437d26e00",
+      "feature_state_value": "Free shipping over $50",
+      "multivariate_feature_state_values": []
+    }
+  ],
+  "identity_overrides": [
+    {
+      "identifier": "ceo@acmeshop.dev",
+      "environment_api_key": "REDACTED_PRODUCTION_CLIENT_KEY",
+      "created_date": "2026-11-27T18:01:23.406990+00:00",
+      "identity_features": [
+        {
+          "feature": {
+            "id": 9,
+            "name": "beta_dashboard",
+            "type": "STANDARD"
+          },
+          "enabled": true,
+          "django_id": 34,
+          "feature_segment": null,
+          "featurestate_uuid": "24ee510e-7f02-48a3-9684-b12dccefe4b1",
+          "feature_state_value": null,
+          "multivariate_feature_state_values": []
+        }
+      ],
+      "identity_traits": [],
+      "identity_uuid": "fddbabeb-8ab4-4f65-9fb8-2a0e07521afe",
+      "django_id": 3,
+      "dashboard_alias": null,
+      "composite_key": "REDACTED_PRODUCTION_CLIENT_KEY_ceo@acmeshop.dev"
+    }
+  ],
+  "name": "Production",
+  "allow_client_traits": true,
+  "updated_at": "2026-11-27T18:07:16.473628+00:00",
+  "hide_sensitive_data": false,
+  "hide_disabled_flags": null,
+  "use_identity_composite_key_for_hashing": true,
+  "use_identity_overrides_in_local_eval": true
+}

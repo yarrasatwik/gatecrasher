@@ -1,0 +1,8 @@
+{
+  "id": 1,
+  "url": "http://host.docker.internal:9999/hook",
+  "enabled": true,
+  "secret": "lab-secret",
+  "created_at": "2026-11-27T18:04:25.171205Z",
+  "updated_at": "2026-11-27T18:04:25.171238Z"
+}

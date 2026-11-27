@@ -1,0 +1,63 @@
+{
+  "id": 2,
+  "feature": {
+    "id": 5,
+    "name": "pricing_page",
+    "type": "MULTIVARIATE",
+    "initial_value": "price_high",
+    "multivariate_options": [
+      {
+        "id": 1,
+        "uuid": "6f90a290-7e83-47ec-b6af-6531769127d6",
+        "type": "unicode",
+        "integer_value": null,
+        "string_value": "price_low",
+        "boolean_value": null,
+        "default_percentage_allocation": 0.0,
+        "key": null
+      },
+      {
+        "id": 2,
+        "uuid": "fe0478ba-d303-4edd-9b22-475c3add6d43",
+        "type": "unicode",
+        "integer_value": null,
+        "string_value": "price_high",
+        "boolean_value": null,
+        "default_percentage_allocation": 0.0,
+        "key": null
+      }
+    ]
+  },
+  "name": "Pricing page price test",
+  "hypothesis": "A lower price increases checkout conversion.",
+  "status": "running",
+  "metrics": [],
+  "experiment_rollout": {
+    "enabled": true,
+    "rollout_percentage": 100.0,
+    "feature_state_value": {
+      "type": "string",
+      "value": "price_high"
+    },
+    "multivariate_feature_state_values": [
+      {
+        "multivariate_feature_option": 1,
+        "percentage_allocation": 50.0
+      },
+      {
+        "multivariate_feature_option": 2,
+        "percentage_allocation": 50.0
+      }
+    ],
+    "audience": {
+      "match": "any",
+      "segments": []
+    }
+  },
+  "created_at": "2026-11-27T18:01:46.082423Z",
+  "updated_at": "2026-11-27T18:01:46.326343Z",
+  "started_at": "2026-11-27T18:01:46.325031Z",
+  "ended_at": null,
+  "rollout_decision": null,
+  "rollout_variant": null
+}

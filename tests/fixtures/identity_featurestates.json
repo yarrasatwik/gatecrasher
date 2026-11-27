@@ -1,0 +1,28 @@
+{
+  "count": 1,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": 34,
+      "feature_state_value": null,
+      "multivariate_feature_state_values": [],
+      "identity": {
+        "id": 3,
+        "identifier": "ceo@acmeshop.dev"
+      },
+      "deleted_at": null,
+      "uuid": "24ee510e-7f02-48a3-9684-b12dccefe4b1",
+      "enabled": true,
+      "created_at": "2026-11-27T18:01:48.078136Z",
+      "updated_at": "2026-11-27T18:01:48.078143Z",
+      "live_from": "2026-11-27T18:01:48.077169Z",
+      "version": 1,
+      "feature": 9,
+      "environment": 2,
+      "feature_segment": null,
+      "change_request": null,
+      "environment_feature_version": null
+    }
+  ]
+}
