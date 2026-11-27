@@ -1,0 +1,963 @@
+{
+  "schema_version": "1.0",
+  "id": "r-20261127-191524-324992",
+  "tool": "Gatecrasher",
+  "version": "dev",
+  "created_at": "2026-11-27T19:15:24.3427634Z",
+  "target": "http://localhost:3030",
+  "project": "Acme Shop",
+  "environment": "Production",
+  "ai_mode": "off (heuristics)",
+  "scope": [
+    "localhost",
+    "localhost:8000"
+  ],
+  "inventory": {
+    "target_url": "http://localhost:3030",
+    "api_url": "http://localhost:8000/api/v1/",
+    "key_fingerprint": "[CLIENT_KEY len=22 prefix=f7Cn…]",
+    "key_sources": [
+      "app.js:4 key-shaped string near flagsmith"
+    ],
+    "trait_keys_in_bundle": [
+      "plan"
+    ],
+    "flags": [
+      {
+        "name": "admin_panel",
+        "feature_id": 2,
+        "type": "STANDARD",
+        "enabled": false,
+        "value_type": "null",
+        "preview": "",
+        "size": 0
+      },
+      {
+        "name": "banner_text",
+        "feature_id": 11,
+        "type": "STANDARD",
+        "enabled": true,
+        "value_type": "string",
+        "preview": "Free shipping over $50",
+        "size": 22
+      },
+      {
+        "name": "beta_dashboard",
+        "feature_id": 9,
+        "type": "STANDARD",
+        "enabled": false,
+        "value_type": "null",
+        "preview": "",
+        "size": 0
+      },
+      {
+        "name": "early_access_ai",
+        "feature_id": 4,
+        "type": "STANDARD",
+        "enabled": false,
+        "value_type": "null",
+        "preview": "",
+        "size": 0
+      },
+      {
+        "name": "internal_api_url",
+        "feature_id": 7,
+        "type": "STANDARD",
+        "enabled": true,
+        "value_type": "string",
+        "preview": "http://10.0.3.7:8080/admin",
+        "size": 26
+      },
+      {
+        "name": "maintenance_mode",
+        "feature_id": 10,
+        "type": "STANDARD",
+        "enabled": false,
+        "value_type": "null",
+        "preview": "",
+        "size": 0
+      },
+      {
+        "name": "payment_config",
+        "feature_id": 6,
+        "type": "STANDARD",
+        "enabled": true,
+        "value_type": "json",
+        "preview": "{\"provider\":\"acmepay\",\"api_secret\":\"[SECRET len=42 prefix=acme…]\",\"webhook\":\"ht…",
+        "size": 126
+      },
+      {
+        "name": "premium_export",
+        "feature_id": 1,
+        "type": "STANDARD",
+        "enabled": false,
+        "value_type": "null",
+        "preview": "",
+        "size": 0
+      },
+      {
+        "name": "pricing_page",
+        "feature_id": 5,
+        "type": "MULTIVARIATE",
+        "enabled": true,
+        "value_type": "string",
+        "preview": "price_high",
+        "size": 10
+      },
+      {
+        "name": "project_nightjar_launch_2026_12_15",
+        "feature_id": 8,
+        "type": "STANDARD",
+        "enabled": false,
+        "value_type": "null",
+        "preview": "",
+        "size": 0
+      },
+      {
+        "name": "staff_preview",
+        "feature_id": 3,
+        "type": "STANDARD",
+        "enabled": false,
+        "value_type": "null",
+        "preview": "",
+        "size": 0
+      }
+    ],
+    "fetched_at": "2026-11-27T19:15:24.3604714Z"
+  },
+  "classifications": [
+    {
+      "flag": "admin_panel",
+      "category": "SECURITY_CONTROL",
+      "confidence": 0.6,
+      "rationale": "security control detected in flag name (admin_gate)",
+      "method": "deterministic",
+      "signals": [
+        "admin_gate@name"
+      ]
+    },
+    {
+      "flag": "banner_text",
+      "category": "HARMLESS",
+      "confidence": 0.9,
+      "rationale": "no sensitive pattern found in name or value",
+      "method": "deterministic"
+    },
+    {
+      "flag": "beta_dashboard",
+      "category": "HARMLESS",
+      "confidence": 0.9,
+      "rationale": "no sensitive pattern found in name or value",
+      "method": "deterministic"
+    },
+    {
+      "flag": "early_access_ai",
+      "category": "HARMLESS",
+      "confidence": 0.9,
+      "rationale": "no sensitive pattern found in name or value",
+      "method": "deterministic"
+    },
+    {
+      "flag": "internal_api_url",
+      "category": "INTERNAL_URL",
+      "confidence": 0.9,
+      "rationale": "internal url detected in value at $ (private_ip)",
+      "method": "deterministic",
+      "signals": [
+        "private_ip@$"
+      ]
+    },
+    {
+      "flag": "maintenance_mode",
+      "category": "HARMLESS",
+      "confidence": 0.9,
+      "rationale": "no sensitive pattern found in name or value",
+      "method": "deterministic"
+    },
+    {
+      "flag": "payment_config",
+      "category": "SECRET",
+      "confidence": 0.95,
+      "rationale": "secret detected in value at $.api_secret (acme_live_key)",
+      "method": "deterministic",
+      "signals": [
+        "acme_live_key@$.api_secret",
+        "secret_key_name@$.api_secret",
+        "internal_host@$.webhook"
+      ]
+    },
+    {
+      "flag": "premium_export",
+      "category": "HARMLESS",
+      "confidence": 0.9,
+      "rationale": "no sensitive pattern found in name or value",
+      "method": "deterministic"
+    },
+    {
+      "flag": "pricing_page",
+      "category": "HARMLESS",
+      "confidence": 0.9,
+      "rationale": "no sensitive pattern found in name or value",
+      "method": "deterministic"
+    },
+    {
+      "flag": "project_nightjar_launch_2026_12_15",
+      "category": "UNRELEASED_PRODUCT",
+      "confidence": 0.9,
+      "rationale": "unreleased product detected in flag name (codename_launch)",
+      "method": "deterministic",
+      "signals": [
+        "codename_launch@name"
+      ]
+    },
+    {
+      "flag": "staff_preview",
+      "category": "HARMLESS",
+      "confidence": 0.9,
+      "rationale": "no sensitive pattern found in name or value",
+      "method": "deterministic"
+    }
+  ],
+  "findings": [
+    {
+      "id": "GC-8B6A1273",
+      "type": "SECRET_IN_CLIENT_VALUE",
+      "severity": "critical",
+      "title": "Secret in a client-visible flag value: payment_config",
+      "environment": "Production",
+      "subject": "payment_config",
+      "category": "SECRET",
+      "detected_by": [
+        "deterministic"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "explanation": {
+        "title": "Secret in a client-visible flag value: payment_config",
+        "what_happened": "The flag payment_config serves a credential to every visitor.",
+        "why_it_matters": "Flag values in a client-side environment are public; a key stored there is already exposed.",
+        "business_impact": "Someone could use the credential to act as your service.",
+        "fix_summary": "Rotate the credential, then move it to server-side configuration or mark the flag server-side only.",
+        "source": "template"
+      },
+      "repro": "curl -s 'http://localhost:8000/api/v1/flags/' -H 'X-Environment-Key: <CLIENT_KEY>'",
+      "evidence": [
+        {
+          "kind": "request",
+          "request": "curl -s 'http://localhost:8000/api/v1/flags/' -H 'X-Environment-Key: <CLIENT_KEY>'",
+          "response": "payment_config = {\"provider\":\"acmepay\",\"api_secret\":\"[SECRET len=42 prefix=acme…]\",\"webhook\":\"ht… (126 bytes)",
+          "note": "secret detected in value at $.api_secret (acme_live_key)"
+        }
+      ]
+    },
+    {
+      "id": "GC-70850605",
+      "type": "TRAIT_FORGERY",
+      "severity": "critical",
+      "title": "Forging role=admin unlocks admin_panel (segment \"admins\")",
+      "environment": "Production",
+      "subject": "admins",
+      "category": "SECURITY_CONTROL",
+      "detected_by": [
+        "flagsmith-engine",
+        "live-probe"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "forged_traits": {
+        "role": "admin"
+      },
+      "unlocked": [
+        {
+          "flag": "admin_panel",
+          "before": "off",
+          "after": "on"
+        }
+      ],
+      "proof_identifier": "gc-probe-f83663b4c1cd99851b79a7e8858e7a6a",
+      "explanation": {
+        "title": "Forging role=admin unlocks admin_panel (segment \"admins\")",
+        "what_happened": "Anyone can claim user attributes such as role=admin from the browser and Flagsmith accepts them, unlocking admin_panel.",
+        "why_it_matters": "The environment lets client-side code set traits, so targeting rules based on traits are not a security boundary.",
+        "business_impact": "Paid or privileged features can be used without paying or being authorised.",
+        "fix_summary": "Turn off client-side traits for this environment, or move the decision to your server.",
+        "source": "template"
+      },
+      "repro": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-3489d293-7174-47bd-aabe-1c01515af216\",\"traits\":[{\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"transient\":true}'",
+      "evidence": [
+        {
+          "kind": "engine",
+          "note": "Flagsmith's engine serves on instead of off for flag \"admin_panel\" to an identity with trait/identifier role=\"admin\" (segment \"admins\"; forgeable: yes)."
+        },
+        {
+          "kind": "request",
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-3489d293-7174-47bd-aabe-1c01515af216\",\"traits\":[{\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"transient\":true}'",
+          "response": "HTTP 200 {\"identifier\":\"gc-probe-3489d293-7174-47bd-aabe-1c01515af216\",\"traits\":[{\"id\":null,\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"flags\":[{\"id\":2,\"feature\":{\"id\":1,\"name\":\"premium_export\",\"created_date\":\"2026-11-27T18:01:21.396897Z\",\"description\":\"Paid feature gated on the plan trait (trait forgery).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":30,\"feature\":{\"id\":2,\"name\":\"admin_panel\",\"created_date\":\"2026-11-27T18:01:21.583758Z\",\"description\":\"Admin UI gated on the role trait (privilege escalation).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":7,\"enabled\":true,\"reason\":\"TARGETING_MATCH; segment=admins\",\"variant\":null},{\"id\":6,\"feature\":{\"id\":3,\"name\":\"staff_preview\",\"created_date\":\"2026-11-27T18:01:21.752189Z\",\"description\":\"Staff-only preview gated on an email regex.\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":8,\"feature\":{\"id\":4,\"name\":\"early_access_ai\",\"created_date\":\"2026-11-27T18:01:21.938841Z\",\"description\":\"10 percent canary rollout (identifier re-roll).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"…"
+        },
+        {
+          "kind": "request",
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-f83663b4c1cd99851b79a7e8858e7a6a\",\"traits\":[{\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"transient\":true}'",
+          "note": "Transient SDK evaluation; raw response omitted to protect trait and flag values."
+        },
+        {
+          "kind": "request",
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-5ee0a649065a6fd77169aefd1d04774a\",\"traits\":[{\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"transient\":true}'",
+          "note": "Transient SDK evaluation; raw response omitted to protect trait and flag values."
+        }
+      ],
+      "notes": [
+        "experiment status unknown",
+        "2 larger trait combinations also unlock it; only the minimal input is reported."
+      ]
+    },
+    {
+      "id": "GC-1A45D85C",
+      "type": "TRAIT_FORGERY",
+      "severity": "critical",
+      "title": "Forging email=a@acmeshop.dev unlocks staff_preview (segment \"staff\")",
+      "environment": "Production",
+      "subject": "staff",
+      "category": "HARMLESS",
+      "detected_by": [
+        "flagsmith-engine",
+        "live-probe"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "forged_traits": {
+        "email": "a@acmeshop.dev"
+      },
+      "unlocked": [
+        {
+          "flag": "staff_preview",
+          "before": "off",
+          "after": "on"
+        }
+      ],
+      "explanation": {
+        "title": "Forging email=a@acmeshop.dev unlocks staff_preview (segment \"staff\")",
+        "what_happened": "Anyone can claim user attributes such as email=a@acmeshop.dev from the browser and Flagsmith accepts them, unlocking staff_preview.",
+        "why_it_matters": "The environment lets client-side code set traits, so targeting rules based on traits are not a security boundary.",
+        "business_impact": "Paid or privileged features can be used without paying or being authorised.",
+        "fix_summary": "Turn off client-side traits for this environment, or move the decision to your server.",
+        "source": "template"
+      },
+      "repro": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-a4579772-20fe-4c67-8a54-26a9e3b98da6\",\"traits\":[{\"trait_key\":\"email\",\"trait_value\":\"a@acmeshop.dev\",\"transient\":true}],\"transient\":true}'",
+      "evidence": [
+        {
+          "kind": "engine",
+          "note": "Flagsmith's engine serves on instead of off for flag \"staff_preview\" to an identity with trait/identifier email=\"a@acmeshop.dev\" (segment \"staff\"; forgeable: yes)."
+        },
+        {
+          "kind": "request",
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-a4579772-20fe-4c67-8a54-26a9e3b98da6\",\"traits\":[{\"trait_key\":\"email\",\"trait_value\":\"a@acmeshop.dev\",\"transient\":true}],\"transient\":true}'",
+          "response": "HTTP 200 {\"identifier\":\"gc-probe-a4579772-20fe-4c67-8a54-26a9e3b98da6\",\"traits\":[{\"id\":null,\"trait_key\":\"email\",\"trait_value\":\"a@acmeshop.dev\",\"transient\":true}],\"flags\":[{\"id\":2,\"feature\":{\"id\":1,\"name\":\"premium_export\",\"created_date\":\"2026-11-27T18:01:21.396897Z\",\"description\":\"Paid feature gated on the plan trait (trait forgery).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":4,\"feature\":{\"id\":2,\"name\":\"admin_panel\",\"created_date\":\"2026-11-27T18:01:21.583758Z\",\"description\":\"Admin UI gated on the role trait (privilege escalation).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":31,\"feature\":{\"id\":3,\"name\":\"staff_preview\",\"created_date\":\"2026-11-27T18:01:21.752189Z\",\"description\":\"Staff-only preview gated on an email regex.\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":8,\"enabled\":true,\"reason\":\"TARGETING_MATCH; segment=staff\",\"variant\":null},{\"id\":8,\"feature\":{\"id\":4,\"name\":\"early_access_ai\",\"created_date\":\"2026-11-27T18:01:21.938841Z\",\"description\":\"10 percent canary rollout (identifier re-roll).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_valu…"
+        }
+      ]
+    },
+    {
+      "id": "GC-DED120AC",
+      "type": "EXPERIMENT_RIGGING",
+      "severity": "high",
+      "title": "Users can pick their own group in experiment \"Pricing page price test\" (pricing_page)",
+      "environment": "Production",
+      "subject": "pricing_page",
+      "category": "HARMLESS",
+      "detected_by": [
+        "flagsmith-engine",
+        "live-probe"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "unlocked": [
+        {
+          "flag": "pricing_page",
+          "before": "on: price_high",
+          "after": "on: price_low"
+        }
+      ],
+      "hit_rate": 0.46,
+      "expected_attempts": 2.1739130434782608,
+      "proof_identifier": "gc-probe-map-0",
+      "variant_counts": {
+        "price_high": 516,
+        "price_low": 484
+      },
+      "explanation": {
+        "title": "Users can pick their own group in experiment \"Pricing page price test\" (pricing_page)",
+        "what_happened": "An outsider can steer which variant of pricing_page they receive and feed results into the experiment.",
+        "why_it_matters": "Experiment results can be manipulated by anyone who knows the public key.",
+        "business_impact": "Decisions based on the experiment may be wrong.",
+        "fix_summary": "Keep experiment identifiers server-side and review the results for contamination.",
+        "source": "template"
+      },
+      "repro": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-map-0\",\"traits\":[],\"transient\":true}'",
+      "evidence": [
+        {
+          "kind": "engine",
+          "note": "Variant spread over 1000 identifiers: map[price_high:516 price_low:484]"
+        },
+        {
+          "kind": "request",
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-map-0\",\"traits\":[],\"transient\":true}'",
+          "response": "HTTP 200 {\"identifier\":\"gc-probe-map-0\",\"traits\":[],\"flags\":[{\"id\":2,\"feature\":{\"id\":1,\"name\":\"premium_export\",\"created_date\":\"2026-11-27T18:01:21.396897Z\",\"description\":\"Paid feature gated on the plan trait (trait forgery).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":4,\"feature\":{\"id\":2,\"name\":\"admin_panel\",\"created_date\":\"2026-11-27T18:01:21.583758Z\",\"description\":\"Admin UI gated on the role trait (privilege escalation).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":6,\"feature\":{\"id\":3,\"name\":\"staff_preview\",\"created_date\":\"2026-11-27T18:01:21.752189Z\",\"description\":\"Staff-only preview gated on an email regex.\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":8,\"feature\":{\"id\":4,\"name\":\"early_access_ai\",\"created_date\":\"2026-11-27T18:01:21.938841Z\",\"description\":\"10 percent canary rollout (identifier re-roll).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":33,\"featur…"
+        },
+        {
+          "kind": "request",
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-e337e89129bb67b8e520fb3e429aca2f\",\"traits\":[],\"transient\":true}'",
+          "note": "Transient SDK evaluation; raw response omitted to protect trait and flag values."
+        }
+      ],
+      "notes": [
+        "identifier gc-probe-map-0 receives \"price_low\"",
+        "Business impact: any user can choose the variant they prefer (for example the cheaper price).",
+        "Data integrity: self-selected groups bias the results Flagsmith's Bayesian stats engine reports.",
+        "experiment status unknown"
+      ]
+    },
+    {
+      "id": "GC-0B5C5F67",
+      "type": "FLAG_NOT_SERVER_ONLY",
+      "severity": "high",
+      "title": "Sensitive flag \"payment_config\" is not \"Server-side only\"",
+      "environment": "Production",
+      "subject": "payment_config",
+      "category": "SECRET",
+      "detected_by": [
+        "admin-settings"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "explanation": {
+        "title": "Sensitive flag \"payment_config\" is not \"Server-side only\"",
+        "what_happened": "The flag payment_config is visible to browsers but looks server-only.",
+        "why_it_matters": "Only flags marked server-side only are kept out of client responses.",
+        "business_impact": "Server configuration is readable by anyone.",
+        "fix_summary": "Mark the flag as server-side only.",
+        "source": "template"
+      },
+      "evidence": [
+        {
+          "kind": "setting",
+          "note": "Feature \"payment_config\" is classified SECRET but the dashboard setting \"Server-side only\" is off, so client SDKs receive it."
+        }
+      ]
+    },
+    {
+      "id": "GC-914405C1",
+      "type": "IDENTITY_TRAIT_LEAK",
+      "severity": "high",
+      "title": "Traits of ce***@acmeshop.dev are readable by anyone with the public client key",
+      "environment": "Production",
+      "subject": "ce***@acmeshop.dev",
+      "category": "PII",
+      "detected_by": [
+        "live-probe",
+        "admin-settings"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "proof_identifier": "test-d62e47cee81d10ca16d59dfc69fa2fcaa5e555a12e64888b7b0da80a1f8970f2",
+      "explanation": {
+        "title": "Traits of ce***@acmeshop.dev are readable by anyone with the public client key",
+        "what_happened": "Looking up identity ce***@acmeshop.dev with the public key returned stored traits.",
+        "why_it_matters": "Public keys can read identity data when an identifier is known or guessable.",
+        "business_impact": "Personal or commercial data about a customer is exposed.",
+        "fix_summary": "Stop storing sensitive traits in Flagsmith or restrict identity reads.",
+        "source": "template"
+      },
+      "repro": "curl -s 'http://localhost:8000/api/v1/identities/?identifier=<TEST_IDENTITY>' -H 'X-Environment-Key: <CLIENT_KEY>'",
+      "evidence": [
+        {
+          "kind": "request",
+          "request": "curl -s 'http://localhost:8000/api/v1/identities/?identifier=<TEST_IDENTITY>' -H 'X-Environment-Key: <CLIENT_KEY>'",
+          "response": "3 traits exposed; all values [MASKED]"
+        },
+        {
+          "kind": "setting",
+          "note": "Identity stores 3 trait(s); \"Hide sensitive data\" is off, so GET identities/?identifier= returns them. Trait values are not read by Gatecrasher."
+        }
+      ]
+    },
+    {
+      "id": "GC-1305BD20",
+      "type": "IDENTITY_TRAIT_LEAK",
+      "severity": "high",
+      "title": "Traits of qa***@acmeshop.dev are readable by anyone with the public client key",
+      "environment": "Production",
+      "subject": "qa***@acmeshop.dev",
+      "category": "PII",
+      "detected_by": [
+        "live-probe"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "proof_identifier": "test-ca5bd843a3bb22f230c429bf4b36b348dd8f89bd77fca048f880c7b4393aae39",
+      "explanation": {
+        "title": "Traits of qa***@acmeshop.dev are readable by anyone with the public client key",
+        "what_happened": "Looking up identity qa***@acmeshop.dev with the public key returned stored traits.",
+        "why_it_matters": "Public keys can read identity data when an identifier is known or guessable.",
+        "business_impact": "Personal or commercial data about a customer is exposed.",
+        "fix_summary": "Stop storing sensitive traits in Flagsmith or restrict identity reads.",
+        "source": "template"
+      },
+      "repro": "curl -s 'http://localhost:8000/api/v1/identities/?identifier=<TEST_IDENTITY>' -H 'X-Environment-Key: <CLIENT_KEY>'",
+      "evidence": [
+        {
+          "kind": "request",
+          "request": "curl -s 'http://localhost:8000/api/v1/identities/?identifier=<TEST_IDENTITY>' -H 'X-Environment-Key: <CLIENT_KEY>'",
+          "response": "1 traits exposed; all values [MASKED]"
+        }
+      ]
+    },
+    {
+      "id": "GC-688647D2",
+      "type": "TRAIT_FORGERY",
+      "severity": "high",
+      "title": "Forging plan=gold unlocks premium_export (segment \"gold_plan\")",
+      "environment": "Production",
+      "subject": "gold_plan",
+      "category": "HARMLESS",
+      "detected_by": [
+        "flagsmith-engine",
+        "live-probe"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "forged_traits": {
+        "plan": "gold"
+      },
+      "unlocked": [
+        {
+          "flag": "premium_export",
+          "before": "off",
+          "after": "on"
+        }
+      ],
+      "proof_identifier": "gc-probe-aaac923b57c397c13bd693e8fef6f356",
+      "explanation": {
+        "title": "Forging plan=gold unlocks premium_export (segment \"gold_plan\")",
+        "what_happened": "Anyone can claim user attributes such as plan=gold from the browser and Flagsmith accepts them, unlocking premium_export.",
+        "why_it_matters": "The environment lets client-side code set traits, so targeting rules based on traits are not a security boundary.",
+        "business_impact": "Paid or privileged features can be used without paying or being authorised.",
+        "fix_summary": "Turn off client-side traits for this environment, or move the decision to your server.",
+        "source": "template"
+      },
+      "repro": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-71ca5c19-fbb0-4924-9ad1-caccf7842ce0\",\"traits\":[{\"trait_key\":\"plan\",\"trait_value\":\"gold\",\"transient\":true}],\"transient\":true}'",
+      "evidence": [
+        {
+          "kind": "engine",
+          "note": "Flagsmith's engine serves on instead of off for flag \"premium_export\" to an identity with trait/identifier plan=\"gold\" (segment \"gold_plan\"; forgeable: yes)."
+        },
+        {
+          "kind": "request",
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-71ca5c19-fbb0-4924-9ad1-caccf7842ce0\",\"traits\":[{\"trait_key\":\"plan\",\"trait_value\":\"gold\",\"transient\":true}],\"transient\":true}'",
+          "response": "HTTP 200 {\"identifier\":\"gc-probe-71ca5c19-fbb0-4924-9ad1-caccf7842ce0\",\"traits\":[{\"id\":null,\"trait_key\":\"plan\",\"trait_value\":\"gold\",\"transient\":true}],\"flags\":[{\"id\":29,\"feature\":{\"id\":1,\"name\":\"premium_export\",\"created_date\":\"2026-11-27T18:01:21.396897Z\",\"description\":\"Paid feature gated on the plan trait (trait forgery).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":6,\"enabled\":true,\"reason\":\"TARGETING_MATCH; segment=gold_plan\",\"variant\":null},{\"id\":4,\"feature\":{\"id\":2,\"name\":\"admin_panel\",\"created_date\":\"2026-11-27T18:01:21.583758Z\",\"description\":\"Admin UI gated on the role trait (privilege escalation).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":6,\"feature\":{\"id\":3,\"name\":\"staff_preview\",\"created_date\":\"2026-11-27T18:01:21.752189Z\",\"description\":\"Staff-only preview gated on an email regex.\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":8,\"feature\":{\"id\":4,\"name\":\"early_access_ai\",\"created_date\":\"2026-11-27T18:01:21.938841Z\",\"description\":\"10 percent canary rollout (identifier re-roll).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null…"
+        },
+        {
+          "kind": "request",
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-aaac923b57c397c13bd693e8fef6f356\",\"traits\":[{\"trait_key\":\"plan\",\"trait_value\":\"gold\",\"transient\":true}],\"transient\":true}'",
+          "note": "Transient SDK evaluation; raw response omitted to protect trait and flag values."
+        },
+        {
+          "kind": "request",
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-4f5f395e1c51756ea0ac82bd672abbe5\",\"traits\":[{\"trait_key\":\"plan\",\"trait_value\":\"gold\",\"transient\":true}],\"transient\":true}'",
+          "note": "Transient SDK evaluation; raw response omitted to protect trait and flag values."
+        }
+      ],
+      "notes": [
+        "experiment status unknown",
+        "13 larger trait combinations also unlock it; only the minimal input is reported."
+      ]
+    },
+    {
+      "id": "GC-58B8A822",
+      "type": "IDENTITY_OVERRIDE_LEAK",
+      "severity": "medium",
+      "title": "Identity override on beta_dashboard is readable by anyone who knows the identifier",
+      "environment": "Production",
+      "subject": "beta_dashboard",
+      "category": "HARMLESS",
+      "detected_by": [
+        "flagsmith-engine",
+        "admin-settings",
+        "live-probe"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "unlocked": [
+        {
+          "flag": "beta_dashboard",
+          "before": "off",
+          "after": "on"
+        }
+      ],
+      "proof_identifier": "test-d62e47cee81d10ca16d59dfc69fa2fcaa5e555a12e64888b7b0da80a1f8970f2",
+      "explanation": {
+        "title": "Identity override on beta_dashboard is readable by anyone who knows the identifier",
+        "what_happened": "Looking up identity beta_dashboard with the public key exposed per-user flag overrides.",
+        "why_it_matters": "Identity overrides reveal who has special access.",
+        "business_impact": "Information about VIP users and their entitlements is exposed.",
+        "fix_summary": "Remove sensitive identity overrides or avoid identifiers that are easy to guess.",
+        "source": "template"
+      },
+      "repro": "curl -s 'http://localhost:8000/api/v1/identities/?identifier=<TEST_IDENTITY>' -H 'X-Environment-Key: <CLIENT_KEY>'",
+      "evidence": [
+        {
+          "kind": "engine",
+          "note": "Identity override present in the environment document while \"Hide sensitive data\" is off."
+        },
+        {
+          "kind": "request",
+          "request": "curl -s 'http://localhost:8000/api/v1/identities/?identifier=<TEST_IDENTITY>' -H 'X-Environment-Key: <CLIENT_KEY>'",
+          "response": "Identity override differs from baseline; values [MASKED]"
+        }
+      ]
+    },
+    {
+      "id": "GC-63E8DE85",
+      "type": "INTERNAL_URL_LEAK",
+      "severity": "medium",
+      "title": "Internal URL leaked to every browser: internal_api_url",
+      "environment": "Production",
+      "subject": "internal_api_url",
+      "category": "INTERNAL_URL",
+      "detected_by": [
+        "deterministic"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "explanation": {
+        "title": "Internal URL leaked to every browser: internal_api_url",
+        "what_happened": "The flag internal_api_url reveals an internal address or hostname.",
+        "why_it_matters": "Internal URLs map your network and help targeted attacks.",
+        "business_impact": "Attackers learn where internal systems live.",
+        "fix_summary": "Remove the value from client-visible flags or mark the flag server-side only.",
+        "source": "template"
+      },
+      "repro": "curl -s 'http://localhost:8000/api/v1/flags/' -H 'X-Environment-Key: <CLIENT_KEY>'",
+      "evidence": [
+        {
+          "kind": "request",
+          "request": "curl -s 'http://localhost:8000/api/v1/flags/' -H 'X-Environment-Key: <CLIENT_KEY>'",
+          "response": "internal_api_url = http://10.0.3.7:8080/admin (26 bytes)",
+          "note": "internal url detected in value at $ (private_ip)"
+        }
+      ]
+    },
+    {
+      "id": "GC-B626FA94",
+      "type": "PERCENTAGE_REROLL",
+      "severity": "medium",
+      "title": "Re-rolling the identifier unlocks early_access_ai (≈9% rollout, ~11 tries)",
+      "environment": "Production",
+      "subject": "early_access_ai",
+      "category": "HARMLESS",
+      "detected_by": [
+        "flagsmith-engine",
+        "live-probe"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "unlocked": [
+        {
+          "flag": "early_access_ai",
+          "before": "off",
+          "after": "on"
+        }
+      ],
+      "hit_rate": 0.0925,
+      "expected_attempts": 10.81081081081081,
+      "proof_identifier": "gc-probe-map-9",
+      "variant_counts": {
+        "off": 183,
+        "on": 17
+      },
+      "explanation": {
+        "title": "Re-rolling the identifier unlocks early_access_ai (≈9% rollout, ~11 tries)",
+        "what_happened": "A visitor can keep choosing new identifiers until they land in the rollout group for early_access_ai.",
+        "why_it_matters": "Percentage rollouts are decided by the identifier, which the client controls.",
+        "business_impact": "Gated or early-access features can be reached on demand, and rollout numbers become unreliable.",
+        "fix_summary": "Do not use percentage rollouts as access control; derive identifiers on the server.",
+        "source": "template"
+      },
+      "repro": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-map-9\",\"traits\":[],\"transient\":true}'",
+      "evidence": [
+        {
+          "kind": "engine",
+          "note": "Flagsmith's engine serves on instead of off for flag \"early_access_ai\" to an identity with trait/identifier identifier=\"gc-probe-map-9\" (segment \"canary_10\"; forgeable: yes)."
+        },
+        {
+          "kind": "request",
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-map-9\",\"traits\":[],\"transient\":true}'",
+          "response": "HTTP 200 {\"identifier\":\"gc-probe-map-9\",\"traits\":[],\"flags\":[{\"id\":2,\"feature\":{\"id\":1,\"name\":\"premium_export\",\"created_date\":\"2026-11-27T18:01:21.396897Z\",\"description\":\"Paid feature gated on the plan trait (trait forgery).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":4,\"feature\":{\"id\":2,\"name\":\"admin_panel\",\"created_date\":\"2026-11-27T18:01:21.583758Z\",\"description\":\"Admin UI gated on the role trait (privilege escalation).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":6,\"feature\":{\"id\":3,\"name\":\"staff_preview\",\"created_date\":\"2026-11-27T18:01:21.752189Z\",\"description\":\"Staff-only preview gated on an email regex.\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":32,\"feature\":{\"id\":4,\"name\":\"early_access_ai\",\"created_date\":\"2026-11-27T18:01:21.938841Z\",\"description\":\"10 percent canary rollout (identifier re-roll).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":9,\"enabled\":true,\"reason\":\"TARGETING_MATCH; segment=canary_10\",\"variant…"
+        },
+        {
+          "kind": "request",
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-0e62fd1fac37c9f62d74e98305802e65\",\"traits\":[],\"transient\":true}'",
+          "note": "Transient SDK evaluation; raw response omitted to protect trait and flag values."
+        }
+      ],
+      "notes": [
+        "Percentage-split segment \"canary_10\"; the browser chooses its own identifier.",
+        "experiment status unknown"
+      ]
+    },
+    {
+      "id": "GC-A60CCA1A",
+      "type": "SETTING_CLIENT_TRAITS_ON",
+      "severity": "medium",
+      "title": "Production: \"Allow client SDKs to set user traits\" is ON",
+      "environment": "Production",
+      "subject": "allow_client_traits",
+      "detected_by": [
+        "admin-settings"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "explanation": {
+        "title": "Production: \"Allow client SDKs to set user traits\" is ON",
+        "what_happened": "The environment allow_client_traits allows client-side traits.",
+        "why_it_matters": "Anyone with the public key can send traits that change flag results.",
+        "business_impact": "Trait-based targeting can be bypassed.",
+        "fix_summary": "Disable client traits after confirming no app code needs them.",
+        "source": "template"
+      },
+      "evidence": [
+        {
+          "kind": "setting",
+          "note": "Environment \"Production\": dashboard setting \"Allow client SDKs to set user traits\" is ON (allow_client_traits). Anyone holding the public client key can set their own traits, so any segment keyed on a trait can be forged. Turn this setting off for every environment that uses segments for access control."
+        }
+      ]
+    },
+    {
+      "id": "GC-9FE52BC7",
+      "type": "SETTING_SENSITIVE_DATA_VISIBLE",
+      "severity": "medium",
+      "title": "Production: \"Hide sensitive data\" is OFF",
+      "environment": "Production",
+      "subject": "hide_sensitive_data",
+      "detected_by": [
+        "admin-settings"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "explanation": {
+        "title": "Production: \"Hide sensitive data\" is OFF",
+        "what_happened": "The environment hide_sensitive_data does not hide sensitive data.",
+        "why_it_matters": "Sensitive flag data is returned to client-side requests.",
+        "business_impact": "Secrets and internal details reach browsers.",
+        "fix_summary": "Enable the hide sensitive data setting.",
+        "source": "template"
+      },
+      "evidence": [
+        {
+          "kind": "setting",
+          "note": "Environment \"Production\": dashboard setting \"Hide sensitive data\" is OFF (hide_sensitive_data). Sensitive data is not hidden in this environment. Turn this setting on."
+        }
+      ]
+    },
+    {
+      "id": "GC-07590992",
+      "type": "UNRELEASED_PRODUCT_LEAK",
+      "severity": "medium",
+      "title": "Unreleased product leaked through flag: project_nightjar_launch_2026_12_15",
+      "environment": "Production",
+      "subject": "project_nightjar_launch_2026_12_15",
+      "category": "UNRELEASED_PRODUCT",
+      "detected_by": [
+        "deterministic"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "explanation": {
+        "title": "Unreleased product leaked through flag: project_nightjar_launch_2026_12_15",
+        "what_happened": "The flag project_nightjar_launch_2026_12_15 names an unreleased product or launch date.",
+        "why_it_matters": "Flag names are visible to anyone with the public key.",
+        "business_impact": "Competitors or press can learn about the launch early.",
+        "fix_summary": "Rename the flag to something neutral or mark it server-side only.",
+        "source": "template"
+      },
+      "repro": "curl -s 'http://localhost:8000/api/v1/flags/' -H 'X-Environment-Key: <CLIENT_KEY>'",
+      "evidence": [
+        {
+          "kind": "request",
+          "request": "curl -s 'http://localhost:8000/api/v1/flags/' -H 'X-Environment-Key: <CLIENT_KEY>'",
+          "response": "project_nightjar_launch_2026_12_15 =  (0 bytes)",
+          "note": "unreleased product detected in flag name (codename_launch)"
+        }
+      ]
+    },
+    {
+      "id": "GC-03878136",
+      "type": "FLAG_NOT_SERVER_ONLY",
+      "severity": "low",
+      "title": "Sensitive flag \"internal_api_url\" is not \"Server-side only\"",
+      "environment": "Production",
+      "subject": "internal_api_url",
+      "category": "INTERNAL_URL",
+      "detected_by": [
+        "admin-settings"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "explanation": {
+        "title": "Sensitive flag \"internal_api_url\" is not \"Server-side only\"",
+        "what_happened": "The flag internal_api_url is visible to browsers but looks server-only.",
+        "why_it_matters": "Only flags marked server-side only are kept out of client responses.",
+        "business_impact": "Server configuration is readable by anyone.",
+        "fix_summary": "Mark the flag as server-side only.",
+        "source": "template"
+      },
+      "evidence": [
+        {
+          "kind": "setting",
+          "note": "Feature \"internal_api_url\" is classified INTERNAL_URL but the dashboard setting \"Server-side only\" is off, so client SDKs receive it."
+        }
+      ]
+    },
+    {
+      "id": "GC-64038665",
+      "type": "FLAG_NOT_SERVER_ONLY",
+      "severity": "low",
+      "title": "Sensitive flag \"project_nightjar_launch_2026_12_15\" is not \"Server-side only\"",
+      "environment": "Production",
+      "subject": "project_nightjar_launch_2026_12_15",
+      "category": "UNRELEASED_PRODUCT",
+      "detected_by": [
+        "admin-settings"
+      ],
+      "confirmed": true,
+      "status": "EXPLOITABLE",
+      "explanation": {
+        "title": "Sensitive flag \"project_nightjar_launch_2026_12_15\" is not \"Server-side only\"",
+        "what_happened": "The flag project_nightjar_launch_2026_12_15 is visible to browsers but looks server-only.",
+        "why_it_matters": "Only flags marked server-side only are kept out of client responses.",
+        "business_impact": "Server configuration is readable by anyone.",
+        "fix_summary": "Mark the flag as server-side only.",
+        "source": "template"
+      },
+      "evidence": [
+        {
+          "kind": "setting",
+          "note": "Feature \"project_nightjar_launch_2026_12_15\" is classified UNRELEASED_PRODUCT but the dashboard setting \"Server-side only\" is off, so client SDKs receive it."
+        }
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "environment": "Production",
+      "allow_client_traits": true,
+      "hide_sensitive_data": false,
+      "use_v2_feature_versioning": false,
+      "server_only_flags": [],
+      "client_visible_flags": [
+        "admin_panel",
+        "banner_text",
+        "beta_dashboard",
+        "early_access_ai",
+        "internal_api_url",
+        "maintenance_mode",
+        "payment_config",
+        "premium_export",
+        "pricing_page",
+        "project_nightjar_launch_2026_12_15",
+        "staff_preview"
+      ]
+    }
+  ],
+  "reachability": [
+    {
+      "environment": "Production",
+      "flag": "premium_export",
+      "enabled": true,
+      "value": "",
+      "default_enabled": false,
+      "default_value": "",
+      "segment": "gold_plan",
+      "forged_traits": {
+        "plan": "gold"
+      },
+      "forgeable": "yes",
+      "engine_verified": true,
+      "live_verified": true
+    },
+    {
+      "environment": "Production",
+      "flag": "admin_panel",
+      "enabled": true,
+      "value": "",
+      "default_enabled": false,
+      "default_value": "",
+      "segment": "admins",
+      "forged_traits": {
+        "role": "admin"
+      },
+      "forgeable": "yes",
+      "engine_verified": true,
+      "live_verified": true
+    },
+    {
+      "environment": "Production",
+      "flag": "staff_preview",
+      "enabled": true,
+      "value": "",
+      "default_enabled": false,
+      "default_value": "",
+      "segment": "staff",
+      "forged_traits": {
+        "email": "a@acmeshop.dev"
+      },
+      "forgeable": "yes",
+      "engine_verified": true,
+      "live_verified": true
+    },
+    {
+      "environment": "Production",
+      "flag": "early_access_ai",
+      "enabled": true,
+      "value": "",
+      "default_enabled": false,
+      "default_value": "",
+      "segment": "canary_10",
+      "identifier": "gc-probe-map-9",
+      "forgeable": "yes",
+      "engine_verified": true,
+      "live_verified": true
+    },
+    {
+      "environment": "Production",
+      "flag": "pricing_page",
+      "enabled": true,
+      "value": "price_low",
+      "default_enabled": true,
+      "default_value": "price_high",
+      "identifier": "gc-probe-map-0",
+      "forgeable": "yes",
+      "engine_verified": true,
+      "live_verified": true
+    }
+  ],
+  "stats": {
+    "probes_sent": 1352,
+    "duration_ms": 31001,
+    "stage_ms": {
+      "explain": 6,
+      "map": 19580,
+      "recon": 11413
+    },
+    "by_severity": {
+      "critical": 3,
+      "high": 5,
+      "info": 0,
+      "low": 2,
+      "medium": 6
+    },
+    "parity_checked": 1000,
+    "parity_agreed": 1000
+  },
+  "notes": [
+    "skipped out-of-scope script cdn.jsdelivr.net/npm/flagsmith@10.0.0/index.js: host not in allowed_domains"
+  ]
+}

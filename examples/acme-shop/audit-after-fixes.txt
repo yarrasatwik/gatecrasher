@@ -1,0 +1,23 @@
+recon     fetching http://localhost:3030 and its scripts
+recon     client key found at app.js:4 key-shaped string near flagsmith; 8 flags visible
+classify  classifying flag names and values · AI off (heuristics)
+attack    testing 18 trait hypotheses and configured test identities
+map       reading settings, features and segments of Acme Shop / Production
+map       loading the environment document into Flagsmith's evaluation engine
+map       engine found 5 reachable flag states
+verify    cross-checking every engine result against the live Flags API (transient identities)
+severity  applying deterministic severity rules
+explain   explaining 2 findings · AI off (heuristics)
+done      2 ways in
+
+  2 ways in    1 high · 1 medium
+  target http://localhost:3030 · env Production · AI off (heuristics) · 342 requests · 12.7s
+
+   HIGH  GC-DED120AC Users can pick their own group in experiment "Pricing page price test" (pricing_page) ✓ reproduced live
+   MED   GC-B626FA94 Re-rolling the identifier unlocks early_access_ai (≈9% rollout, ~11 tries) ✓ reproduced live
+
+  wrote reports\latest.json
+  wrote reports\latest.md
+  wrote reports\latest.html
+  wrote reports\latest.sarif
+  next: gatecrasher plan   (builds fix plans; nothing changes until a human approves)

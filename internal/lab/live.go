@@ -56,4 +56,3 @@ func WaitLive(ctx context.Context, st *State, apiURL string, timeout time.Durati
 		}
 	}
 }
-

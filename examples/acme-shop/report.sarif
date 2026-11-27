@@ -1,0 +1,1001 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Gatecrasher",
+          "version": "dev",
+          "informationUri": "https://github.com/yarrasatwik/gatecrasher",
+          "rules": [
+            {
+              "id": "TRAIT_FORGERY",
+              "name": "ClientTraitForgery",
+              "shortDescription": {
+                "text": "A client-supplied trait unlocks a protected flag."
+              },
+              "fullDescription": {
+                "text": "Anyone holding the public client key can send arbitrary identity traits. A segment that trusts those traits can be satisfied by an attacker, unlocking features or controls they should not reach."
+              },
+              "help": {
+                "text": "Anyone holding the public client key can send arbitrary identity traits. A segment that trusts those traits can be satisfied by an attacker, unlocking features or controls they should not reach.\n\nFix: Do not use client-writable traits for entitlement or access control. Turn off allow_client_traits, or decide segments from server-verified data only.",
+                "markdown": "**A client-supplied trait unlocks a protected flag.**\n\nAnyone holding the public client key can send arbitrary identity traits. A segment that trusts those traits can be satisfied by an attacker, unlocking features or controls they should not reach.\n\n**Fix:** Do not use client-writable traits for entitlement or access control. Turn off allow_client_traits, or decide segments from server-verified data only."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
+              "id": "PERCENTAGE_REROLL",
+              "name": "PercentageRolloutReroll",
+              "shortDescription": {
+                "text": "An attacker can pick an identifier that lands inside a percentage rollout."
+              },
+              "fullDescription": {
+                "text": "Percentage splits hash the identifier. When the client chooses its own identifier it can try values until it falls inside the rollout."
+              },
+              "help": {
+                "text": "Percentage splits hash the identifier. When the client chooses its own identifier it can try values until it falls inside the rollout.\n\nFix: Assign identifiers on the server and evaluate flags server-side for gated features.",
+                "markdown": "**An attacker can pick an identifier that lands inside a percentage rollout.**\n\nPercentage splits hash the identifier. When the client chooses its own identifier it can try values until it falls inside the rollout.\n\n**Fix:** Assign identifiers on the server and evaluate flags server-side for gated features."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
+              "id": "VARIANT_REROLL",
+              "name": "VariantReroll",
+              "shortDescription": {
+                "text": "An attacker can re-roll a multivariate variant."
+              },
+              "fullDescription": {
+                "text": "Variant assignment is derived from a client-chosen identifier, so an attacker can search for the variant they want."
+              },
+              "help": {
+                "text": "Variant assignment is derived from a client-chosen identifier, so an attacker can search for the variant they want.\n\nFix: Assign identifiers on the server and evaluate experiment flags server-side.",
+                "markdown": "**An attacker can re-roll a multivariate variant.**\n\nVariant assignment is derived from a client-chosen identifier, so an attacker can search for the variant they want.\n\n**Fix:** Assign identifiers on the server and evaluate experiment flags server-side."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
+              "id": "EXPERIMENT_RIGGING",
+              "name": "ExperimentRigging",
+              "shortDescription": {
+                "text": "An experiment on a revenue flag can be steered by the client."
+              },
+              "fullDescription": {
+                "text": "The client can choose the variant of a pricing or checkout experiment, which skews results and can unlock cheaper offers."
+              },
+              "help": {
+                "text": "The client can choose the variant of a pricing or checkout experiment, which skews results and can unlock cheaper offers.\n\nFix: Bucket users on the server and do not expose experiment assignment to client-controlled input.",
+                "markdown": "**An experiment on a revenue flag can be steered by the client.**\n\nThe client can choose the variant of a pricing or checkout experiment, which skews results and can unlock cheaper offers.\n\n**Fix:** Bucket users on the server and do not expose experiment assignment to client-controlled input."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
+              "id": "IDENTITY_TRAIT_LEAK",
+              "name": "IdentityTraitLeak",
+              "shortDescription": {
+                "text": "Identity lookups return stored traits."
+              },
+              "fullDescription": {
+                "text": "Requesting an identity with any identifier returns the traits stored for it, which can disclose other users' data."
+              },
+              "help": {
+                "text": "Requesting an identity with any identifier returns the traits stored for it, which can disclose other users' data.\n\nFix: Enable hide_sensitive_data for the environment and stop storing sensitive traits in Flagsmith.",
+                "markdown": "**Identity lookups return stored traits.**\n\nRequesting an identity with any identifier returns the traits stored for it, which can disclose other users' data.\n\n**Fix:** Enable hide_sensitive_data for the environment and stop storing sensitive traits in Flagsmith."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
+              "id": "IDENTITY_OVERRIDE_LEAK",
+              "name": "IdentityOverrideLeak",
+              "shortDescription": {
+                "text": "Per-identity overrides are visible to clients."
+              },
+              "fullDescription": {
+                "text": "Flag values targeted at specific identities can be read by anyone who can guess the identifier."
+              },
+              "help": {
+                "text": "Flag values targeted at specific identities can be read by anyone who can guess the identifier.\n\nFix: Avoid identity overrides for sensitive flags, or serve them to servers only.",
+                "markdown": "**Per-identity overrides are visible to clients.**\n\nFlag values targeted at specific identities can be read by anyone who can guess the identifier.\n\n**Fix:** Avoid identity overrides for sensitive flags, or serve them to servers only."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
+              "id": "SECRET_IN_CLIENT_VALUE",
+              "name": "SecretInClientValue",
+              "shortDescription": {
+                "text": "A secret is served in a client-visible flag value."
+              },
+              "fullDescription": {
+                "text": "A flag value contains credential material that every holder of the public client key can read."
+              },
+              "help": {
+                "text": "A flag value contains credential material that every holder of the public client key can read.\n\nFix: Rotate the secret immediately, remove it from the flag and keep secrets out of Flagsmith.",
+                "markdown": "**A secret is served in a client-visible flag value.**\n\nA flag value contains credential material that every holder of the public client key can read.\n\n**Fix:** Rotate the secret immediately, remove it from the flag and keep secrets out of Flagsmith."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
+              "id": "INTERNAL_URL_LEAK",
+              "name": "InternalUrlLeak",
+              "shortDescription": {
+                "text": "An internal URL is served in a client-visible flag."
+              },
+              "fullDescription": {
+                "text": "The flag value reveals internal hostnames or admin endpoints, which helps attackers map the infrastructure."
+              },
+              "help": {
+                "text": "The flag value reveals internal hostnames or admin endpoints, which helps attackers map the infrastructure.\n\nFix: Remove internal URLs from client-visible flags or mark the flag server-side only.",
+                "markdown": "**An internal URL is served in a client-visible flag.**\n\nThe flag value reveals internal hostnames or admin endpoints, which helps attackers map the infrastructure.\n\n**Fix:** Remove internal URLs from client-visible flags or mark the flag server-side only."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
+              "id": "UNRELEASED_PRODUCT_LEAK",
+              "name": "UnreleasedProductLeak",
+              "shortDescription": {
+                "text": "Unreleased product details are visible in client flags."
+              },
+              "fullDescription": {
+                "text": "Flag names or values reveal products or features that have not been announced."
+              },
+              "help": {
+                "text": "Flag names or values reveal products or features that have not been announced.\n\nFix: Rename pre-launch flags to neutral names and mark them server-side only.",
+                "markdown": "**Unreleased product details are visible in client flags.**\n\nFlag names or values reveal products or features that have not been announced.\n\n**Fix:** Rename pre-launch flags to neutral names and mark them server-side only."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
+              "id": "PRICING_LEAK",
+              "name": "PricingLeak",
+              "shortDescription": {
+                "text": "Pricing data is served in a client-visible flag."
+              },
+              "fullDescription": {
+                "text": "The flag value exposes price tables or discount rules that were meant to stay private."
+              },
+              "help": {
+                "text": "The flag value exposes price tables or discount rules that were meant to stay private.\n\nFix: Move pricing data to a server-only flag or your backend.",
+                "markdown": "**Pricing data is served in a client-visible flag.**\n\nThe flag value exposes price tables or discount rules that were meant to stay private.\n\n**Fix:** Move pricing data to a server-only flag or your backend."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
+              "id": "PII_IN_CLIENT_VALUE",
+              "name": "PiiInClientValue",
+              "shortDescription": {
+                "text": "Personal data is served in a client-visible flag."
+              },
+              "fullDescription": {
+                "text": "A flag value contains personal data such as an email address or phone number."
+              },
+              "help": {
+                "text": "A flag value contains personal data such as an email address or phone number.\n\nFix: Remove personal data from flag values and mark the flag server-side only.",
+                "markdown": "**Personal data is served in a client-visible flag.**\n\nA flag value contains personal data such as an email address or phone number.\n\n**Fix:** Remove personal data from flag values and mark the flag server-side only."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
+              "id": "SETTING_CLIENT_TRAITS_ON",
+              "name": "ClientTraitsEnabled",
+              "shortDescription": {
+                "text": "The environment accepts traits written by client keys."
+              },
+              "fullDescription": {
+                "text": "allow_client_traits is on, so any holder of the public client key can write identity traits."
+              },
+              "help": {
+                "text": "allow_client_traits is on, so any holder of the public client key can write identity traits.\n\nFix: Disable allow_client_traits for the environment.",
+                "markdown": "**The environment accepts traits written by client keys.**\n\nallow_client_traits is on, so any holder of the public client key can write identity traits.\n\n**Fix:** Disable allow_client_traits for the environment."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
+              "id": "SETTING_SENSITIVE_DATA_VISIBLE",
+              "name": "SensitiveDataVisible",
+              "shortDescription": {
+                "text": "Sensitive data is visible to client keys."
+              },
+              "fullDescription": {
+                "text": "hide_sensitive_data is off, so client keys can read data that should be restricted to servers."
+              },
+              "help": {
+                "text": "hide_sensitive_data is off, so client keys can read data that should be restricted to servers.\n\nFix: Enable hide_sensitive_data for the environment.",
+                "markdown": "**Sensitive data is visible to client keys.**\n\nhide_sensitive_data is off, so client keys can read data that should be restricted to servers.\n\n**Fix:** Enable hide_sensitive_data for the environment."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
+              "id": "FLAG_NOT_SERVER_ONLY",
+              "name": "FlagNotServerOnly",
+              "shortDescription": {
+                "text": "A sensitive flag is not restricted to server-side keys."
+              },
+              "fullDescription": {
+                "text": "The flag is returned to client keys although it does not need to be."
+              },
+              "help": {
+                "text": "The flag is returned to client keys although it does not need to be.\n\nFix: Mark the flag as server-side only.",
+                "markdown": "**A sensitive flag is not restricted to server-side keys.**\n\nThe flag is returned to client keys although it does not need to be.\n\n**Fix:** Mark the flag as server-side only."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "8.0",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
+              "id": "SEGMENT_FORGEABLE",
+              "name": "SegmentForgeable",
+              "shortDescription": {
+                "text": "A segment can be matched using client-supplied traits."
+              },
+              "fullDescription": {
+                "text": "The segment rules depend only on traits a client can set, so an attacker can join the segment on demand."
+              },
+              "help": {
+                "text": "The segment rules depend only on traits a client can set, so an attacker can join the segment on demand.\n\nFix: Base segment rules on server-controlled traits or identifiers.",
+                "markdown": "**A segment can be matched using client-supplied traits.**\n\nThe segment rules depend only on traits a client can set, so an attacker can join the segment on demand.\n\n**Fix:** Base segment rules on server-controlled traits or identifiers."
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "5.5",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
+              "id": "CONTROL_OK",
+              "name": "ControlOk",
+              "shortDescription": {
+                "text": "A control is correctly configured."
+              },
+              "fullDescription": {
+                "text": "This is informational: the control was tested and behaves as intended."
+              },
+              "help": {
+                "text": "This is informational: the control was tested and behaves as intended.\n\nFix: No action needed.",
+                "markdown": "**A control is correctly configured.**\n\nThis is informational: the control was tested and behaves as intended.\n\n**Fix:** No action needed."
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "0.0",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "SECRET_IN_CLIENT_VALUE",
+          "ruleIndex": 6,
+          "level": "error",
+          "message": {
+            "text": "Secret in a client-visible flag value: payment_config: The flag payment_config serves a credential to every visitor."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-8B6A1273"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/payment_config"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "payment_config",
+                  "fullyQualifiedName": "Production/payment_config",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "9.5",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "TRAIT_FORGERY",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "Forging role=admin unlocks admin_panel (segment \"admins\"): Anyone can claim user attributes such as role=admin from the browser and Flagsmith accepts them, unlocking admin_panel."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-70850605"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/admins"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "admins",
+                  "fullyQualifiedName": "Production/admins",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "9.5",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "TRAIT_FORGERY",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "Forging email=a@acmeshop.dev unlocks staff_preview (segment \"staff\"): Anyone can claim user attributes such as email=a@acmeshop.dev from the browser and Flagsmith accepts them, unlocking staff_preview."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-1A45D85C"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/staff"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "staff",
+                  "fullyQualifiedName": "Production/staff",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "9.5",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "EXPERIMENT_RIGGING",
+          "ruleIndex": 3,
+          "level": "error",
+          "message": {
+            "text": "Users can pick their own group in experiment \"Pricing page price test\" (pricing_page): An outsider can steer which variant of pricing_page they receive and feed results into the experiment."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-DED120AC"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/pricing_page"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "pricing_page",
+                  "fullyQualifiedName": "Production/pricing_page",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "8.0",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "FLAG_NOT_SERVER_ONLY",
+          "ruleIndex": 13,
+          "level": "error",
+          "message": {
+            "text": "Sensitive flag \"payment_config\" is not \"Server-side only\": The flag payment_config is visible to browsers but looks server-only."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-0B5C5F67"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/payment_config"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "payment_config",
+                  "fullyQualifiedName": "Production/payment_config",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "8.0",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "IDENTITY_TRAIT_LEAK",
+          "ruleIndex": 4,
+          "level": "error",
+          "message": {
+            "text": "Traits of ce***@acmeshop.dev are readable by anyone with the public client key: Looking up identity ce***@acmeshop.dev with the public key returned stored traits."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-914405C1"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/ce%2A%2A%2A@acmeshop.dev"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "ce***@acmeshop.dev",
+                  "fullyQualifiedName": "Production/ce***@acmeshop.dev",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "8.0",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "IDENTITY_TRAIT_LEAK",
+          "ruleIndex": 4,
+          "level": "error",
+          "message": {
+            "text": "Traits of qa***@acmeshop.dev are readable by anyone with the public client key: Looking up identity qa***@acmeshop.dev with the public key returned stored traits."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-1305BD20"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/qa%2A%2A%2A@acmeshop.dev"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "qa***@acmeshop.dev",
+                  "fullyQualifiedName": "Production/qa***@acmeshop.dev",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "8.0",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "TRAIT_FORGERY",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "Forging plan=gold unlocks premium_export (segment \"gold_plan\"): Anyone can claim user attributes such as plan=gold from the browser and Flagsmith accepts them, unlocking premium_export."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-688647D2"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/gold_plan"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "gold_plan",
+                  "fullyQualifiedName": "Production/gold_plan",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "8.0",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "IDENTITY_OVERRIDE_LEAK",
+          "ruleIndex": 5,
+          "level": "warning",
+          "message": {
+            "text": "Identity override on beta_dashboard is readable by anyone who knows the identifier: Looking up identity beta_dashboard with the public key exposed per-user flag overrides."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-58B8A822"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/beta_dashboard"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "beta_dashboard",
+                  "fullyQualifiedName": "Production/beta_dashboard",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "5.5",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "INTERNAL_URL_LEAK",
+          "ruleIndex": 7,
+          "level": "warning",
+          "message": {
+            "text": "Internal URL leaked to every browser: internal_api_url: The flag internal_api_url reveals an internal address or hostname."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-63E8DE85"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/internal_api_url"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "internal_api_url",
+                  "fullyQualifiedName": "Production/internal_api_url",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "5.5",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "PERCENTAGE_REROLL",
+          "ruleIndex": 1,
+          "level": "warning",
+          "message": {
+            "text": "Re-rolling the identifier unlocks early_access_ai (≈9% rollout, ~11 tries): A visitor can keep choosing new identifiers until they land in the rollout group for early_access_ai."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-B626FA94"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/early_access_ai"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "early_access_ai",
+                  "fullyQualifiedName": "Production/early_access_ai",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "5.5",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "SETTING_CLIENT_TRAITS_ON",
+          "ruleIndex": 11,
+          "level": "warning",
+          "message": {
+            "text": "Production: \"Allow client SDKs to set user traits\" is ON: The environment allow_client_traits allows client-side traits."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-A60CCA1A"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/allow_client_traits"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "allow_client_traits",
+                  "fullyQualifiedName": "Production/allow_client_traits",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "5.5",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "SETTING_SENSITIVE_DATA_VISIBLE",
+          "ruleIndex": 12,
+          "level": "warning",
+          "message": {
+            "text": "Production: \"Hide sensitive data\" is OFF: The environment hide_sensitive_data does not hide sensitive data."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-9FE52BC7"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/hide_sensitive_data"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "hide_sensitive_data",
+                  "fullyQualifiedName": "Production/hide_sensitive_data",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "5.5",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "UNRELEASED_PRODUCT_LEAK",
+          "ruleIndex": 8,
+          "level": "warning",
+          "message": {
+            "text": "Unreleased product leaked through flag: project_nightjar_launch_2026_12_15: The flag project_nightjar_launch_2026_12_15 names an unreleased product or launch date."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-07590992"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/project_nightjar_launch_2026_12_15"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "project_nightjar_launch_2026_12_15",
+                  "fullyQualifiedName": "Production/project_nightjar_launch_2026_12_15",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "5.5",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "FLAG_NOT_SERVER_ONLY",
+          "ruleIndex": 13,
+          "level": "note",
+          "message": {
+            "text": "Sensitive flag \"internal_api_url\" is not \"Server-side only\": The flag internal_api_url is visible to browsers but looks server-only."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-03878136"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/internal_api_url"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "internal_api_url",
+                  "fullyQualifiedName": "Production/internal_api_url",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "3.0",
+            "status": "EXPLOITABLE"
+          }
+        },
+        {
+          "ruleId": "FLAG_NOT_SERVER_ONLY",
+          "ruleIndex": 13,
+          "level": "note",
+          "message": {
+            "text": "Sensitive flag \"project_nightjar_launch_2026_12_15\" is not \"Server-side only\": The flag project_nightjar_launch_2026_12_15 is visible to browsers but looks server-only."
+          },
+          "partialFingerprints": {
+            "gatecrasherFindingId/v1": "GC-64038665"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "flagsmith/Production/project_nightjar_launch_2026_12_15"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "project_nightjar_launch_2026_12_15",
+                  "fullyQualifiedName": "Production/project_nightjar_launch_2026_12_15",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "confirmed": true,
+            "security-severity": "3.0",
+            "status": "EXPLOITABLE"
+          }
+        }
+      ],
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "endTimeUtc": "2026-11-27T19:15:24Z"
+        }
+      ]
+    }
+  ]
+}
