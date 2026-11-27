@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// SecretPlaceholder is replaced in feature values by the generated fake secret.
+// SecretPlaceholder is replaced in feature values by the generated secret.
 const SecretPlaceholder = "{{payment_secret}}"
 
 // Data is the declared lab state loaded from lab/seed_data.yaml.
@@ -47,7 +47,7 @@ type ConditionData struct {
 	Value    string `yaml:"value"`
 }
 
-// IdentityData is an identity persisted with fake traits.
+// IdentityData is an identity persisted with sample traits.
 type IdentityData struct {
 	Identifier string         `yaml:"identifier"`
 	Traits     map[string]any `yaml:"traits"`

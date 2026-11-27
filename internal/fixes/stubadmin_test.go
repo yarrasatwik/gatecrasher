@@ -22,13 +22,13 @@ import (
 
 const (
 	testEnvKey = "clientkey0123456789"
-	testOrgKey = "ABCDEFGH.0123456789abcdef0123456789abcdef" // gatecrasher:allow-secret (fake test key)
+	testOrgKey = "ABCDEFGH.0123456789abcdef0123456789abcdef" // gatecrasher:allow-secret (stub test key)
 )
 
-// fakeAdmin is a stateful in-memory Flagsmith Admin API. The environment
+// stubAdmin is a stateful in-memory Flagsmith Admin API. The environment
 // document lags behind writes by docLag document reads, modelling
 // propagation delay.
-type fakeAdmin struct {
+type stubAdmin struct {
 	mu                 sync.Mutex
 	env                map[string]any
 	docEnv             map[string]any
@@ -46,8 +46,8 @@ type fakeAdmin struct {
 	docOmitsServerOnly bool
 }
 
-func newFakeAdmin() *fakeAdmin {
-	f := &fakeAdmin{
+func newStubAdmin() *stubAdmin {
+	f := &stubAdmin{
 		env: map[string]any{
 			"id": float64(1), "name": "Production", "api_key": testEnvKey, "project": float64(1),
 			"allow_client_traits": true, "hide_sensitive_data": false, "use_v2_feature_versioning": false,
@@ -88,32 +88,32 @@ func cloneFeatures(m map[int]map[string]any) map[int]map[string]any {
 }
 
 // set changes live state out of band (a human editing in the dashboard).
-func (f *fakeAdmin) set(field string, v any) {
+func (f *stubAdmin) set(field string, v any) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.env[field] = v
 	f.docEnv[field] = v
 }
 
-func (f *fakeAdmin) get(field string) any {
+func (f *stubAdmin) get(field string) any {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.env[field]
 }
 
-func (f *fakeAdmin) featureField(id int, field string) any {
+func (f *stubAdmin) featureField(id int, field string) any {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.features[id][field]
 }
 
-func (f *fakeAdmin) writeLog() []string {
+func (f *stubAdmin) writeLog() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]string(nil), f.writes...)
 }
 
-func (f *fakeAdmin) syncDoc() {
+func (f *stubAdmin) syncDoc() {
 	if f.lagLeft > 0 {
 		f.lagLeft--
 		return
@@ -134,7 +134,7 @@ var (
 	reFeature   = regexp.MustCompile(`^projects/1/features/(\d+)/$`)
 )
 
-func (f *fakeAdmin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (f *stubAdmin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if !strings.HasPrefix(r.Header.Get("Authorization"), "Api-Key ") {
@@ -164,7 +164,7 @@ func (f *fakeAdmin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-func (f *fakeAdmin) route(method, path string, q url.Values, body map[string]any) (any, int) {
+func (f *stubAdmin) route(method, path string, q url.Values, body map[string]any) (any, int) {
 	if m := reEnvRoot.FindStringSubmatch(path); m != nil {
 		return f.objectRoute(method, f.env, body, true), 0
 	}
@@ -195,7 +195,7 @@ func (f *fakeAdmin) route(method, path string, q url.Values, body map[string]any
 	return f.versionRoute(method, path, body)
 }
 
-func (f *fakeAdmin) versionRoute(method, path string, body map[string]any) (any, int) {
+func (f *stubAdmin) versionRoute(method, path string, body map[string]any) (any, int) {
 	if m := reVersions.FindStringSubmatch(path); m != nil && method == http.MethodPost {
 		uuid := fmt.Sprintf("ver-%d", len(f.versions)+1)
 		f.versions[uuid] = map[int]map[string]any{100: {"id": float64(100), "feature": float64(atoi(m[2])), "enabled": false, "feature_state_value": "off"},
@@ -228,7 +228,7 @@ func (f *fakeAdmin) versionRoute(method, path string, body map[string]any) (any,
 	return map[string]any{"detail": "not found: " + path}, http.StatusNotFound
 }
 
-func (f *fakeAdmin) objectRoute(method string, obj map[string]any, body map[string]any, isEnv bool) any {
+func (f *stubAdmin) objectRoute(method string, obj map[string]any, body map[string]any, isEnv bool) any {
 	if method == http.MethodPatch {
 		for k, v := range body {
 			obj[k] = v
@@ -238,7 +238,7 @@ func (f *fakeAdmin) objectRoute(method string, obj map[string]any, body map[stri
 	return obj
 }
 
-func (f *fakeAdmin) document() map[string]any {
+func (f *stubAdmin) document() map[string]any {
 	doc := clone(f.docEnv)
 	var states []any
 	for _, id := range []int{5, 6} {
@@ -262,10 +262,10 @@ func atoi(s string) int {
 	return n
 }
 
-// harness bundles the fake, a real flagsmith.Admin client pointed at it,
+// harness bundles the stub, a real flagsmith.Admin client pointed at it,
 // and an audit-enabled store.
 type harness struct {
-	fake  *fakeAdmin
+	stub  *stubAdmin
 	admin *flagsmith.Admin
 	store *Store
 	log   *audit.Log
@@ -273,8 +273,8 @@ type harness struct {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
-	fake := newFakeAdmin()
-	srv := httptest.NewServer(fake)
+	stub := newStubAdmin()
+	srv := httptest.NewServer(stub)
 	t.Cleanup(srv.Close)
 	u, _ := url.Parse(srv.URL)
 	client := httpx.New(scope.MustNew(nil, []string{u.Host}), httpx.WithRetries(0), httpx.WithTimeout(5*time.Second))
@@ -288,7 +288,7 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	store.Audit = log
-	return &harness{fake: fake, admin: flagsmith.NewAdmin(client, srv.URL+"/api/v1/", testOrgKey), store: store, log: log}
+	return &harness{stub: stub, admin: flagsmith.NewAdmin(client, srv.URL+"/api/v1/", testOrgKey), store: store, log: log}
 }
 
 func (h *harness) planner(repo string) *Planner {

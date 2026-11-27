@@ -11,10 +11,10 @@ import (
 	"testing"
 )
 
-// fakeFlagsmith is a small in-memory stand-in for the Flagsmith endpoints the
+// stubFlagsmith is a small in-memory stand-in for the Flagsmith endpoints the
 // seed uses. It records every mutating request so tests can assert that a
 // converged lab triggers none.
-type fakeFlagsmith struct {
+type stubFlagsmith struct {
 	mu        sync.Mutex
 	next      int
 	users     map[string]string
@@ -35,14 +35,14 @@ type fakeFlagsmith struct {
 	mutations []string
 }
 
-func newFake() *fakeFlagsmith {
-	return &fakeFlagsmith{users: map[string]string{}, envKeys: map[string][]map[string]any{},
+func newStub() *stubFlagsmith {
+	return &stubFlagsmith{users: map[string]string{}, envKeys: map[string][]map[string]any{},
 		idents: map[string]map[string]map[string]any{}, traits: map[string]map[string]any{}}
 }
 
-func (f *fakeFlagsmith) id() int { f.next++; return f.next }
+func (f *stubFlagsmith) id() int { f.next++; return f.next }
 
-func (f *fakeFlagsmith) start(t *testing.T) *httptest.Server {
+func (f *stubFlagsmith) start(t *testing.T) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
 	h := func(pattern string, fn func(r *http.Request, body map[string]any) (int, any)) {
@@ -101,7 +101,7 @@ func merge(dst, src map[string]any) {
 
 type handler func(pattern string, fn func(r *http.Request, body map[string]any) (int, any))
 
-func (f *fakeFlagsmith) routeAuthAndOrg(h handler) {
+func (f *stubFlagsmith) routeAuthAndOrg(h handler) {
 	h("POST /api/v1/auth/users/", func(_ *http.Request, b map[string]any) (int, any) {
 		if _, exists := f.users[b["email"].(string)]; exists {
 			return 400, map[string]any{"email": []string{"Email already exists. Please log in."}}
@@ -132,7 +132,7 @@ func (f *fakeFlagsmith) routeAuthAndOrg(h handler) {
 	})
 }
 
-func (f *fakeFlagsmith) routeProject(h handler) {
+func (f *stubFlagsmith) routeProject(h handler) {
 	h("GET /api/v1/projects/", func(r *http.Request, _ map[string]any) (int, any) {
 		if r.Header.Get("Authorization") != "Api-Key "+f.orgKey {
 			return 401, map[string]string{}
@@ -191,13 +191,13 @@ func (f *fakeFlagsmith) routeProject(h handler) {
 	})
 }
 
-func (f *fakeFlagsmith) addBaseState(env, feature map[string]any) {
+func (f *stubFlagsmith) addBaseState(env, feature map[string]any) {
 	f.states = append(f.states, map[string]any{"id": f.id(), "feature": feature["id"], "environment": env["id"],
 		"enabled": feature["default_enabled"], "feature_state_value": feature["initial_value"],
 		"feature_segment": nil, "identity": nil, "multivariate_feature_state_values": []any{}})
 }
 
-func (f *fakeFlagsmith) routeFeatures(h handler) {
+func (f *stubFlagsmith) routeFeatures(h handler) {
 	h("GET /api/v1/projects/{p}/features/", func(*http.Request, map[string]any) (int, any) { return 200, page(f.features) })
 	h("POST /api/v1/projects/{p}/features/", func(_ *http.Request, b map[string]any) (int, any) {
 		b["id"] = f.id()
@@ -231,7 +231,7 @@ func nonNilSlice(v any) any {
 	return v
 }
 
-func (f *fakeFlagsmith) routeEnvState(h handler) {
+func (f *stubFlagsmith) routeEnvState(h handler) {
 	h("GET /api/v1/environments/{key}/featurestates/", func(r *http.Request, _ map[string]any) (int, any) {
 		return 200, page(filter(f.statesFor(r.PathValue("key")), "feature", r.URL.Query().Get("feature")))
 	})
@@ -272,7 +272,7 @@ func (f *fakeFlagsmith) routeEnvState(h handler) {
 	f.routeExperiments(h)
 }
 
-func (f *fakeFlagsmith) envByKey(key string) map[string]any {
+func (f *stubFlagsmith) envByKey(key string) map[string]any {
 	for _, e := range f.envs {
 		if e["api_key"] == key {
 			return e
@@ -281,11 +281,11 @@ func (f *fakeFlagsmith) envByKey(key string) map[string]any {
 	return nil
 }
 
-func (f *fakeFlagsmith) statesFor(key string) []map[string]any {
+func (f *stubFlagsmith) statesFor(key string) []map[string]any {
 	return filter(f.states, "environment", f.envByKey(key)["id"])
 }
 
-func (f *fakeFlagsmith) ensureIdentity(key, ident string) {
+func (f *stubFlagsmith) ensureIdentity(key, ident string) {
 	if f.idents[key] == nil {
 		f.idents[key] = map[string]map[string]any{}
 	}
@@ -294,7 +294,7 @@ func (f *fakeFlagsmith) ensureIdentity(key, ident string) {
 	}
 }
 
-func (f *fakeFlagsmith) traitList(key, ident string) []map[string]any {
+func (f *stubFlagsmith) traitList(key, ident string) []map[string]any {
 	out := []map[string]any{}
 	for k, v := range f.traits[key+"|"+ident] {
 		out = append(out, map[string]any{"trait_key": k, "trait_value": v})
@@ -302,7 +302,7 @@ func (f *fakeFlagsmith) traitList(key, ident string) []map[string]any {
 	return out
 }
 
-func (f *fakeFlagsmith) routeIdentityOverrides(h handler) {
+func (f *stubFlagsmith) routeIdentityOverrides(h handler) {
 	h("GET /api/v1/environments/{key}/identities/", func(r *http.Request, _ map[string]any) (int, any) {
 		out := []map[string]any{}
 		for ident, row := range f.idents[r.PathValue("key")] {
@@ -327,7 +327,7 @@ func (f *fakeFlagsmith) routeIdentityOverrides(h handler) {
 	})
 }
 
-func (f *fakeFlagsmith) routeExperiments(h handler) {
+func (f *stubFlagsmith) routeExperiments(h handler) {
 	h("GET /api/v1/environments/{key}/experiments/", func(r *http.Request, _ map[string]any) (int, any) {
 		return 200, page(filter(f.exps, "env", r.PathValue("key")))
 	})

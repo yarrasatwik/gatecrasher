@@ -46,9 +46,27 @@ var notices = map[string]string{
 	"planned":    "Fix plans created from the report. Review each one below.",
 }
 
+// richText redacts and escapes s, then renders `backtick` spans as <code>.
+func richText(s string) template.HTML {
+	parts := strings.Split(template.HTMLEscapeString(redact.String(s)), "`")
+	var b strings.Builder
+	for i, p := range parts {
+		switch {
+		case i%2 == 1 && i < len(parts)-1:
+			b.WriteString("<code>" + p + "</code>")
+		case i%2 == 1:
+			b.WriteString("`" + p)
+		default:
+			b.WriteString(p)
+		}
+	}
+	return template.HTML(b.String()) // #nosec: every part is escaped above
+}
+
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
 		"rd":        func(s string) string { return redact.String(s) },
+		"rich":      richText,
 		"time":      fmtTime,
 		"sevGlyph":  sevGlyph,
 		"val":       fmtVal,

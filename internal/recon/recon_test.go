@@ -22,8 +22,8 @@ const (
 	labSecret = "acme_live_0123456789abcdef0123456789abcdef"
 )
 
-// fake is a tiny stand-in for the target site plus the Flagsmith API.
-type fake struct {
+// stub is a tiny stand-in for the target site plus the Flagsmith API.
+type stub struct {
 	srv   *httpx.Client
 	url   string
 	mu    sync.Mutex
@@ -31,10 +31,10 @@ type fake struct {
 	hits  map[string]int
 }
 
-func newFake(t *testing.T, pages map[string]string) *fake {
+func newStub(t *testing.T, pages map[string]string) *stub {
 	t.Helper()
 	redact.Reset()
-	f := &fake{pages: pages, hits: map[string]int{}}
+	f := &stub{pages: pages, hits: map[string]int{}}
 	ts := httptest.NewServer(http.HandlerFunc(f.handle))
 	t.Cleanup(ts.Close)
 	f.url = ts.URL
@@ -43,13 +43,13 @@ func newFake(t *testing.T, pages map[string]string) *fake {
 	return f
 }
 
-func (f *fake) page(name string) string {
+func (f *stub) page(name string) string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return strings.ReplaceAll(f.pages[name], "{{API}}", f.url+"/api/v1/")
 }
 
-func (f *fake) handle(w http.ResponseWriter, r *http.Request) {
+func (f *stub) handle(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	f.hits[r.URL.Path]++
 	f.mu.Unlock()
@@ -76,7 +76,7 @@ func (f *fake) handle(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
-func (f *fake) hitCount(path string) int {
+func (f *stub) hitCount(path string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.hits[path]
@@ -89,7 +89,7 @@ func page(scripts ...string) string {
 func TestUnminifiedBundle(t *testing.T) {
 	bundle := "// shop\nimport flagsmith from 'flagsmith';\n\nflagsmith.init({\n  environmentID: \"" + goodKey + "\",\n  api: \"{{API}}\",\n});\n" +
 		"flagsmith.setTrait(\"plan\", sel.value);\nflagsmith.setTraits({ role: 'x', \"beta_user\": 1 });\nflagsmith.identify(uid, { country: 'US', ltv: 3 });\n"
-	f := newFake(t, map[string]string{
+	f := newStub(t, map[string]string{
 		"":              page(`<script src="/static/app.js"></script>`),
 		"static/app.js": bundle,
 	})
@@ -119,7 +119,7 @@ func TestUnminifiedBundle(t *testing.T) {
 func TestMinifiedBundleAndInlineScript(t *testing.T) {
 	min := `!function(){var a=window.flagsmith;a.init({environmentID:"` + goodKey + `",api:"{{API}}",cacheFlags:!0}),a.setTrait("tier","x")}();`
 	inline := "var x = 1;\nfetch(u,{headers:{'X-Environment-Key':'" + badKey + "'}});"
-	f := newFake(t, map[string]string{
+	f := newStub(t, map[string]string{
 		"":           page(`<script src='app.min.js'></script>`, "<script>"+inline+"</script>"),
 		"app.min.js": min,
 	})
@@ -150,7 +150,7 @@ func TestMinifiedBundleAndInlineScript(t *testing.T) {
 func TestMultipleKeysOnlyValidOneUsed(t *testing.T) {
 	js := `flagsmith.init({environmentID:"` + badKey + `"});
 flagsmith.init({environmentID:"` + goodKey + `",api:"{{API}}"});`
-	f := newFake(t, map[string]string{"": page(`<script src="a.js"></script>`), "a.js": js})
+	f := newStub(t, map[string]string{"": page(`<script src="a.js"></script>`), "a.js": js})
 	res, err := Run(context.Background(), f.srv, ReconConfig{TargetURL: f.url})
 	if err != nil {
 		t.Fatal(err)
@@ -166,7 +166,7 @@ flagsmith.init({environmentID:"` + goodKey + `",api:"{{API}}"});`
 func TestKeyShapedStringNearFlagsmith(t *testing.T) {
 	js := `const cfg = { word: "ThisIsJustSomeLongWord", other: "x" };
 window.flagsmith.init({ env: "` + goodKey + `" });`
-	f := newFake(t, map[string]string{"": page(`<script src="a.js"></script>`), "a.js": js})
+	f := newStub(t, map[string]string{"": page(`<script src="a.js"></script>`), "a.js": js})
 	res, err := Run(context.Background(), f.srv, ReconConfig{TargetURL: f.url, APIURL: f.url + "/api/v1/"})
 	if err != nil {
 		t.Fatal(err)
@@ -178,7 +178,7 @@ window.flagsmith.init({ env: "` + goodKey + `" });`
 
 func TestOutOfScopeScriptSkippedWithNote(t *testing.T) {
 	js := `flagsmith.init({environmentID:"` + goodKey + `",api:"{{API}}"});`
-	f := newFake(t, map[string]string{
+	f := newStub(t, map[string]string{
 		"":     page(`<script src="https://cdn.evil.example/lib.js"></script>`, `<script src="/a.js"></script>`),
 		"a.js": js,
 	})
@@ -200,7 +200,7 @@ func TestOutOfScopeScriptSkippedWithNote(t *testing.T) {
 
 func TestOutOfScopeAPIHostRefused(t *testing.T) {
 	js := `flagsmith.init({environmentID:"` + goodKey + `",api:"https://flags.attacker.example/api/v1/"});`
-	f := newFake(t, map[string]string{"": page(`<script src="/a.js"></script>`), "a.js": js})
+	f := newStub(t, map[string]string{"": page(`<script src="/a.js"></script>`), "a.js": js})
 	_, err := Recon(context.Background(), f.srv, ReconConfig{TargetURL: f.url, APIURL: f.url + "/api/v1/"})
 	if err == nil {
 		t.Fatal("expected refusal")
@@ -215,7 +215,7 @@ func TestOutOfScopeAPIHostRefused(t *testing.T) {
 
 func TestRelativeAPIResolvedAgainstPage(t *testing.T) {
 	js := `flagsmith.init({environmentID:"` + goodKey + `",api:"/api/v1/"});`
-	f := newFake(t, map[string]string{"": page(`<script src="/a.js"></script>`), "a.js": js})
+	f := newStub(t, map[string]string{"": page(`<script src="/a.js"></script>`), "a.js": js})
 	inv, err := Recon(context.Background(), f.srv, ReconConfig{TargetURL: f.url})
 	if err != nil {
 		t.Fatal(err)
@@ -227,7 +227,7 @@ func TestRelativeAPIResolvedAgainstPage(t *testing.T) {
 
 func TestServerKeyInBundleIsCriticalLeak(t *testing.T) {
 	js := `var k="` + serverKey + `";flagsmith.init({environmentID:"` + goodKey + `",api:"{{API}}"});`
-	f := newFake(t, map[string]string{"": page(`<script src="/a.js"></script>`), "a.js": js})
+	f := newStub(t, map[string]string{"": page(`<script src="/a.js"></script>`), "a.js": js})
 	res, err := Run(context.Background(), f.srv, ReconConfig{TargetURL: f.url})
 	if err != nil {
 		t.Fatal(err)
@@ -241,7 +241,7 @@ func TestServerKeyInBundleIsCriticalLeak(t *testing.T) {
 }
 
 func TestNoKeyFound(t *testing.T) {
-	f := newFake(t, map[string]string{"": page(`<script>var a = 1;</script>`)})
+	f := newStub(t, map[string]string{"": page(`<script>var a = 1;</script>`)})
 	_, err := Recon(context.Background(), f.srv, ReconConfig{TargetURL: f.url, APIURL: f.url + "/api/v1/"})
 	if err == nil || !strings.Contains(err.Error(), "no valid Flagsmith client key") {
 		t.Fatalf("err = %v", err)
@@ -250,7 +250,7 @@ func TestNoKeyFound(t *testing.T) {
 
 func TestInventoryFlagViews(t *testing.T) {
 	js := `flagsmith.init({environmentID:"` + goodKey + `",api:"{{API}}"});`
-	f := newFake(t, map[string]string{"": page(`<script src="/a.js"></script>`), "a.js": js})
+	f := newStub(t, map[string]string{"": page(`<script src="/a.js"></script>`), "a.js": js})
 	inv, err := Recon(context.Background(), f.srv, ReconConfig{TargetURL: f.url})
 	if err != nil {
 		t.Fatal(err)

@@ -53,7 +53,7 @@ func stage(t *testing.T, dir, rel, content string) {
 }
 
 func TestPreCommitHookBlocksSecretsAndStateFiles(t *testing.T) {
-	// Fake credentials are assembled at run time so this file itself passes
+	// Stub credentials are assembled at run time so this file itself passes
 	// the hook.
 	rep := strings.Repeat
 	cases := []struct {

@@ -91,13 +91,13 @@ func isUnsafe(method string) bool {
 
 // sameOrigin reports whether a state-changing request came from this host.
 func sameOrigin(r *http.Request) bool {
-	if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
-		return false
+	// A matching Origin is authoritative. Some embedded browsers report a
+	// conservative Sec-Fetch-Site for same-origin form posts, so that header
+	// only decides when Origin is absent. The CSRF token is checked as well.
+	if origin := r.Header.Get("Origin"); origin != "" && origin != "null" {
+		u, err := url.Parse(origin)
+		return err == nil && strings.EqualFold(u.Host, r.Host)
 	}
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		return true
-	}
-	u, err := url.Parse(origin)
-	return err == nil && strings.EqualFold(u.Host, r.Host)
+	site := r.Header.Get("Sec-Fetch-Site")
+	return site == "" || site == "same-origin" || site == "none"
 }

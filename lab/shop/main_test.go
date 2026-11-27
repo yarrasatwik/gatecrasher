@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-const fakeFlags = `[{"feature":{"name":"payment_config"},"feature_state_value":"{\"provider\":\"acmepay\",\"api_secret\":\"acme_live_0123456789abcdef0123456789abcdef\",\"webhook\":\"https://internal.acmeshop.dev/pay\"}"}]`
+const stubFlags = `[{"feature":{"name":"payment_config"},"feature_state_value":"{\"provider\":\"acmepay\",\"api_secret\":\"acme_live_0123456789abcdef0123456789abcdef\",\"webhook\":\"https://internal.acmeshop.dev/pay\"}"}]`
 
 func testShop(t *testing.T, flags string, status int) *shop {
 	t.Helper()
@@ -24,7 +24,7 @@ func testShop(t *testing.T, flags string, status int) *shop {
 }
 
 func TestCheckoutConfigReturnsOnlyNonSecretFields(t *testing.T) {
-	s := testShop(t, fakeFlags, http.StatusOK)
+	s := testShop(t, stubFlags, http.StatusOK)
 	rec := httptest.NewRecorder()
 	s.routes().ServeHTTP(rec, httptest.NewRequest("GET", "/api/checkout-config", nil))
 	body := rec.Body.String()
@@ -46,7 +46,7 @@ func TestCheckoutConfigReportsMissingFlag(t *testing.T) {
 }
 
 func TestAppJSInjectsKeyWithoutShiftingLines(t *testing.T) {
-	s := testShop(t, fakeFlags, http.StatusOK)
+	s := testShop(t, stubFlags, http.StatusOK)
 	raw, err := assets.ReadFile("app.js")
 	if err != nil {
 		t.Fatal(err)

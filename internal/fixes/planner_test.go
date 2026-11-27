@@ -91,7 +91,7 @@ func TestPlannerHashSurvivesStoreRoundTrip(t *testing.T) {
 
 func TestPlannerServerOnlyPlanAndExperiment(t *testing.T) {
 	h := newHarness(t)
-	h.fake.experiments = []map[string]any{{"id": float64(1), "name": "checkout test", "status": "RUNNING", "feature": float64(5)}}
+	h.stub.experiments = []map[string]any{{"id": float64(1), "name": "checkout test", "status": "RUNNING", "feature": float64(5)}}
 	plans, err := h.planner(shopApp(t)).Plan(t.Context(), []model.Finding{secretFinding()})
 	if err != nil {
 		t.Fatal(err)
@@ -121,7 +121,7 @@ func TestPlannerServerOnlyPlanAndExperiment(t *testing.T) {
 func TestPlannerRerollIsGuidanceOnly(t *testing.T) {
 	h := newHarness(t)
 	f := model.Finding{ID: "GC-RIG", Type: model.FExperimentRigging, Environment: "Production", Subject: "checkout_ab", Status: model.StatusExploitable}
-	h.fake.experiments = []map[string]any{{"id": float64(1), "name": "ab", "status": "RUNNING", "feature": float64(6)}}
+	h.stub.experiments = []map[string]any{{"id": float64(1), "name": "ab", "status": "RUNNING", "feature": float64(6)}}
 	plans, err := h.planner("").Plan(t.Context(), []model.Finding{f})
 	if err != nil || len(plans) != 1 {
 		t.Fatalf("plans=%d err=%v", len(plans), err)
@@ -150,7 +150,7 @@ func TestPlannerRerollIsGuidanceOnly(t *testing.T) {
 
 func TestPlannerSkipsFixedAndReportsUnknown(t *testing.T) {
 	h := newHarness(t)
-	h.fake.set("allow_client_traits", false)
+	h.stub.set("allow_client_traits", false)
 	bad := traitFinding()
 	bad.ID, bad.Environment = "GC-X", "Nowhere"
 	plans, err := h.planner("").Plan(t.Context(), []model.Finding{traitFinding(), secretFinding(), bad})

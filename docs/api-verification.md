@@ -3,7 +3,7 @@
 Verified live against self-hosted **Flagsmith 2.295.2** (`flagsmith/flagsmith:2.295.2`,
 Postgres, task processor, `EXPERIMENTATION_ENABLED=true`) at `http://localhost:8000/api/v1/`.
 Every call below was run against the seeded Acme Shop lab. Redacted real responses are in
-`tests/fixtures/*.json` (keys replaced by `REDACTED_*` placeholders, fake secret by
+`tests/fixtures/*.json` (keys replaced by `REDACTED_*` placeholders, generated secret by
 `acme_live_<redacted>`). The OpenAPI schema is `GET /api/v1/swagger.json`
 (UI at `/api/v1/docs/`).
 
@@ -105,9 +105,9 @@ Other timings: cold lab (`down -v` then `up -d --wait`) about 75 s; first seed a
 
 - Only REST is used: `POST auth/users/` (signup), `auth/login/`, org, master key, project, environments, tags, segments, features,
   identities through the client key, overrides, experiments. `internal/lab` converges state; running it twice makes 0 changes
-  (second run sends zero mutating requests; covered by a fake-server unit test).
-- Lab credentials (admin password, org key, server keys, fake payment secret) are generated or read from Flagsmith on first run
-  and kept in `lab/.state.json` (git-ignored, mode 0600). The fake payment secret (`acme_live_` + 32 hex) exists only there and in
+  (second run sends zero mutating requests; covered by a stub-server unit test).
+- Lab credentials (admin password, org key, server keys, generated payment secret) are generated or read from Flagsmith on first run
+  and kept in `lab/.state.json` (git-ignored, mode 0600). The generated payment secret (`acme_live_` + 32 hex) exists only there and in
   Flagsmith.
 - With `payment_config` marked server-side only (`is_server_key_only=true`), `/api/checkout-config` in the shop kept returning the
   provider and webhook: verified live while the flag was hidden from the client key.

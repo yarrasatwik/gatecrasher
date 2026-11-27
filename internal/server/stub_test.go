@@ -10,8 +10,8 @@ import (
 	"github.com/yarrasatwik/gatecrasher/internal/watch"
 )
 
-// fakeBackend is an in-memory Backend for tests.
-type fakeBackend struct {
+// stubBackend is an in-memory Backend for tests.
+type stubBackend struct {
 	mu       sync.Mutex
 	reports  map[string]*model.Report
 	plans    map[string]*model.PlanRecord
@@ -28,9 +28,9 @@ type fakeBackend struct {
 	runGate chan struct{}
 }
 
-func newFakeBackend() *fakeBackend {
+func newStubBackend() *stubBackend {
 	rep := sampleReport("R1")
-	return &fakeBackend{
+	return &stubBackend{
 		reports: map[string]*model.Report{"R1": rep},
 		plans:   map[string]*model.PlanRecord{},
 		chainOK: true, chainN: 2,
@@ -43,13 +43,13 @@ func newFakeBackend() *fakeBackend {
 	}
 }
 
-func (f *fakeBackend) record(s string) {
+func (f *stubBackend) record(s string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, s)
 }
 
-func (f *fakeBackend) called(prefix string) []string {
+func (f *stubBackend) called(prefix string) []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []string
@@ -61,13 +61,13 @@ func (f *fakeBackend) called(prefix string) []string {
 	return out
 }
 
-func (f *fakeBackend) addPlan(rec model.PlanRecord) {
+func (f *stubBackend) addPlan(rec model.PlanRecord) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.plans[rec.Plan.ID] = &rec
 }
 
-func (f *fakeBackend) RunAudit(ctx context.Context, progress func(stage, msg string)) (string, error) {
+func (f *stubBackend) RunAudit(ctx context.Context, progress func(stage, msg string)) (string, error) {
 	progress("recon", "fetching target")
 	if f.runGate != nil {
 		select {
@@ -83,7 +83,7 @@ func (f *fakeBackend) RunAudit(ctx context.Context, progress func(stage, msg str
 	return "R1", nil
 }
 
-func (f *fakeBackend) Reports() []ReportSummary {
+func (f *stubBackend) Reports() []ReportSummary {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []ReportSummary
@@ -93,7 +93,7 @@ func (f *fakeBackend) Reports() []ReportSummary {
 	return out
 }
 
-func (f *fakeBackend) Report(id string) (*model.Report, error) {
+func (f *stubBackend) Report(id string) (*model.Report, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if r, ok := f.reports[id]; ok {
@@ -102,7 +102,7 @@ func (f *fakeBackend) Report(id string) (*model.Report, error) {
 	return nil, fmt.Errorf("report %q: %w", id, ErrNotFound)
 }
 
-func (f *fakeBackend) Plans() []model.PlanRecord {
+func (f *stubBackend) Plans() []model.PlanRecord {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []model.PlanRecord
@@ -112,7 +112,7 @@ func (f *fakeBackend) Plans() []model.PlanRecord {
 	return out
 }
 
-func (f *fakeBackend) Plan(id string) (*model.PlanRecord, error) {
+func (f *stubBackend) Plan(id string) (*model.PlanRecord, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if p, ok := f.plans[id]; ok {
@@ -122,7 +122,7 @@ func (f *fakeBackend) Plan(id string) (*model.PlanRecord, error) {
 	return nil, fmt.Errorf("plan %q: %w", id, ErrNotFound)
 }
 
-func (f *fakeBackend) MakePlans(_ context.Context, reportID string) error {
+func (f *stubBackend) MakePlans(_ context.Context, reportID string) error {
 	f.record("make " + reportID)
 	if _, err := f.Report(reportID); err != nil {
 		return err
@@ -130,13 +130,13 @@ func (f *fakeBackend) MakePlans(_ context.Context, reportID string) error {
 	return f.failWith
 }
 
-func (f *fakeBackend) setState(id string, st model.PlanState) {
+func (f *stubBackend) setState(id string, st model.PlanState) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.plans[id].State = st
 }
 
-func (f *fakeBackend) Approve(_ context.Context, id, typedEnv, typedContaminate, by string) error {
+func (f *stubBackend) Approve(_ context.Context, id, typedEnv, typedContaminate, by string) error {
 	f.record(fmt.Sprintf("approve %s env=%q contaminate=%q by=%s", id, typedEnv, typedContaminate, by))
 	if f.failWith != nil {
 		return f.failWith
@@ -145,13 +145,13 @@ func (f *fakeBackend) Approve(_ context.Context, id, typedEnv, typedContaminate,
 	return nil
 }
 
-func (f *fakeBackend) Reject(_ context.Context, id, by string) error {
+func (f *stubBackend) Reject(_ context.Context, id, by string) error {
 	f.record("reject " + id + " by=" + by)
 	f.setState(id, model.PlanRejected)
 	return nil
 }
 
-func (f *fakeBackend) Apply(_ context.Context, id string) error {
+func (f *stubBackend) Apply(_ context.Context, id string) error {
 	f.record("apply " + id)
 	if f.failWith != nil {
 		return f.failWith
@@ -160,7 +160,7 @@ func (f *fakeBackend) Apply(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeBackend) Verify(_ context.Context, id string) error {
+func (f *stubBackend) Verify(_ context.Context, id string) error {
 	f.record("verify " + id)
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -169,23 +169,23 @@ func (f *fakeBackend) Verify(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeBackend) Rollback(_ context.Context, id string) error {
+func (f *stubBackend) Rollback(_ context.Context, id string) error {
 	f.record("rollback " + id)
 	f.setState(id, model.PlanRolledBack)
 	return nil
 }
 
-func (f *fakeBackend) AuditEntries() []AuditRow { return f.audit }
+func (f *stubBackend) AuditEntries() []AuditRow { return f.audit }
 
-func (f *fakeBackend) ChainValid() (bool, int) { return f.chainOK, f.chainN }
+func (f *stubBackend) ChainValid() (bool, int) { return f.chainOK, f.chainN }
 
-func (f *fakeBackend) Alerts() []watch.Alert {
+func (f *stubBackend) Alerts() []watch.Alert {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]watch.Alert(nil), f.alerts...)
 }
 
-func (f *fakeBackend) SubscribeAlerts() (<-chan watch.Alert, func()) {
+func (f *stubBackend) SubscribeAlerts() (<-chan watch.Alert, func()) {
 	ch := make(chan watch.Alert, 4)
 	f.mu.Lock()
 	f.subs = append(f.subs, ch)
@@ -194,7 +194,7 @@ func (f *fakeBackend) SubscribeAlerts() (<-chan watch.Alert, func()) {
 }
 
 // push stores an alert and delivers it to subscribers.
-func (f *fakeBackend) push(a watch.Alert) {
+func (f *stubBackend) push(a watch.Alert) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.alerts = append([]watch.Alert{a}, f.alerts...)
@@ -203,13 +203,13 @@ func (f *fakeBackend) push(a watch.Alert) {
 	}
 }
 
-func (f *fakeBackend) subscribers() int {
+func (f *stubBackend) subscribers() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.subs)
 }
 
-func (f *fakeBackend) Config() SafeConfigView { return f.cfg }
+func (f *stubBackend) Config() SafeConfigView { return f.cfg }
 
 func sampleReport(id string) *model.Report {
 	f1 := model.Finding{

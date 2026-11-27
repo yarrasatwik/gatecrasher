@@ -23,12 +23,90 @@ jobs:
           go-version: stable
           check-latest: true
       - name: gofmt
-        run: test -z "$(git ls-files '*.go' | xargs gofmt -l | tee /dev/stderr)"
+        run: test -z "$(gofmt -l cmd internal lab tests | tee /dev/stderr)"
       - name: go vet
-        run: go vet ./...
+        run: |
+          go vet ./...
+          go vet -tags lab ./tests/...
       - name: staticcheck
         run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - name: unit tests (race detector)
         run: go test -race -count=1 ./...
+      - name: build
+        run: go build -trimpath -o bin/gatecrasher ./cmd/gatecrasher
+      - name: pre-commit hook blocks secrets
+        run: |
+          git config core.hooksPath .githooks
+          git config user.email ci@example.invalid
+          git config user.name ci
+          printf 'GATECRASHER_ORG_API_KEY=abcdefgh.abcdefghijklmnopqrstuvwxyz012345\n' > .env
+          git add -f .env
+          if git commit -q -m "should be blocked"; then echo "hook did not block .env"; exit 1; fi
+          git reset -q .env && rm -f .env
+
+  lab:
+    name: End-to-end against self-hosted Flagsmith
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          check-latest: true
+      - name: Start self-hosted Flagsmith (official images)
+        run: docker compose -f lab/compose.yaml up -d --wait
+      - name: Seed the vulnerable Acme Shop
+        run: go run ./lab/seed
+      - name: Export lab keys (masked)
+        run: |
+          while IFS='=' read -r k v; do
+            case "$k" in GATECRASHER_*) [ -n "$v" ] && echo "::add-mask::$v"; echo "$k=$v" >> "$GITHUB_ENV";; esac
+          done < .env
+      - name: Start the storefront
+        run: |
+          go build -o bin/shop ./lab/shop
+          ./bin/shop > shop.log 2>&1 &
+          for i in $(seq 1 30); do curl -fs http://localhost:3030/ >/dev/null && break; sleep 1; done
+      - name: Integration tests (audit, fix, verify, rollback, stale plan, watch)
+        run: go test -tags lab -count=1 -timeout 25m -v ./tests/integration/... 2>&1 | tee integration.log
+      - name: Full audit report
+        run: |
+          go build -o bin/gatecrasher ./cmd/gatecrasher
+          ./bin/gatecrasher lab reset
+          ./bin/gatecrasher audit --parity 1000 | tee audit.txt
+          {
+            echo '### Gatecrasher against the vulnerable lab'
+            echo '```'
+            cat audit.txt
+            echo '```'
+            echo '### Measured'
+            echo '```'
+            grep MEASURED integration.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Run the Gatecrasher action on the lab (inside view)
+        uses: ./
+        with:
+          api-url: http://localhost:8000/api/v1/
+          org-api-key: ${{ env.GATECRASHER_ORG_API_KEY }}
+          project: Acme Shop
+          environment: Production
+          fail-on: none
+          app-path: lab/shop
+          upload-sarif: ${{ github.event_name == 'push' }}
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gatecrasher-reports
+          path: |
+            reports/latest.*
+            integration.log
+            shop.log

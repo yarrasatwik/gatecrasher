@@ -1,0 +1,50 @@
+# Gatecrasher configuration. Copy to gatecrasher.yaml and edit.
+# Secrets never go here: they come from environment variables (see .env.example).
+
+# The site to audit from the outside (must be inside allowed_domains).
+target_url: http://localhost:3030
+
+# Scope lock: Gatecrasher refuses every request to a host not listed here.
+# Hostnames match any port; use "*.example.com" for subdomains. It cannot be disabled.
+allowed_domains:
+  - localhost
+
+flagsmith:
+  api_url: http://localhost:8000/api/v1/
+  # host[:port] entries the agent may call for the Flagsmith API.
+  allowed_api_hosts:
+    - localhost:8000
+  project: Acme Shop
+  environments: [Development, Production]
+  # Changing these requires the approver to type the environment name.
+  production_environments: [Production]
+  # Prefer the Flagsmith CLI v2 for approved writes when it is installed.
+  use_cli: true
+
+# Identity-lookup tests only ever run against these identifiers.
+test_identities:
+  - ceo@acmeshop.dev
+  - qa-user-1@acmeshop.dev
+
+# Traits that only your server sets (never forgeable by clients).
+server_only_traits: []
+
+# Does the browser choose its own identifier? (true makes percentage splits re-rollable)
+client_sets_identifier: true
+
+# App source to scan for client-side setTrait/getValue usage before proposing fixes.
+app_repo: lab/shop
+
+probes:
+  reroll_samples: 200
+  rate_per_sec: 60
+  max_hypotheses: 40
+  max_combos: 24
+
+propagation_timeout_s: 150
+approval_ttl_minutes: 30
+
+watch:
+  listen: 127.0.0.1:8788
+  # URL Flagsmith calls; host.docker.internal reaches your machine from the lab containers.
+  public_url: http://host.docker.internal:8788/webhook

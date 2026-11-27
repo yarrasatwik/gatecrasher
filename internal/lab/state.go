@@ -113,5 +113,5 @@ func randomHex(n int) string {
 	return hex.EncodeToString(b)
 }
 
-// newPaymentSecret builds the fake secret: acme_live_ + 32 hex characters.
+// newPaymentSecret builds the generated secret: acme_live_ + 32 hex characters.
 func newPaymentSecret() string { return "acme_live_" + randomHex(16) }

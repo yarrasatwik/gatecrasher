@@ -81,7 +81,7 @@ func TestApproveNonProductionDoesNotNeedTypedName(t *testing.T) {
 
 func TestApproveRequiresContaminateConfirmation(t *testing.T) {
 	h := newHarness(t)
-	h.fake.experiments = []map[string]any{{"id": float64(1), "name": "e", "status": "RUNNING", "feature": float64(5)}}
+	h.stub.experiments = []map[string]any{{"id": float64(1), "name": "e", "status": "RUNNING", "feature": float64(5)}}
 	recs := h.planFor(t, "", secretFinding())
 	_, err := h.store.Approve(recs[0].Plan.ID, "alice", "cli", "Production", "yes", 0)
 	if !errors.Is(err, ErrConfirmContaminate) || !strings.Contains(err.Error(), "contaminates experiment") {
@@ -127,7 +127,7 @@ func TestRejectPlan(t *testing.T) {
 func TestApplyRefusesStalePlanAfterOutOfBandChange(t *testing.T) {
 	h := newHarness(t)
 	rec := approved(t, h)
-	h.fake.set("allow_client_traits", false) // a human fixed it (or changed it) in the dashboard
+	h.stub.set("allow_client_traits", false) // a human fixed it (or changed it) in the dashboard
 	err := h.applier().Apply(t.Context(), rec)
 	if !errors.Is(err, ErrStalePlan) || !strings.Contains(err.Error(), "state changed since plan; re-plan") {
 		t.Fatalf("err = %v", err)
@@ -139,8 +139,8 @@ func TestApplyRefusesStalePlanAfterOutOfBandChange(t *testing.T) {
 	if saved.State != model.PlanStale {
 		t.Fatalf("stale state not persisted: %s", saved.State)
 	}
-	if len(h.fake.writeLog()) != 0 {
-		t.Fatalf("a stale plan must not write anything: %v", h.fake.writeLog())
+	if len(h.stub.writeLog()) != 0 {
+		t.Fatalf("a stale plan must not write anything: %v", h.stub.writeLog())
 	}
 	acts := auditActions(t, h.log)
 	if acts[len(acts)-1] != audit.ActionRefuse {
@@ -158,7 +158,7 @@ func TestApplyRefusesExpiredApproval(t *testing.T) {
 	if err := h.applier().Apply(t.Context(), rec); !errors.Is(err, ErrApprovalExpired) {
 		t.Fatalf("err = %v", err)
 	}
-	if len(h.fake.writeLog()) != 0 || h.fake.get("allow_client_traits") != true {
+	if len(h.stub.writeLog()) != 0 || h.stub.get("allow_client_traits") != true {
 		t.Fatal("expired approval must not change anything")
 	}
 	// A fresh approval makes it applicable again.
@@ -187,7 +187,7 @@ func TestApplyRefusesHashMismatchAndMissingApproval(t *testing.T) {
 	if err := h.applier().Apply(t.Context(), pending); !errors.Is(err, ErrNotApproved) {
 		t.Fatalf("unapproved: %v", err)
 	}
-	if len(h.fake.writeLog()) != 0 {
+	if len(h.stub.writeLog()) != 0 {
 		t.Fatal("nothing may be written")
 	}
 }
@@ -195,19 +195,19 @@ func TestApplyRefusesHashMismatchAndMissingApproval(t *testing.T) {
 func TestApplyRefusesWhenExperimentStartedAfterPlanning(t *testing.T) {
 	h := newHarness(t)
 	rec := approved(t, h, secretFinding())
-	h.fake.experiments = []map[string]any{{"id": float64(1), "name": "late", "status": "RUNNING", "feature": float64(5)}}
+	h.stub.experiments = []map[string]any{{"id": float64(1), "name": "late", "status": "RUNNING", "feature": float64(5)}}
 	err := h.applier().Apply(t.Context(), rec)
 	if !errors.Is(err, ErrConfirmContaminate) {
 		t.Fatalf("err = %v", err)
 	}
-	if h.fake.featureField(5, "is_server_key_only") != false {
+	if h.stub.featureField(5, "is_server_key_only") != false {
 		t.Fatal("flag was changed despite the running experiment")
 	}
 }
 
 func TestApplyWaitsForPropagationAndRollbackRestoresExactly(t *testing.T) {
 	h := newHarness(t)
-	h.fake.docLag = 3
+	h.stub.docLag = 3
 	rec := approved(t, h, traitFinding(), leakFinding())
 	if err := h.applier().Apply(t.Context(), rec); err != nil {
 		t.Fatal(err)
@@ -218,22 +218,22 @@ func TestApplyWaitsForPropagationAndRollbackRestoresExactly(t *testing.T) {
 	if rec.TookMS < 10 {
 		t.Fatalf("propagation_ms = %d; the doc lags 3 polls of 5ms so waiting must be recorded", rec.TookMS)
 	}
-	if h.fake.get("allow_client_traits") != false || h.fake.get("hide_sensitive_data") != true {
-		t.Fatalf("env not patched: %v %v", h.fake.get("allow_client_traits"), h.fake.get("hide_sensitive_data"))
+	if h.stub.get("allow_client_traits") != false || h.stub.get("hide_sensitive_data") != true {
+		t.Fatalf("env not patched: %v %v", h.stub.get("allow_client_traits"), h.stub.get("hide_sensitive_data"))
 	}
 	// An unrelated field changed meanwhile must survive the rollback.
-	h.fake.set("use_v2_feature_versioning", false)
+	h.stub.set("use_v2_feature_versioning", false)
 
 	for run := 1; run <= 2; run++ {
-		writesBefore := len(h.fake.writeLog())
+		writesBefore := len(h.stub.writeLog())
 		if err := h.applier().Rollback(t.Context(), rec, "alice"); err != nil {
 			t.Fatalf("rollback run %d: %v", run, err)
 		}
-		if run == 2 && len(h.fake.writeLog()) != writesBefore {
+		if run == 2 && len(h.stub.writeLog()) != writesBefore {
 			t.Fatal("second rollback must be a no-op")
 		}
-		if h.fake.get("allow_client_traits") != true || h.fake.get("hide_sensitive_data") != false {
-			t.Fatalf("run %d: not restored: %v %v", run, h.fake.get("allow_client_traits"), h.fake.get("hide_sensitive_data"))
+		if h.stub.get("allow_client_traits") != true || h.stub.get("hide_sensitive_data") != false {
+			t.Fatalf("run %d: not restored: %v %v", run, h.stub.get("allow_client_traits"), h.stub.get("hide_sensitive_data"))
 		}
 		if rec.State != model.PlanRolledBack {
 			t.Fatalf("state = %s", rec.State)
@@ -250,13 +250,13 @@ func TestRollbackIsIdempotentWhenLiveAlreadyOriginal(t *testing.T) {
 	if err := h.applier().Apply(t.Context(), rec); err != nil {
 		t.Fatal(err)
 	}
-	h.fake.set("allow_client_traits", true) // restored by hand
-	n := len(h.fake.writeLog())
+	h.stub.set("allow_client_traits", true) // restored by hand
+	n := len(h.stub.writeLog())
 	if err := h.applier().Rollback(t.Context(), rec, "alice"); err != nil {
 		t.Fatal(err)
 	}
-	if len(h.fake.writeLog()) != n || rec.State != model.PlanRolledBack {
-		t.Fatalf("writes=%v state=%s", h.fake.writeLog()[n:], rec.State)
+	if len(h.stub.writeLog()) != n || rec.State != model.PlanRolledBack {
+		t.Fatalf("writes=%v state=%s", h.stub.writeLog()[n:], rec.State)
 	}
 	pending := &model.PlanRecord{Plan: rec.Plan, State: model.PlanApproved}
 	if err := h.applier().Rollback(t.Context(), pending, "alice"); err == nil {
@@ -266,26 +266,26 @@ func TestRollbackIsIdempotentWhenLiveAlreadyOriginal(t *testing.T) {
 
 func TestServerOnlyApplyFallsBackToLiveReadWhenDocOmitsField(t *testing.T) {
 	h := newHarness(t)
-	h.fake.docOmitsServerOnly = true
-	h.fake.docLag = 1
+	h.stub.docOmitsServerOnly = true
+	h.stub.docLag = 1
 	rec := approved(t, h, secretFinding())
 	if err := h.applier().Apply(t.Context(), rec); err != nil {
 		t.Fatal(err)
 	}
-	if h.fake.featureField(5, "is_server_key_only") != true {
+	if h.stub.featureField(5, "is_server_key_only") != true {
 		t.Fatal("feature not patched")
 	}
 	if err := h.applier().Rollback(t.Context(), rec, "alice"); err != nil {
 		t.Fatal(err)
 	}
-	if h.fake.featureField(5, "is_server_key_only") != false {
+	if h.stub.featureField(5, "is_server_key_only") != false {
 		t.Fatal("feature not restored")
 	}
 }
 
 func TestApplyReportsPropagationTimeout(t *testing.T) {
 	h := newHarness(t)
-	h.fake.docLag = 1 << 20
+	h.stub.docLag = 1 << 20
 	rec := approved(t, h)
 	ap := h.applier(func(c *Config) { c.Timeout = 60 * time.Millisecond })
 	err := ap.Apply(t.Context(), rec)
@@ -300,7 +300,7 @@ func TestApplyReportsPropagationTimeout(t *testing.T) {
 func TestApplyFailureIsRecorded(t *testing.T) {
 	h := newHarness(t)
 	rec := approved(t, h)
-	h.fake.failPatch = true
+	h.stub.failPatch = true
 	err := h.applier().Apply(t.Context(), rec)
 	if err == nil || rec.Error == "" {
 		t.Fatalf("err=%v rec.Error=%q", err, rec.Error)
@@ -310,14 +310,14 @@ func TestApplyFailureIsRecorded(t *testing.T) {
 	}
 }
 
-type fakeCLI struct {
+type stubCLI struct {
 	supports bool
 	fail     bool
 	ran      []string
 }
 
-func (c *fakeCLI) Supports(op model.Operation) bool { return c.supports && op.Kind == OpEnvPatch }
-func (c *fakeCLI) Run(_ context.Context, op model.Operation, _ map[string]any) error {
+func (c *stubCLI) Supports(op model.Operation) bool { return c.supports && op.Kind == OpEnvPatch }
+func (c *stubCLI) Run(_ context.Context, op model.Operation, _ map[string]any) error {
 	c.ran = append(c.ran, op.Path)
 	if c.fail {
 		return errors.New("cli exploded")
@@ -326,25 +326,25 @@ func (c *fakeCLI) Run(_ context.Context, op model.Operation, _ map[string]any) e
 }
 
 func TestApplyPrefersCLIWhenSupportedThenFallsBack(t *testing.T) {
-	// The CLI "executes" but the fake Admin never sees a write, so CLI use is
+	// The CLI "executes" but the stub Admin never sees a write, so CLI use is
 	// visible as a missing PATCH; propagation is then skipped by timeout.
 	h := newHarness(t)
 	rec := approved(t, h)
-	cli := &fakeCLI{supports: true}
+	cli := &stubCLI{supports: true}
 	ap := h.applier(func(c *Config) { c.UseCLI, c.CLI, c.Timeout = true, cli, 40*time.Millisecond })
 	_ = ap.Apply(t.Context(), rec)
-	if len(cli.ran) != 1 || len(h.fake.writeLog()) != 0 {
-		t.Fatalf("cli=%v writes=%v", cli.ran, h.fake.writeLog())
+	if len(cli.ran) != 1 || len(h.stub.writeLog()) != 0 {
+		t.Fatalf("cli=%v writes=%v", cli.ran, h.stub.writeLog())
 	}
 
 	h2 := newHarness(t)
 	rec2 := approved(t, h2)
-	failing := &fakeCLI{supports: true, fail: true}
+	failing := &stubCLI{supports: true, fail: true}
 	ap2 := h2.applier(func(c *Config) { c.UseCLI, c.CLI = true, failing })
 	if err := ap2.Apply(t.Context(), rec2); err != nil {
 		t.Fatal(err)
 	}
-	if h2.fake.get("allow_client_traits") != false {
+	if h2.stub.get("allow_client_traits") != false {
 		t.Fatal("admin API fallback did not run")
 	}
 	es, _ := h2.log.Entries()
@@ -358,7 +358,7 @@ func TestApplyPrefersCLIWhenSupportedThenFallsBack(t *testing.T) {
 
 	h3 := newHarness(t)
 	rec3 := approved(t, h3)
-	unsupported := &fakeCLI{supports: false}
+	unsupported := &stubCLI{supports: false}
 	ap3 := h3.applier(func(c *Config) { c.UseCLI, c.CLI = true, unsupported })
 	if err := ap3.Apply(t.Context(), rec3); err != nil || len(unsupported.ran) != 0 {
 		t.Fatalf("err=%v ran=%v", err, unsupported.ran)
@@ -367,8 +367,8 @@ func TestApplyPrefersCLIWhenSupportedThenFallsBack(t *testing.T) {
 
 func TestFeatureStateV2VersioningFlow(t *testing.T) {
 	h := newHarness(t)
-	h.fake.env["use_v2_feature_versioning"] = true
-	h.fake.docEnv["use_v2_feature_versioning"] = true
+	h.stub.env["use_v2_feature_versioning"] = true
+	h.stub.docEnv["use_v2_feature_versioning"] = true
 	p := model.Plan{
 		ID: "plan-00000f5a", CreatedAt: time.Now().UTC(), Environment: "Staging", EnvironmentKey: testEnvKey,
 		Operations: []model.Operation{{
@@ -386,10 +386,10 @@ func TestFeatureStateV2VersioningFlow(t *testing.T) {
 	if err := h.applier().Apply(t.Context(), rec); err != nil {
 		t.Fatal(err)
 	}
-	if len(h.fake.published) != 1 {
-		t.Fatalf("version not published: %v", h.fake.published)
+	if len(h.stub.published) != 1 {
+		t.Fatalf("version not published: %v", h.stub.published)
 	}
-	log := strings.Join(h.fake.writeLog(), "\n")
+	log := strings.Join(h.stub.writeLog(), "\n")
 	if !strings.Contains(log, "POST environments/"+testEnvKey+"/features/6/versions/") || !strings.Contains(log, "versions/ver-1/featurestates/100/") || strings.Contains(log, "featurestates/101/") {
 		t.Fatalf("v2 flow wrong:\n%s", log)
 	}

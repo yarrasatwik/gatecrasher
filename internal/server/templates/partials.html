@@ -17,7 +17,7 @@
 
 {{define "finding"}}<article class="card finding border-{{.Severity.String}}" id="f-{{.ID}}" aria-labelledby="t-{{.ID}}">
   <header class="card-head">
-    <div class="card-title">{{template "sev" .Severity}}<h3 id="t-{{.ID}}">{{rd .Title}}</h3></div>
+    <div class="card-title">{{template "sev" .Severity}}<h3 id="t-{{.ID}}">{{rich .Title}}</h3></div>
     <p class="meta"><code>{{.ID}}</code> · {{.Type}}{{if .Environment}} · {{.Environment}}{{end}}{{if .Subject}} · <code>{{rd .Subject}}</code>{{end}}</p>
   </header>
   <p class="chips">{{template "status" .Status}}{{if .Confirmed}} <span class="chip">Confirmed by a probe or the engine</span>{{else}} <span class="chip">Not confirmed</span>{{end}}{{if .Category}} <span class="chip">{{.Category}}</span>{{end}}{{range .DetectedBy}} <span class="chip chip-quiet">{{.}}</span>{{end}}</p>
