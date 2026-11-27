@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/yarrasatwik/gatecrasher/internal/lab"
 )
@@ -36,5 +37,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
-	fmt.Printf("lab %s: %d change(s); wrote .env and lab/.state.json (keys not shown)\n", verb, len(state.Changes))
+	took, err := lab.WaitLive(ctx, state, *apiURL, 90*time.Second)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+	fmt.Printf("lab %s: %d change(s), live after %.1fs; wrote .env and lab/.state.json (keys not shown)\n", verb, len(state.Changes), took.Seconds())
 }

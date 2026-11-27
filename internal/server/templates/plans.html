@@ -46,7 +46,7 @@
   </section>
 
   <section aria-labelledby="brk-{{$id}}"><h3 id="brk-{{$id}}">What could break</h3>
-  {{if $p.Impact}}<ul class="impact">{{range $p.Impact}}<li><code>{{rd .File}}:{{.Line}}</code> {{if .Breaks}}<span class="chip chip-warn"><span aria-hidden="true">⚠</span> Will break</span>{{else}}<span class="chip chip-quiet">Review</span>{{end}} {{rd .Message}}{{if .Snippet}}<pre class="code" tabindex="0"><code>{{rd .Snippet}}</code></pre>{{end}}</li>{{end}}</ul>{{else}}<p class="muted">No code that reads this setting was found in the scanned repository.</p>{{end}}
+  {{if $p.Impact}}<ul class="impact">{{range $p.Impact}}<li><code>{{rd .File}}:{{.Line}}</code> {{if .Breaks}}<span class="chip chip-warn"><span aria-hidden="true">⚠</span> Will break</span>{{else}}<span class="chip chip-quiet">Review</span>{{end}} {{rich .Message}}{{if .Snippet}}<pre class="code" tabindex="0"><code>{{rd .Snippet}}</code></pre>{{end}}</li>{{end}}</ul>{{else}}<p class="muted">No code that reads this setting was found in the scanned repository.</p>{{end}}
   </section>
 
   {{if $p.BeforeSnapshot}}<details><summary>State snapshot this plan is bound to</summary><dl class="facts">{{range $k, $v := $p.BeforeSnapshot}}<div><dt><code>{{rd $k}}</code></dt><dd><code>{{rd (val $v)}}</code></dd></div>{{end}}</dl></details>{{end}}
@@ -61,6 +61,7 @@
     <tbody>{{range .Rec.Verify}}<tr><th scope="row">{{rd .Title}} <code>{{.FindingID}}</code></th><td>{{template "status" .Before}}</td><td>{{template "status" .After}}</td><td>{{rd .Proof}}</td></tr>{{end}}</tbody>
   </table></div></section>{{end}}
 
+  {{if .GuidanceOnly}}<p class="muted"><strong>Guidance only.</strong> This plan changes nothing in Flagsmith: review the drafts above and make the change in your code.</p>{{end}}
   {{if .CanApprove}}
   <form method="post" action="/plans/{{$id}}/approve" class="approve-form" aria-labelledby="appr-{{$id}}">
     <h3 id="appr-{{$id}}">Decision</h3>

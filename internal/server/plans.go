@@ -45,6 +45,7 @@ type planView struct {
 	NeedsEnv         bool
 	NeedsContaminate bool
 	CanApprove       bool
+	GuidanceOnly     bool
 	CanReject        bool
 	CanApply         bool
 	CanVerify        bool
@@ -75,6 +76,14 @@ func (s *Server) buildPlansView(filter string, errs map[string]string) plansView
 		pi, pj := recs[i].State == model.PlanPending, recs[j].State == model.PlanPending
 		if pi != pj {
 			return pi
+		}
+		// Plans that change Flagsmith come before guidance, biggest first.
+		ai, aj := autoOps(recs[i].Plan), autoOps(recs[j].Plan)
+		if (ai > 0) != (aj > 0) {
+			return ai > 0
+		}
+		if fi, fj := len(recs[i].Plan.FindingsAddressed), len(recs[j].Plan.FindingsAddressed); fi != fj {
+			return fi > fj
 		}
 		return recs[i].Plan.CreatedAt.After(recs[j].Plan.CreatedAt)
 	})
@@ -121,12 +130,24 @@ func (s *Server) findingTitles(reports []ReportSummary) map[string]findingRef {
 	return out
 }
 
+// autoOps counts the operations a plan would execute in Flagsmith.
+func autoOps(p model.Plan) int {
+	n := 0
+	for _, op := range p.Operations {
+		if op.Automatic {
+			n++
+		}
+	}
+	return n
+}
+
 func newPlanView(rec model.PlanRecord, refs map[string]findingRef, errMsg string) planView {
 	p := rec.Plan
 	v := planView{Rec: rec, Err: errMsg,
 		NeedsEnv:         p.Production,
 		NeedsContaminate: p.ExperimentWarning != "",
-		CanApprove:       rec.State == model.PlanPending,
+		CanApprove:       rec.State == model.PlanPending && autoOps(p) > 0,
+		GuidanceOnly:     autoOps(p) == 0,
 		CanReject:        rec.State == model.PlanPending || rec.State == model.PlanApproved,
 		CanApply:         rec.State == model.PlanApproved,
 		CanVerify:        rec.State == model.PlanApplied || rec.State == model.PlanVerified,

@@ -42,7 +42,12 @@ func cmdLab(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("  Acme Shop lab %sed: %d change(s). Keys are in .env (git-ignored).\n", args[0], len(st.Changes))
+		took, err := lab.WaitLive(ctx, st, st.APIURL, 90*time.Second)
+		if err != nil {
+			return err
+		}
+		verb := map[string]string{"seed": "seeded", "reset": "reset"}[args[0]]
+		fmt.Printf("  Acme Shop lab %s: %d change(s), live after %.1fs. Keys are in .env (git-ignored).\n", verb, len(st.Changes), took.Seconds())
 		fmt.Println(dim("  next: go run ./lab/shop   then   gatecrasher audit"))
 	case "down":
 		return docker(ctx, "compose", "-f", compose, "down")
