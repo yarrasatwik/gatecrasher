@@ -30,13 +30,16 @@ type Flag struct {
 	FeatureSegment *int   `json:"feature_segment,omitempty"`
 }
 
-// State is a compact comparable rendering: "on:<value>" / "off:<value>".
+// State is a compact comparable rendering: "on", "off", or "on: <value>".
 func (f Flag) State() string {
 	s := "off"
 	if f.Enabled {
 		s = "on"
 	}
-	return s + ":" + ValueString(f.Value)
+	if v := ValueString(f.Value); v != "" {
+		return s + ": " + v
+	}
+	return s
 }
 
 // ValueString renders a flag value deterministically.
