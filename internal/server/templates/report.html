@@ -1,0 +1,53 @@
+{{define "content"}}{{with .Body}}{{$r := .Report}}
+<p class="crumb"><a href="/">Dashboard</a> / Report <code>{{$r.ID}}</code></p>
+<header class="report-head">
+  <h1>{{.WaysIn}} way{{if ne .WaysIn 1}}s{{end}} in</h1>
+  <p class="muted">{{if $r.Target}}<code>{{rd $r.Target}}</code> · {{end}}{{if $r.Environment}}{{$r.Environment}} · {{end}}<time>{{time $r.CreatedAt}}</time> · AI: {{$r.AIMode}}</p>
+  <p class="downloads">Download: <a class="btn btn-small" href="/files/{{$r.ID}}.html" download>HTML</a> <a class="btn btn-small" href="/files/{{$r.ID}}.json" download>JSON</a> <a class="btn btn-small" href="/files/{{$r.ID}}.sarif" download>SARIF</a></p>
+  <form method="post" action="/plans/make" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+    <input type="hidden" name="report_id" value="{{$r.ID}}">
+    <button class="btn" type="submit">Build fix plans from this report</button>
+  </form>
+</header>
+
+<nav class="sev-summary" aria-label="Findings by severity"><ul class="plain inline">
+{{range .Groups}}<li><a href="#sev-{{.Severity.String}}">{{template "sev" .Severity}} <span class="count-num">{{len .Findings}}</span></a></li>{{else}}<li class="muted">No findings.</li>{{end}}
+</ul></nav>
+
+{{range .Groups}}<section aria-labelledby="sev-{{.Severity.String}}"><h2 id="sev-{{.Severity.String}}">{{.Severity.String | upper}} ({{len .Findings}})</h2>
+{{range .Findings}}{{template "finding" .}}{{end}}</section>{{end}}
+
+{{if .Controls}}<section aria-labelledby="controls-h"><h2 id="controls-h">Controls that held ({{len .Controls}})</h2>
+<ul class="plain">{{range .Controls}}<li><span class="chip status-blocked"><span aria-hidden="true">✓</span> OK</span> {{rd .Title}} <span class="muted"><code>{{.ID}}</code></span></li>{{end}}</ul></section>{{end}}
+
+{{if $r.Settings}}<section aria-labelledby="settings-h"><h2 id="settings-h">Environment security settings</h2>
+<div class="table-wrap" role="region" aria-label="Environment security settings" tabindex="0"><table>
+<thead><tr><th scope="col">Environment</th><th scope="col">Client traits allowed</th><th scope="col">Hide sensitive data</th><th scope="col">v2 versioning</th><th scope="col">Server-only flags</th><th scope="col">Client-visible flags</th></tr></thead>
+<tbody>{{range $r.Settings}}<tr><th scope="row">{{.Environment}}</th><td>{{yesno .AllowClientTraits}}</td><td>{{yesno .HideSensitiveData}}</td><td>{{if .UseV2Versioning}}on{{else}}off{{end}}</td><td>{{len .ServerOnlyFlags}}</td><td>{{len .ClientVisible}}</td></tr>{{end}}</tbody>
+</table></div></section>{{end}}
+
+{{if $r.Reachability}}<section aria-labelledby="reach-h"><h2 id="reach-h">Reachability map</h2>
+<p class="muted">Flag states an outsider can reach, computed with Flagsmith's own engine.</p>
+<div class="table-wrap" role="region" aria-label="Reachability map" tabindex="0"><table>
+<thead><tr><th scope="col">Environment</th><th scope="col">Flag</th><th scope="col">Default</th><th scope="col">Reachable</th><th scope="col">Segment</th><th scope="col">Forgeable</th><th scope="col">Forged traits</th></tr></thead>
+<tbody>{{range $r.Reachability}}<tr><td>{{.Environment}}</td><th scope="row"><code>{{rd .Flag}}</code></th><td>{{if .DefaultEnabled}}on{{else}}off{{end}}: <code>{{rd .DefaultValue}}</code></td><td>{{if .Enabled}}on{{else}}off{{end}}: <code>{{rd .Value}}</code></td><td>{{.Segment}}</td><td>{{.Forgeable}}{{if .EngineVerified}} (engine verified){{end}}</td><td>{{range $k, $v := .ForgedTraits}}<code>{{rd $k}}={{rd $v}}</code> {{end}}</td></tr>{{end}}</tbody>
+</table></div></section>{{end}}
+
+{{if $r.BeforeAfter}}<section aria-labelledby="ba-h"><h2 id="ba-h">Before and after</h2>
+<div class="table-wrap" role="region" aria-label="Before and after" tabindex="0"><table>
+<thead><tr><th scope="col">Finding</th><th scope="col">Before</th><th scope="col">After</th><th scope="col">Proof</th></tr></thead>
+<tbody>{{range $r.BeforeAfter}}<tr><th scope="row">{{rd .Title}} <code>{{.FindingID}}</code></th><td>{{template "status" .Before}}</td><td>{{template "status" .After}}</td><td>{{rd .Proof}}</td></tr>{{end}}</tbody>
+</table></div></section>{{end}}
+
+<section aria-labelledby="method-h"><h2 id="method-h">Method and scope</h2>
+<dl class="facts">
+<div><dt>Scope lock</dt><dd>{{range $r.Scope}}<code class="chip">{{.}}</code> {{else}}-{{end}}</dd></div>
+<div><dt>Probes sent</dt><dd>{{$r.Stats.ProbesSent}}</dd></div>
+<div><dt>Duration</dt><dd>{{ms $r.Stats.DurationMS}}</dd></div>
+{{if $r.Stats.ParityChecked}}<div><dt>Engine parity</dt><dd>{{$r.Stats.ParityAgreed}} of {{$r.Stats.ParityChecked}} live results matched the engine</dd></div>{{end}}
+<div><dt>Schema</dt><dd>{{$r.SchemaVersion}} · {{$r.Tool}} {{$r.Version}}</dd></div>
+</dl>
+{{if $r.Notes}}<ul class="notes">{{range $r.Notes}}<li>{{rd .}}</li>{{end}}</ul>{{end}}
+</section>
+{{end}}{{end}}

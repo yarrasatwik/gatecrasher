@@ -1,0 +1,41 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="referrer" content="no-referrer">
+<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"selfRequestsOnly":true}'>
+<title>{{.Title}} - Gatecrasher</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="stylesheet" href="/static/app.css">
+<script src="{{.HTMXURL}}" integrity="{{.HTMXSRI}}" crossorigin="anonymous" defer></script>
+</head>
+<body hx-headers='{"X-CSRF-Token":"{{.CSRF}}"}'>
+<a class="skip-link" href="#main">Skip to main content</a>
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="/" aria-label="Gatecrasher home">{{template "wordmark"}}</a>
+    <nav aria-label="Main">
+      <ul class="nav">
+        <li><a href="/"{{if eq .Active "dashboard"}} aria-current="page"{{end}}>Dashboard</a></li>
+        <li><a href="/plans"{{if eq .Active "plans"}} aria-current="page"{{end}}>Fix plans{{if .Pending}} <span class="count" aria-label="{{.Pending}} pending">{{.Pending}}</span>{{end}}</a></li>
+        <li><a href="/watch"{{if eq .Active "watch"}} aria-current="page"{{end}}>Watch</a></li>
+        <li><a href="/audit"{{if eq .Active "audit"}} aria-current="page"{{end}}>Audit log</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+<main id="main" class="wrap" tabindex="-1">
+{{if .Notice}}<div class="banner banner-ok" role="status"><span aria-hidden="true">✓</span> {{.Notice}}</div>{{end}}
+{{if .Error}}<div class="banner banner-error" role="alert"><span aria-hidden="true">!</span> <span><strong>Error.</strong> {{.Error}}</span></div>{{end}}
+{{template "content" .}}
+</main>
+<footer class="site-footer wrap">
+  <p>Gatecrasher reads and probes only within the configured scope. Nothing changes in Flagsmith until a person approves a plan.</p>
+</footer>
+<script src="/static/watch.js" defer></script>
+</body>
+</html>{{end}}
+
+{{define "wordmark"}}<span class="wordmark"><svg class="wordmark-mark" viewBox="0 0 32 32" width="30" height="30" aria-hidden="true" focusable="false"><path d="M6 28V14C6 8.5 10.5 4 16 4s10 4.5 10 10v14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M16 4v8l-4 4 6 3-3 5" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="wordmark-text">Gate<span class="wordmark-accent">crasher</span></span></span>{{end}}

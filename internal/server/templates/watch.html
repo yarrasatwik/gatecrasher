@@ -1,0 +1,10 @@
+{{define "content"}}
+<h1>Watch</h1>
+<p class="lead">Every flag or segment change in Flagsmith triggers a re-check of just the objects that changed. New findings show up here as they happen.</p>
+<p id="stream-status" class="stream-status" role="status"><span class="dot" aria-hidden="true"></span> <span id="stream-text">Connecting to the live feed...</span></p>
+<noscript><p class="muted">Live updates need JavaScript. Reload this page to see new alerts.</p></noscript>
+<ol id="alert-list" class="alerts" aria-label="Alerts, newest first" aria-live="polite" aria-relevant="additions">
+{{range .Body}}{{template "alert-item" .}}{{end}}
+</ol>
+<p id="no-alerts" class="empty"{{if .Body}} hidden{{end}}>No alerts yet. Edit a flag or segment in Flagsmith while <code>gatecrasher watch</code> is running and the result appears here.</p>
+{{end}}

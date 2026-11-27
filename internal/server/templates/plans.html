@@ -1,0 +1,93 @@
+{{define "content"}}{{with .Body}}
+<h1>Fix plans</h1>
+<p class="lead">Every change to Flagsmith waits here for a person. Review what changes, why, and what could break, then approve, reject or roll back.</p>
+
+<section class="card" aria-labelledby="make-h">
+  <h2 id="make-h">Build plans from a report</h2>
+  {{if .Reports}}
+  <form method="post" action="/plans/make" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+    <label for="report_id">Report</label>
+    <select id="report_id" name="report_id">{{range .Reports}}<option value="{{.ID}}">{{.ID}} - {{.WaysIn}} way{{if ne .WaysIn 1}}s{{end}} in ({{time .CreatedAt}})</option>{{end}}</select>
+    <button class="btn" type="submit">Build fix plans</button>
+  </form>
+  {{else}}<p class="empty">No reports yet. Run an audit from the <a href="/">dashboard</a> first.</p>{{end}}
+</section>
+
+{{if .Filter}}<p class="filter-note" role="status">{{if .FilterMiss}}No plan addresses finding <code>{{.Filter}}</code> yet, so all plans are shown.{{else}}Showing plans for finding <code>{{.Filter}}</code>. <a href="/plans">Show all plans</a>{{end}}</p>{{end}}
+
+{{range .Plans}}{{$p := .Rec.Plan}}{{$id := $p.ID}}
+<article class="card plan state-{{.Rec.State}}" id="plan-{{$id}}" aria-labelledby="pt-{{$id}}">
+  <header class="card-head">
+    <div class="card-title"><h2 id="pt-{{$id}}">{{rd $p.Title}}</h2>
+      <span class="chip state-chip">{{.Rec.State}}</span>
+      {{if $p.Production}}<span class="chip chip-prod">PRODUCTION</span>{{end}}
+    </div>
+    <p class="meta">Plan <code>{{$id}}</code> · {{$p.Environment}} · <code>{{rd $p.TargetObject}}</code> · hash <code>{{short $p.Hash}}</code> · created <time>{{time $p.CreatedAt}}</time></p>
+  </header>
+
+  {{if .Err}}<div class="banner banner-error" role="alert" id="err-{{$id}}"><span aria-hidden="true">!</span> <span>{{.Err}}</span></div>{{end}}
+  {{if $p.ExperimentWarning}}<div class="banner banner-warn" role="note"><span aria-hidden="true">⚠</span> <span><strong>Experiment warning.</strong> {{rd $p.ExperimentWarning}}</span></div>{{end}}
+
+  <section aria-labelledby="chg-{{$id}}"><h3 id="chg-{{$id}}">What changes</h3>
+  {{range .Ops}}<div class="op">
+    <p><strong>{{rd .Op.Description}}</strong> <span class="chip chip-quiet">{{.Op.Kind}}</span>{{if .Op.Automatic}}{{else}} <span class="chip">Guidance only, never executed</span>{{end}}</p>
+    {{if .Rows}}<div class="table-wrap"><table>
+      <caption class="sr-only">Before and after for {{.Op.Description}}</caption>
+      <thead><tr><th scope="col">Setting</th><th scope="col">Before</th><th scope="col">After</th></tr></thead>
+      <tbody>{{range .Rows}}<tr><th scope="row"><code>{{rd .Key}}</code></th><td><code class="before">{{rd .Before}}</code></td><td><code class="after">{{rd .After}}</code></td></tr>{{end}}</tbody>
+    </table></div>{{end}}
+    {{if .Op.Draft}}<details><summary>PR draft</summary><pre class="code" tabindex="0"><code>{{rd .Op.Draft}}</code></pre></details>{{end}}
+  </div>{{else}}<p class="muted">This plan has no operations.</p>{{end}}
+  </section>
+
+  <section aria-labelledby="why-{{$id}}"><h3 id="why-{{$id}}">Why</h3>
+  {{if .Findings}}<ul class="plain">{{range .Findings}}<li>{{if .ReportID}}<a href="/report/{{.ReportID}}#f-{{.ID}}">{{if .Title}}{{rd .Title}}{{else}}{{.ID}}{{end}}</a>{{else}}{{.ID}}{{end}} <span class="muted"><code>{{.ID}}</code></span></li>{{end}}</ul>{{else}}<p class="muted">No findings are linked to this plan.</p>{{end}}
+  </section>
+
+  <section aria-labelledby="brk-{{$id}}"><h3 id="brk-{{$id}}">What could break</h3>
+  {{if $p.Impact}}<ul class="impact">{{range $p.Impact}}<li><code>{{rd .File}}:{{.Line}}</code> {{if .Breaks}}<span class="chip chip-warn"><span aria-hidden="true">⚠</span> Will break</span>{{else}}<span class="chip chip-quiet">Review</span>{{end}} {{rd .Message}}{{if .Snippet}}<pre class="code" tabindex="0"><code>{{rd .Snippet}}</code></pre>{{end}}</li>{{end}}</ul>{{else}}<p class="muted">No code that reads this setting was found in the scanned repository.</p>{{end}}
+  </section>
+
+  {{if $p.BeforeSnapshot}}<details><summary>State snapshot this plan is bound to</summary><dl class="facts">{{range $k, $v := $p.BeforeSnapshot}}<div><dt><code>{{rd $k}}</code></dt><dd><code>{{rd (val $v)}}</code></dd></div>{{end}}</dl></details>{{end}}
+
+  {{with .Rec.Approval}}<p class="muted">Approved by {{.By}} via {{.Channel}} on <time>{{time .ApprovedAt}}</time>{{if .ConfirmedEnvironment}}; typed environment confirmation recorded{{end}}.</p>{{end}}
+  {{with .Rec.Error}}<p class="err-text">{{rd .}}</p>{{end}}
+
+  {{if .Rec.Verify}}<section aria-labelledby="ver-{{$id}}"><h3 id="ver-{{$id}}">Before and after</h3>
+  {{if .Rec.TookMS}}<p class="muted">The change took effect in {{ms .Rec.TookMS}}.</p>{{end}}
+  <div class="table-wrap"><table>
+    <thead><tr><th scope="col">Finding</th><th scope="col">Before</th><th scope="col">After</th><th scope="col">Proof</th></tr></thead>
+    <tbody>{{range .Rec.Verify}}<tr><th scope="row">{{rd .Title}} <code>{{.FindingID}}</code></th><td>{{template "status" .Before}}</td><td>{{template "status" .After}}</td><td>{{rd .Proof}}</td></tr>{{end}}</tbody>
+  </table></div></section>{{end}}
+
+  {{if .CanApprove}}
+  <form method="post" action="/plans/{{$id}}/approve" class="approve-form" aria-labelledby="appr-{{$id}}">
+    <h3 id="appr-{{$id}}">Decision</h3>
+    <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+    {{if .NeedsEnv}}<div class="field">
+      <label for="env-{{$id}}">Type the environment name <code>{{$p.Environment}}</code> to confirm this Production change</label>
+      <input id="env-{{$id}}" name="typed_env" type="text" required autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="env-help-{{$id}}{{if .Err}} err-{{$id}}{{end}}"{{if .Err}} aria-invalid="true"{{end}}>
+      <p class="help" id="env-help-{{$id}}">Production changes are never approved with a single click.</p>
+    </div>{{end}}
+    {{if .NeedsContaminate}}<div class="field">
+      <label for="exp-{{$id}}">Type <code>{{$.Body.Confirm}}</code> to accept that this change affects a running experiment</label>
+      <input id="exp-{{$id}}" name="typed_contaminate" type="text" required autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="exp-help-{{$id}}{{if .Err}} err-{{$id}}{{end}}"{{if .Err}} aria-invalid="true"{{end}}>
+      <p class="help" id="exp-help-{{$id}}">Applying it can contaminate the experiment's results.</p>
+    </div>{{end}}
+    <div class="actions">
+      <button class="btn btn-primary" type="submit">Approve</button>
+      <button class="btn" type="submit" formaction="/plans/{{$id}}/reject" formnovalidate>Reject</button>
+    </div>
+  </form>
+  {{else if or .CanApply .CanVerify .CanRollback .CanReject}}
+  <div class="actions" role="group" aria-label="Actions for plan {{$id}}">
+    {{if .CanApply}}<form method="post" action="/plans/{{$id}}/apply"><input type="hidden" name="csrf_token" value="{{$.CSRF}}"><button class="btn btn-primary" type="submit">Apply to Flagsmith</button></form>{{end}}
+    {{if .CanVerify}}<form method="post" action="/plans/{{$id}}/verify"><input type="hidden" name="csrf_token" value="{{$.CSRF}}"><button class="btn btn-primary" type="submit">Verify (re-attack)</button></form>{{end}}
+    {{if .CanRollback}}<form method="post" action="/plans/{{$id}}/rollback"><input type="hidden" name="csrf_token" value="{{$.CSRF}}"><button class="btn" type="submit">Roll back</button></form>{{end}}
+    {{if .CanReject}}<form method="post" action="/plans/{{$id}}/reject"><input type="hidden" name="csrf_token" value="{{$.CSRF}}"><button class="btn" type="submit">Reject</button></form>{{end}}
+  </div>
+  {{end}}
+</article>
+{{else}}<p class="empty">No plans yet. Build them from a report above.</p>{{end}}
+{{end}}{{end}}

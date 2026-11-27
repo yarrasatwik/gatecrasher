@@ -1,0 +1,47 @@
+{{define "content"}}{{with .Body}}
+<h1>Overview</h1>
+<section class="card" aria-labelledby="target-h">
+  <h2 id="target-h">What is being tested</h2>
+  <dl class="facts">
+    <div><dt>Target</dt><dd>{{if .Config.Target}}<code>{{rd .Config.Target}}</code>{{else}}<span class="muted">Not set (inside view only)</span>{{end}}</dd></div>
+    <div><dt>AI mode</dt><dd><span class="chip">{{.Config.AIMode}}</span></dd></div>
+    <div><dt>Project</dt><dd>{{if .Config.Project}}{{.Config.Project}}{{else}}<span class="muted">Not set</span>{{end}}</dd></div>
+    <div><dt>Environments</dt><dd>{{range .Config.Environments}}<span class="chip">{{.}}</span> {{else}}<span class="muted">None configured</span>{{end}}{{if .Config.Production}}<span class="muted small">Production: {{range $i, $e := .Config.Production}}{{if $i}}, {{end}}{{$e}}{{end}} (changes need typed confirmation)</span>{{end}}</dd></div>
+    <div><dt>Scope lock</dt><dd>{{range .Config.Scope}}<code class="chip">{{.}}</code> {{else}}<span class="muted">Nothing is in scope</span>{{end}}</dd></div>
+  </dl>
+</section>
+
+<section class="card" id="run" aria-labelledby="run-h">
+  <h2 id="run-h">Full audit</h2>
+  <p>Recon, attack, map and report in one pass. Probes use transient identities only and never write to Flagsmith.</p>
+  <form method="post" action="/run" hx-post="/run" hx-target="#run-panel" hx-swap="innerHTML">
+    <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+    <button class="btn btn-primary" type="submit">Run full audit</button>
+  </form>
+  <div id="run-panel" class="run-panel" aria-live="polite">{{template "run-status" .Run}}</div>
+  <noscript><p class="muted small">Without JavaScript, reload this page to see progress.</p></noscript>
+</section>
+
+<section class="tiles" aria-label="Summary">
+  <div class="tile"><p class="tile-num">{{if .Latest}}{{.Latest.WaysIn}}{{else}}-{{end}}</p><p class="tile-label">ways in (latest report)</p></div>
+  <a class="tile tile-link" href="/plans"><p class="tile-num">{{.Pending}}</p><p class="tile-label">fix plans awaiting a decision</p></a>
+  <a class="tile tile-link" href="/watch"><p class="tile-num">{{.Alerts}}</p><p class="tile-label">watch alerts</p></a>
+</section>
+
+<section aria-labelledby="reports-h">
+  <h2 id="reports-h">Recent reports</h2>
+  {{if .Reports}}
+  <div class="table-wrap" role="region" aria-label="Recent reports" tabindex="0"><table>
+    <thead><tr><th scope="col">Created</th><th scope="col">Target</th><th scope="col">Environment</th><th scope="col">Result</th><th scope="col">AI</th><th scope="col"><span class="sr-only">Open</span></th></tr></thead>
+    <tbody>{{range .Reports}}<tr>
+      <td><time>{{time .CreatedAt}}</time></td>
+      <td>{{if .Target}}<code>{{rd .Target}}</code>{{else}}-{{end}}</td>
+      <td>{{.Environment}}</td>
+      <td><strong>{{.WaysIn}} way{{if ne .WaysIn 1}}s{{end}} in</strong></td>
+      <td>{{.AIMode}}</td>
+      <td><a href="/report/{{.ID}}">Open <span class="sr-only">report {{.ID}}</span></a></td>
+    </tr>{{end}}</tbody>
+  </table></div>
+  {{else}}<p class="empty">No reports yet. Run a full audit to create the first one.</p>{{end}}
+</section>
+{{end}}{{end}}
