@@ -31,16 +31,6 @@ type Data struct {
 	Features     []FeatureData  `yaml:"features"`
 }
 
-// wantsV2 reports whether env should use v2 feature versioning.
-func (d *Data) wantsV2(env string) bool {
-	for _, e := range d.V2Versioning {
-		if e == env {
-			return true
-		}
-	}
-	return false
-}
-
 // EnvironmentSettings are the two security-relevant environment switches.
 type EnvironmentSettings struct {
 	AllowClientTraits bool `yaml:"allow_client_traits"`
