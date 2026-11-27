@@ -1,0 +1,29 @@
+{
+  "count": 2,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "created_at": "2026-11-27T18:05:48.179512Z",
+      "updated_at": "2026-11-27T18:05:48.706217Z",
+      "published": true,
+      "live_from": "2026-11-27T18:05:48.706114Z",
+      "uuid": "ae47f010-54a4-4f2f-8fca-43778c108a09",
+      "is_live": true,
+      "published_by": null,
+      "created_by": null,
+      "description": null
+    },
+    {
+      "created_at": "2026-11-27T18:05:47.340894Z",
+      "updated_at": "2026-11-27T18:05:47.340903Z",
+      "published": true,
+      "live_from": "2026-11-27T18:05:47.174372Z",
+      "uuid": "6de1eed6-e365-4e08-a36a-09447ef67e5a",
+      "is_live": true,
+      "published_by": null,
+      "created_by": null,
+      "description": null
+    }
+  ]
+}
