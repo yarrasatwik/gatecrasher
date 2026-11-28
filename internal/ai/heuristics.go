@@ -156,6 +156,12 @@ var explainTemplates = map[model.FindingType]explainTemplate{
 		"This may breach privacy obligations and harms the people affected.",
 		"Remove the personal data from the flag and mark the flag server-side only.",
 	},
+	model.FPossibleSecret: {
+		"The flag %s serves a random-looking value to every visitor. It needs review.",
+		"It matches no known secret format, so it may be a harmless identifier or a credential.",
+		"If it is a credential, anyone could use it.",
+		"Check what the value is. Rotate and remove it if it is a credential.",
+	},
 	model.FSettingClientTraitsOn: {
 		"The environment %s allows client-side traits.",
 		"Anyone with the public key can send traits that change flag results.",

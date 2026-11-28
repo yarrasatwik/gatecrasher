@@ -222,6 +222,7 @@ var leakTypes = map[model.Category]model.FindingType{
 	model.CatUnreleasedProduct: model.FUnreleasedProduct,
 	model.CatPricing:           model.FPricingLeak,
 	model.CatPII:               model.FPIILeak,
+	model.CatPossibleSecret:    model.FPossibleSecret,
 }
 
 var leakTitles = map[model.FindingType]string{
@@ -230,6 +231,7 @@ var leakTitles = map[model.FindingType]string{
 	model.FUnreleasedProduct: "Unreleased product leaked through flag: %s",
 	model.FPricingLeak:       "Pricing data visible to every browser: %s",
 	model.FPIILeak:           "Personal data in a client-visible flag: %s",
+	model.FPossibleSecret:    "Possible secret in a client-visible flag (needs review): %s",
 }
 
 // configLeak turns a sensitive classification of a public flag into a finding.

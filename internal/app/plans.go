@@ -282,7 +282,7 @@ func (a *App) Recheck(ctx context.Context, f model.Finding) (model.Status, strin
 		return statusIf(!fresh.HideSensitiveData, fmt.Sprintf("hide_sensitive_data=%v", fresh.HideSensitiveData))
 	case model.FSettingSensitiveData:
 		return statusIf(!fresh.HideSensitiveData, fmt.Sprintf("hide_sensitive_data=%v", fresh.HideSensitiveData))
-	case model.FSecretExposed, model.FInternalURL, model.FUnreleasedProduct, model.FPricingLeak, model.FPIILeak, model.FFlagNotServerOnly:
+	case model.FSecretExposed, model.FInternalURL, model.FUnreleasedProduct, model.FPricingLeak, model.FPIILeak, model.FPossibleSecret, model.FFlagNotServerOnly:
 		flags, ev, err := sdk.EnvironmentFlags(ctx)
 		if err != nil {
 			return model.StatusUnknown, "", err

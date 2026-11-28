@@ -26,6 +26,7 @@
 //	SETTING_CLIENT_TRAITS_ON        Medium when forgeable segments exist, else Low
 //	SETTING_SENSITIVE_DATA_VISIBLE  Medium when an identity lookup is possible, else Low
 //	FLAG_NOT_SERVER_ONLY            High when the flag holds a SECRET, else Low
+//	POSSIBLE_SECRET_IN_CLIENT_VALUE Low, always (high entropy alone; needs review)
 //	CONTROL_OK                      Info
 //	anything else                   Medium
 package severity
@@ -129,6 +130,8 @@ func Rate(f model.Finding, ctx Context) model.Severity {
 		return lowUnless(ctx.LookupPossible, model.SevMedium)
 	case model.FFlagNotServerOnly:
 		return lowUnless(ctx.HoldsSecret, model.SevHigh)
+	case model.FPossibleSecret:
+		return model.SevLow
 	case model.FControlOK:
 		return model.SevInfo
 	default:

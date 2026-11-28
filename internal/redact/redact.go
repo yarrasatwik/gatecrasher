@@ -24,7 +24,11 @@ var rules = []rule{
 	{regexp.MustCompile(`\b[A-Za-z0-9]{8}\.[A-Za-z0-9]{32}\b`), "ORG_API_KEY", 0},
 	{regexp.MustCompile(`sk-ant-[A-Za-z0-9_\-]{10,}`), "ANTHROPIC_KEY", 0},
 	{regexp.MustCompile(`acme_live_[0-9a-fA-F]{8,}`), "SECRET", 0},
+	// pk_ (publishable) keys are public by design and internal/secrets does
+	// not classify them as secrets; they are still never printed in full.
 	{regexp.MustCompile(`\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{8,}`), "SECRET", 0},
+	// The password of scheme://user:password@host, for any scheme.
+	{regexp.MustCompile(`(?i)(\b[a-z][a-z0-9+.\-]*://[^\s/:@"'<>]*:)([^\s/"'<>\[\]]+)@`), "URL_PASSWORD", 2},
 	{regexp.MustCompile(`\bAKIA[0-9A-Z]{16}\b`), "AWS_KEY", 0},
 	{regexp.MustCompile(`\bgh[pousr]_[A-Za-z0-9]{20,}`), "GITHUB_TOKEN", 0},
 	{regexp.MustCompile(`\bxox[baprs]-[A-Za-z0-9\-]{10,}`), "SLACK_TOKEN", 0},

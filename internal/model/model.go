@@ -76,10 +76,14 @@ const (
 	CatPII               Category = "PII"
 	CatSecurityControl   Category = "SECURITY_CONTROL"
 	CatHarmless          Category = "HARMLESS"
+	// CatPossibleSecret is a value that only looks random: no known secret
+	// pattern, secret-named key or URL credential backs it. It needs a
+	// human review and is never rated above LOW.
+	CatPossibleSecret Category = "POSSIBLE_SECRET"
 )
 
 // AllCategories lists every valid category.
-var AllCategories = []Category{CatSecret, CatInternalURL, CatUnreleasedProduct, CatPricing, CatPII, CatSecurityControl, CatHarmless}
+var AllCategories = []Category{CatSecret, CatInternalURL, CatUnreleasedProduct, CatPricing, CatPII, CatSecurityControl, CatPossibleSecret, CatHarmless}
 
 // Valid reports whether c is a known category.
 func (c Category) Valid() bool {
@@ -113,6 +117,9 @@ const (
 	FFlagNotServerOnly     FindingType = "FLAG_NOT_SERVER_ONLY"
 	FSegmentForgeable      FindingType = "SEGMENT_FORGEABLE"
 	FControlOK             FindingType = "CONTROL_OK"
+	// FPossibleSecret is a high-entropy client-visible value with no other
+	// evidence that it is a credential: LOW, "needs review".
+	FPossibleSecret FindingType = "POSSIBLE_SECRET_IN_CLIENT_VALUE"
 )
 
 // Method records which mechanism produced or confirmed a finding.
