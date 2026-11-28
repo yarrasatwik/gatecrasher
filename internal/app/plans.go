@@ -31,8 +31,8 @@ func (a *App) MakePlans(ctx context.Context, reportID, onlyFinding string) ([]*m
 	}
 	var open []model.Finding
 	for _, f := range r.Findings {
-		if f.Status == model.StatusBlocked || f.Type == model.FControlOK {
-			continue
+		if !f.Open() {
+			continue // closed, a control that held, or only an AI suggestion
 		}
 		if onlyFinding != "" && f.ID != onlyFinding {
 			continue

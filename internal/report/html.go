@@ -33,6 +33,11 @@ type findingView struct {
 	Locations   []string
 }
 
+// reviewView is one AI-only suggestion.
+type reviewView struct {
+	ID, Title, Type, Subject, Reason string
+}
+
 type settingView struct {
 	Environment, Traits, TraitsClass, Hidden, HiddenClass string
 	ServerOnly, ClientVisible                             int
@@ -51,6 +56,8 @@ type htmlView struct {
 	WaysIn         int
 	Chips          []chipView
 	Findings       []findingView
+	Review         []reviewView
+	ReviewNote     string
 	Settings       []settingView
 	Reach          []reachView
 	BeforeAfter    []changeView
@@ -86,8 +93,13 @@ func buildHTMLView(p *model.Report) htmlView {
 		v.Chips = append(v.Chips, chipView{Name: titleCase(s.String()), Class: s.String(), Count: p.Stats.BySeverity[s.String()]})
 	}
 	for _, f := range p.Findings {
+		if f.Status == model.StatusNeedsReview {
+			v.Review = append(v.Review, reviewView{ID: f.ID, Title: f.Title, Type: string(f.Type), Subject: f.Subject, Reason: aiReason(f)})
+			continue
+		}
 		v.Findings = append(v.Findings, buildFindingView(f))
 	}
+	v.ReviewNote = reviewNote
 	for _, s := range p.Settings {
 		v.Settings = append(v.Settings, buildSettingView(s))
 	}

@@ -18,6 +18,20 @@
 {{range .Groups}}<section aria-labelledby="sev-{{.Severity.String}}"><h2 id="sev-{{.Severity.String}}">{{.Severity.String | upper}} ({{len .Findings}})</h2>
 {{range .Findings}}{{template "finding" .}}{{end}}</section>{{end}}
 
+{{if .Review}}<section aria-labelledby="review-h"><h2 id="review-h">Claude suggests reviewing ({{len .Review}})</h2>
+<p class="muted"><strong>Not counted.</strong> Only the AI flagged these: no deterministic rule and no probe agrees, so they are not findings, not ways in and not in the severity totals. Confirm one only if you know it is real; your decision is written to the audit log.</p>
+{{range .Review}}<article class="card review" id="f-{{.ID}}" aria-labelledby="t-{{.ID}}">
+  <header class="card-head">
+    <div class="card-title"><span class="chip status-needs_review"><span aria-hidden="true">?</span> NEEDS REVIEW</span><h3 id="t-{{.ID}}">{{rich .Title}}</h3></div>
+    <p class="meta"><code>{{.ID}}</code> · {{.Type}}{{if .Environment}} · {{.Environment}}{{end}}{{if .Subject}} · <code>{{rd .Subject}}</code>{{end}}{{if .Category}} · {{.Category}}{{end}}</p>
+  </header>
+  {{if .Reason}}<p><strong>Claude's reason.</strong> {{rd .Reason}}</p>{{end}}
+  <form method="post" action="/report/{{$r.ID}}/confirm/{{.ID}}" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+    <button class="btn" type="submit">Confirm as a finding</button>
+  </form>
+</article>{{end}}</section>{{end}}
+
 {{if .Controls}}<section aria-labelledby="controls-h"><h2 id="controls-h">Controls that held ({{len .Controls}})</h2>
 <ul class="plain">{{range .Controls}}<li><span class="chip status-blocked"><span aria-hidden="true">✓</span> OK</span> {{rd .Title}} <span class="muted"><code>{{.ID}}</code></span></li>{{end}}</ul></section>{{end}}
 

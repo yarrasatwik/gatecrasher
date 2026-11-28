@@ -46,6 +46,7 @@ type compactReport struct {
 	Env      string           `json:"env,omitempty"`
 	AI       string           `json:"ai"`
 	WaysIn   int              `json:"ways_in"`
+	Review   int              `json:"needs_review"`
 	Counts   map[string]int   `json:"counts"`
 	Findings []compactFinding `json:"findings"`
 	Verified []compactChange  `json:"verified,omitempty"`
@@ -53,7 +54,8 @@ type compactReport struct {
 
 // WriteCompactJSON writes the minimal machine-readable summary used by every
 // CLI `--json` flag: ids, severities, types, subjects, statuses, one-line
-// titles and counts, without evidence.
+// titles and counts, without evidence. Items with status NEEDS_REVIEW are
+// AI-only suggestions: they are listed but are in none of the counts.
 func WriteCompactJSON(w io.Writer, r *model.Report) error {
 	p := prepare(r)
 	out := compactReport{
@@ -62,6 +64,7 @@ func WriteCompactJSON(w io.Writer, r *model.Report) error {
 		Env:      p.Environment,
 		AI:       p.AIMode,
 		WaysIn:   WaysIn(p),
+		Review:   Count(p).Review,
 		Counts:   p.Stats.BySeverity,
 		Findings: make([]compactFinding, 0, len(p.Findings)),
 	}

@@ -129,6 +129,7 @@ func (s *Server) routes() *http.ServeMux {
 	m.HandleFunc("POST /run", s.startRunHandler)
 	m.HandleFunc("GET /run/status", s.runStatus)
 	m.HandleFunc("GET /report/{id}", s.report)
+	m.HandleFunc("POST /report/{id}/confirm/{finding}", s.confirmFinding)
 	m.HandleFunc("GET /plans", s.plans)
 	m.HandleFunc("POST /plans/make", s.makePlans)
 	m.HandleFunc("POST /plans/{id}/{action}", s.planAction)

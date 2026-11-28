@@ -175,6 +175,19 @@ func (f *stubBackend) Rollback(_ context.Context, id string) error {
 	return nil
 }
 
+func (f *stubBackend) ConfirmFinding(_ context.Context, reportID, findingID, by string) error {
+	f.record("confirm " + reportID + " " + findingID + " " + by)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.reports[reportID].Findings {
+		if fd := &f.reports[reportID].Findings[i]; fd.ID == findingID {
+			fd.Status, fd.Confirmed, fd.Severity = model.StatusExploitable, true, model.SevMedium
+			fd.DetectedBy = append(fd.DetectedBy, model.MethodHuman)
+		}
+	}
+	return f.failWith
+}
+
 func (f *stubBackend) AuditEntries() []AuditRow { return f.audit }
 
 func (f *stubBackend) ChainValid() (bool, int) { return f.chainOK, f.chainN }

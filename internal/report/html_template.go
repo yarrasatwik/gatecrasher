@@ -121,6 +121,7 @@ footer{margin:48px 0 32px;color:var(--muted);font-size:.85rem}
   <nav class="sections" aria-label="Report sections"><ul>
     <li><a href="#summary">Summary</a></li>
     <li><a href="#findings">Findings</a></li>
+    {{if .Review}}<li><a href="#review">Needs review</a></li>{{end}}
     <li><a href="#settings">Settings</a></li>
     <li><a href="#reachability">Reachability</a></li>
     {{if .BeforeAfter}}<li><a href="#before-after">Before &amp; after</a></li>{{end}}
@@ -182,6 +183,27 @@ footer{margin:48px 0 32px;color:var(--muted);font-size:.85rem}
   </article>
   {{else}}<p class="empty">No findings.</p>{{end}}
 </section>
+
+{{if .Review}}
+<section id="review" aria-labelledby="review-h">
+  <h2 id="review-h">Claude suggests reviewing ({{len .Review}})</h2>
+  <p>{{.ReviewNote}}</p>
+  {{range .Review}}
+  <article class="card info" id="{{.ID}}" aria-labelledby="{{.ID}}-h">
+    <header>
+      <span class="badge">? NEEDS REVIEW</span>
+      <h3 id="{{.ID}}-h">{{.Title}}</h3>
+    </header>
+    <ul class="facts">
+      <li>ID <code>{{.ID}}</code></li>
+      <li>Type <code>{{.Type}}</code></li>
+      <li>Subject <code>{{.Subject}}</code></li>
+    </ul>
+    {{if .Reason}}<p><span class="lbl">Claude's reason.</span> {{.Reason}}</p>{{end}}
+  </article>
+  {{end}}
+</section>
+{{end}}
 
 <section id="settings" aria-labelledby="settings-h">
   <h2 id="settings-h">Environment security settings</h2>

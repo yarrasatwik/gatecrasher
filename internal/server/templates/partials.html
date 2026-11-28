@@ -20,7 +20,7 @@
     <div class="card-title">{{template "sev" .Severity}}<h3 id="t-{{.ID}}">{{rich .Title}}</h3></div>
     <p class="meta"><code>{{.ID}}</code> · {{.Type}}{{if .Environment}} · {{.Environment}}{{end}}{{if .Subject}} · <code>{{rd .Subject}}</code>{{end}}</p>
   </header>
-  <p class="chips">{{template "status" .Status}}{{if .Confirmed}} <span class="chip">Confirmed by a probe or the engine</span>{{else}} <span class="chip">Not confirmed</span>{{end}}{{if .Category}} <span class="chip">{{.Category}}</span>{{end}}{{range .DetectedBy}} <span class="chip chip-quiet">{{.}}</span>{{end}}</p>
+  <p class="chips">{{template "status" .Status}}{{if .Confirmed}} <span class="chip">Confirmed</span>{{else}} <span class="chip">Not confirmed</span>{{end}}{{if .Category}} <span class="chip">{{.Category}}</span>{{end}}{{range .DetectedBy}} <span class="chip chip-quiet">{{.}}</span>{{end}}</p>
   {{with .Explanation}}<div class="explain">
     <p><strong>What happened.</strong> {{rd .WhatHappened}}</p>
     <p><strong>Why it matters.</strong> {{rd .WhyItMatters}}</p>

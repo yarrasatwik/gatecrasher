@@ -193,7 +193,7 @@ func Summary(r *model.Report, min model.Severity) string {
 	var b strings.Builder
 	open := 0
 	for _, f := range r.Findings {
-		if f.Status != model.StatusBlocked && f.Type != model.FControlOK {
+		if f.Open() {
 			open++
 		}
 	}

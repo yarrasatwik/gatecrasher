@@ -15,6 +15,7 @@ func WriteMarkdown(w io.Writer, r *model.Report) error {
 	var b strings.Builder
 	mdHeader(&b, p)
 	mdFindings(&b, p)
+	mdReview(&b, p)
 	mdSettings(&b, p)
 	mdReachability(&b, p)
 	mdBeforeAfter(&b, p)
@@ -43,6 +44,9 @@ func mdFindings(b *strings.Builder, p *model.Report) {
 		return
 	}
 	for _, f := range p.Findings {
+		if f.Status == model.StatusNeedsReview {
+			continue
+		}
 		fmt.Fprintf(b, "### [%s] %s\n\n", strings.ToUpper(f.Severity.String()), mdInline(headline(f)))
 		fmt.Fprintf(b, "`%s` · `%s` · subject `%s` · %s · detected by %s\n\n", f.ID, f.Type, f.Subject, statusWord(f.Status), methods(f))
 		mdExplanation(b, f)
@@ -61,6 +65,23 @@ func mdFindings(b *strings.Builder, p *model.Report) {
 			b.WriteString("\n\n")
 		}
 	}
+}
+
+// mdReview lists what only the AI suggested, apart from the findings.
+func mdReview(b *strings.Builder, p *model.Report) {
+	items := reviewItems(p)
+	if len(items) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "## Claude suggests reviewing (%d)\n\n%s\n\n", len(items), reviewNote)
+	for _, f := range items {
+		fmt.Fprintf(b, "- **%s** (`%s` · `%s` · subject `%s`)", mdInline(f.Title), f.ID, f.Type, f.Subject)
+		if why := aiReason(f); why != "" {
+			fmt.Fprintf(b, " Claude's reason: %s", mdInline(why))
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
 }
 
 func methods(f model.Finding) string {

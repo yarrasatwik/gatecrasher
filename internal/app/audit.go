@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yarrasatwik/gatecrasher/internal/ai"
 	"github.com/yarrasatwik/gatecrasher/internal/attacks"
 	"github.com/yarrasatwik/gatecrasher/internal/flagsmith"
 	"github.com/yarrasatwik/gatecrasher/internal/mapper"
@@ -97,6 +96,7 @@ func (a *App) Audit(ctx context.Context, o AuditOptions) (*model.Report, error) 
 			r.Findings[i].Environment = o.Environment
 		}
 	}
+	dropLiveUnreleased(r, cls)
 	dedupe(r)
 	a.consolidate(r)
 	severity.AssignAll(r.Findings)
@@ -111,6 +111,9 @@ func (a *App) Audit(ctx context.Context, o AuditOptions) (*model.Report, error) 
 				sem <- struct{}{}
 				go func(i int) {
 					defer func() { <-sem; wg.Done() }()
+					if r.Findings[i].Status == model.StatusNeedsReview {
+						return // a suggestion is shown with the AI's reason, not explained as fact
+					}
 					r.Findings[i].Explanation = a.AI.Explain(ctx, r.Findings[i])
 				}(i)
 			}
@@ -159,13 +162,13 @@ func (a *App) outside(ctx context.Context, r *model.Report, target string, cls m
 	say("classify", "classifying flag names and values · AI "+string(a.AI.Mode()))
 	classes, mode := a.AI.Classify(ctx, res.Inventory)
 	r.AIMode = string(mode)
-	r.Classifications = classes
-	for _, c := range classes {
-		cls[c.Flag] = c.Category
-		if ai.Reportable(c) {
-			r.Findings = append(r.Findings, configLeak(c, res.Inventory, r.Environment))
-		}
+	// The AI suggests; deterministic rules or a human decide. Only confirmed
+	// categories reach the severity rules and the settings audit.
+	r.Classifications = adjudicate(classes, res.Inventory, r.Environment, r.CreatedAt, a.confirmedFindings())
+	for flag, cat := range trustedCategories(r.Classifications) {
+		cls[flag] = cat
 	}
+	r.Findings = append(r.Findings, leakFindings(r.Classifications, res.Inventory, r.Environment)...)
 	if a.AI.Mode().On() {
 		agree := 0
 		for i, f := range res.Inventory.Flags {
@@ -178,7 +181,11 @@ func (a *App) outside(ctx context.Context, r *model.Report, target string, cls m
 			r.Stats.AIHeuristicAgree = &v
 		}
 	}
-	return a.outsideAttacks(ctx, r, cls, say)
+	if err := a.outsideAttacks(ctx, r, cls, say); err != nil {
+		return err
+	}
+	dropLiveUnreleased(r, cls)
+	return nil
 }
 
 // outsideAttacks consumes the classified public inventory using only the SDK.
@@ -362,14 +369,18 @@ func (a *App) classifyFromAdmin(ctx context.Context, env flagsmith.Environment, 
 			ValueType: valueType(f.Value), Preview: redact.String(trim(flagsmith.ValueString(f.Value), 80))})
 	}
 	if fast {
-		for _, f := range inv.Flags {
-			cls[f.Name] = secrets.Classify(f).Category
+		det := make([]model.Classification, len(inv.Flags))
+		for i, f := range inv.Flags {
+			det[i] = secrets.Classify(f)
+		}
+		for flag, cat := range trustedCategories(adjudicate(det, inv, env.Name, time.Now().UTC(), nil)) {
+			cls[flag] = cat
 		}
 		return
 	}
 	classes, _ := a.AI.Classify(ctx, inv)
-	for _, c := range classes {
-		cls[c.Flag] = c.Category
+	for flag, cat := range trustedCategories(adjudicate(classes, inv, env.Name, time.Now().UTC(), a.confirmedFindings())) {
+		cls[flag] = cat
 	}
 }
 

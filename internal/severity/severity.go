@@ -26,6 +26,10 @@
 //	FLAG_NOT_SERVER_ONLY            High when the flag holds a SECRET, else Low
 //	CONTROL_OK                      Info
 //	anything else                   Medium
+//
+// One rule comes before all of these: a NEEDS_REVIEW item (something only the
+// AI suggested) is always Info. It is not a finding until a deterministic
+// rule or a human confirms it, so it never borrows a finding's severity.
 package severity
 
 import (
@@ -74,7 +78,7 @@ func AssignAll(fs []model.Finding) {
 	for i := range fs {
 		ctx := contextFromTags(fs[i])
 		for _, o := range fs {
-			if !sameEnv(fs[i], o) {
+			if !sameEnv(fs[i], o) || o.Status == model.StatusNeedsReview {
 				continue
 			}
 			switch o.Type {
@@ -106,6 +110,9 @@ func contextFromTags(f model.Finding) Context {
 
 // Rate returns the severity of f given ctx. It is a pure function.
 func Rate(f model.Finding, ctx Context) model.Severity {
+	if f.Status == model.StatusNeedsReview {
+		return model.SevInfo
+	}
 	switch f.Type {
 	case model.FSecretExposed:
 		return model.SevCritical

@@ -160,7 +160,7 @@ func (p *Planner) group(findings []model.Finding) ([]*group, error) {
 	var errs []error
 	for _, f := range findings {
 		kind := classify(f.Type)
-		if kind == fixNone || f.Status == model.StatusBlocked {
+		if kind == fixNone || !f.Open() {
 			continue
 		}
 		env, err := p.env(f.Environment)

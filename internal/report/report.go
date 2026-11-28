@@ -21,7 +21,8 @@ const ToolName = "Gatecrasher"
 
 // Finalize makes r ready to publish: it stamps the schema version and tool
 // name, sorts findings (worst first) and recomputes Stats.BySeverity with a
-// count for every severity level. It is idempotent.
+// count for every severity level. AI-only suggestions (NEEDS_REVIEW) are in
+// no severity total. It is idempotent.
 func Finalize(r *model.Report) {
 	r.SchemaVersion = model.SchemaVersion
 	if r.Tool == "" {
@@ -39,18 +40,20 @@ func Finalize(r *model.Report) {
 		counts[s.String()] = 0
 	}
 	for _, f := range r.Findings {
-		counts[f.Severity.String()]++
+		if f.Status != model.StatusNeedsReview {
+			counts[f.Severity.String()]++
+		}
 	}
 	r.Stats.BySeverity = counts
 }
 
 // WaysIn returns the number of distinct ways an attacker can get in: findings
 // that are not CONTROL_OK and not already BLOCKED. HIDDEN findings are still
-// open and count.
+// open and count; AI-only suggestions (NEEDS_REVIEW) never do.
 func WaysIn(r *model.Report) int {
 	n := 0
 	for _, f := range r.Findings {
-		if open(f) {
+		if f.Open() {
 			n++
 		}
 	}

@@ -29,12 +29,13 @@ type ReportSummary struct {
 }
 
 // WaysIn counts the open findings of a report (the "N ways in" headline),
-// ignoring controls that held. It matches every other surface: anything not
-// BLOCKED is open, including HIDDEN and UNKNOWN.
+// ignoring controls that held and suggestions only the AI made. It matches
+// every other surface: anything not BLOCKED is open, including HIDDEN and
+// UNKNOWN.
 func WaysIn(r *model.Report) int {
 	n := 0
 	for _, f := range r.Findings {
-		if f.Type != model.FControlOK && f.Status != model.StatusBlocked {
+		if f.Open() {
 			n++
 		}
 	}
@@ -98,6 +99,10 @@ type Backend interface {
 	Verify(ctx context.Context, id string) error
 	// Rollback restores the pre-change state of an applied plan.
 	Rollback(ctx context.Context, id string) error
+	// ConfirmFinding records that a human (by) confirmed a NEEDS_REVIEW item
+	// of a report: something only the AI had suggested. The backend must
+	// write the decision to the audit log before it promotes the finding.
+	ConfirmFinding(ctx context.Context, reportID, findingID, by string) error
 	// AuditEntries returns the audit log, oldest first.
 	AuditEntries() []AuditRow
 	// ChainValid verifies the hash chain. If valid it returns (true, n)

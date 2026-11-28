@@ -85,9 +85,36 @@ func statusWord(s model.Status) string {
 		return "✗ EXPLOITABLE"
 	case model.StatusHidden:
 		return "✗ HIDDEN (still open)"
+	case model.StatusNeedsReview:
+		return "? NEEDS REVIEW (not counted)"
 	default:
 		return "? " + string(s)
 	}
+}
+
+// reviewNote is shown above every list of AI-only suggestions.
+const reviewNote = "Not counted. Only the AI flagged these: no deterministic rule and no probe agrees, so they are not findings, not ways in and not in the severity totals. A person can confirm one in the web UI; that decision is written to the audit log."
+
+// reviewItems returns the AI-only suggestions of a report.
+func reviewItems(r *model.Report) []model.Finding {
+	var out []model.Finding
+	for _, f := range r.Findings {
+		if f.Status == model.StatusNeedsReview {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// aiReason is the AI's stated reason for a suggestion.
+func aiReason(f model.Finding) string {
+	reason := ""
+	for _, e := range f.Evidence {
+		if e.Note != "" {
+			reason = e.Note
+		}
+	}
+	return reason
 }
 
 // reachVia describes how an attacker reaches a flag state.

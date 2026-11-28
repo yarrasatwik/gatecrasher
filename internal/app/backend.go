@@ -131,6 +131,12 @@ func (b *Backend) Rollback(ctx context.Context, id string) error {
 	return err
 }
 
+// ConfirmFinding records a human confirmation of an AI-only suggestion.
+func (b *Backend) ConfirmFinding(ctx context.Context, reportID, findingID, by string) error {
+	_, err := b.A.ConfirmFinding(ctx, reportID, findingID, by)
+	return err
+}
+
 // AuditEntries returns the hash-chained log.
 func (b *Backend) AuditEntries() []server.AuditRow {
 	es, err := b.A.Log.Entries()

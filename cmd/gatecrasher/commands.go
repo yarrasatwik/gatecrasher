@@ -170,7 +170,7 @@ func finish(a *app.App, r *model.Report, asJSON bool, failOn string) error {
 func openAtOrAbove(r *model.Report, min model.Severity) int {
 	n := 0
 	for _, f := range r.Findings {
-		if f.Severity >= min && f.Type != model.FControlOK && f.Status != model.StatusBlocked {
+		if f.Severity >= min && f.Open() {
 			n++
 		}
 	}
@@ -192,8 +192,13 @@ func printSummary(r *model.Report, paths []string) {
 		fmt.Println(dim(fmt.Sprintf("  engine vs live parity: %d/%d agree", r.Stats.ParityAgreed, r.Stats.ParityChecked)))
 	}
 	fmt.Println()
+	var review []model.Finding
 	for _, f := range r.Findings {
 		if f.Type == model.FControlOK {
+			continue
+		}
+		if f.Status == model.StatusNeedsReview {
+			review = append(review, f)
 			continue
 		}
 		proof := ""
@@ -212,6 +217,13 @@ func printSummary(r *model.Report, paths []string) {
 			status = yellow(" [unconfirmed]")
 		}
 		fmt.Printf("  %s %s %s%s%s\n", sevTag(f.Severity), dim(f.ID), safe(f.Title), proof, status)
+	}
+	if len(review) > 0 {
+		fmt.Println()
+		fmt.Println(dim(fmt.Sprintf("  Claude suggests reviewing (%d) — not counted; confirm in the web UI if real", len(review))))
+		for _, f := range review {
+			fmt.Printf("   %s  %s %s\n", yellow("?"), dim(f.ID), safe(f.Title))
+		}
 	}
 	fmt.Println()
 	for _, p := range paths {

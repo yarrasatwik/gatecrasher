@@ -124,6 +124,9 @@ const (
 	MethodDeterministic Method = "deterministic"
 	MethodAI            Method = "ai"
 	MethodSettings      Method = "admin-settings"
+	// MethodHuman marks a finding a person confirmed in the web UI after the
+	// AI suggested it. The confirmation is recorded in the audit log.
+	MethodHuman Method = "human-review"
 )
 
 // Status is the exploitability state of a finding.
@@ -139,7 +142,25 @@ const (
 	// split on a flag that was only marked Server-side only). It is still
 	// open: it counts like EXPLOITABLE everywhere.
 	StatusHidden Status = "HIDDEN"
+	// StatusNeedsReview marks a suggestion only the AI made: no deterministic
+	// rule and no probe agrees. It is not a finding yet. It is shown in its
+	// own section, is never counted as a way in or in severity totals, and
+	// becomes EXPLOITABLE only when a rule or a human confirms it.
+	StatusNeedsReview Status = "NEEDS_REVIEW"
 )
+
+// Counted reports whether f is a confirmed problem that headline numbers,
+// severity totals and fail-on thresholds count: not a control that held and
+// not an unconfirmed AI suggestion.
+func (f Finding) Counted() bool {
+	return f.Type != FControlOK && f.Status != StatusNeedsReview
+}
+
+// Open reports whether f is a counted finding that is not closed. HIDDEN and
+// UNKNOWN are open: neither is ever reported as safe.
+func (f Finding) Open() bool {
+	return f.Counted() && f.Status != StatusBlocked
+}
 
 // Evidence is one redacted request/response pair or observation.
 // Every string here MUST already have passed through redact.
@@ -240,6 +261,8 @@ type Classification struct {
 	Rationale  string   `json:"rationale"`
 	Method     Method   `json:"method"`
 	Signals    []string `json:"signals,omitempty"`
+	// NeedsReview is true when only the AI says the flag is sensitive.
+	NeedsReview bool `json:"needs_review,omitempty"`
 }
 
 // EnvSettings captures the security-relevant settings of one environment.
@@ -317,7 +340,7 @@ type Report struct {
 func (r *Report) CountAtOrAbove(min Severity) int {
 	n := 0
 	for _, f := range r.Findings {
-		if f.Severity >= min && f.Type != FControlOK {
+		if f.Severity >= min && f.Counted() {
 			n++
 		}
 	}

@@ -19,13 +19,19 @@ type Tally struct {
 	// Hidden is the part of Remaining that client SDKs can no longer reach
 	// although the mechanism still exists on a server path.
 	Hidden int
+	// Review counts AI-only suggestions awaiting a human. They are not
+	// findings: they are in none of the numbers above.
+	Review int
 }
 
 // Count tallies the findings of r.
 func Count(r *model.Report) Tally {
 	var t Tally
 	for _, f := range r.Findings {
-		if !counted(f) {
+		if f.Status == model.StatusNeedsReview {
+			t.Review++
+		}
+		if !f.Counted() {
 			continue
 		}
 		t.Found++
@@ -40,17 +46,6 @@ func Count(r *model.Report) Tally {
 		}
 	}
 	return t
-}
-
-// counted reports whether f is a problem that the headline numbers count.
-func counted(f model.Finding) bool {
-	return f.Type != model.FControlOK
-}
-
-// open reports whether f is a counted finding that is not closed. HIDDEN and
-// UNKNOWN are open: neither is ever reported as safe.
-func open(f model.Finding) bool {
-	return counted(f) && f.Status != model.StatusBlocked
 }
 
 // CheckTally verifies that the report's numbers are consistent: found −
