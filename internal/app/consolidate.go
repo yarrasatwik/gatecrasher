@@ -51,6 +51,8 @@ func (a *App) consolidate(r *model.Report) {
 		case model.FVariantReroll:
 			if hasType(fs, model.FExperimentRigging, f.Environment, firstFlag(f)) {
 				f.Type = model.FExperimentRigging // merged into the experiment finding below
+			} else if hasType(fs, model.FPercentageReroll, f.Environment, firstFlag(f)) {
+				f.Type = model.FPercentageReroll // the same rollout, reached by the same re-roll
 			}
 		}
 		key := groupKey(f)
