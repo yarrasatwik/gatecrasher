@@ -76,3 +76,44 @@ func TestRejects(t *testing.T) {
 		})
 	}
 }
+
+func TestProtectedEnvironments(t *testing.T) {
+	const base = "allowed_domains: [localhost]\nflagsmith:\n  allowed_api_hosts: [\"localhost:8000\"]\n"
+	cases := []struct {
+		name, yaml string
+		protected  []string
+		open       []string
+		list       []string
+	}{
+		{"default", base, []string{"Production", "production", "PROD"}, []string{"Development", "Staging"}, []string{"Production"}},
+		{"protected_environments", "protected_environments: [Live, Staging]\n" + base,
+			[]string{"Live", "staging", "Production"}, []string{"Development"}, []string{"Live", "Staging", "Production"}},
+		{"production_environments alias", base + "  production_environments: [Live]\n",
+			[]string{"Live", "Production"}, []string{"Development"}, []string{"Live", "Production"}},
+		{"both keys merge", "protected_environments: [Staging]\n" + base + "  production_environments: [Live, staging]\n",
+			[]string{"Live", "Staging", "Production"}, []string{"Development"}, []string{"Staging", "Live", "Production"}},
+		{"an empty list cannot unprotect Production", "protected_environments: []\n" + base,
+			[]string{"Production"}, []string{"Development"}, []string{"Production"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := Load(write(t, t.TempDir(), "g.yaml", tc.yaml))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, e := range tc.protected {
+				if !c.IsProtected(e) || !c.IsProduction(e) {
+					t.Errorf("%q must be protected", e)
+				}
+			}
+			for _, e := range tc.open {
+				if c.IsProtected(e) {
+					t.Errorf("%q must not be protected", e)
+				}
+			}
+			if got := strings.Join(c.Protected(), ","); got != strings.Join(tc.list, ",") {
+				t.Errorf("Protected() = %s, want %s", got, strings.Join(tc.list, ","))
+			}
+		})
+	}
+}

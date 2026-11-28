@@ -24,12 +24,14 @@ type harness struct {
 	srv    *Server
 	ts     *httptest.Server
 	client *http.Client
+	clock  *fakeClock
 }
 
 func newHarness(t *testing.T, mod func(*Options)) *harness {
 	t.Helper()
 	fb := newStubBackend()
-	opts := Options{Backend: fb}
+	clock := newFakeClock()
+	opts := Options{Backend: fb, Now: clock.Now}
 	if mod != nil {
 		mod(&opts)
 	}
@@ -41,7 +43,7 @@ func newHarness(t *testing.T, mod func(*Options)) *harness {
 	jar, _ := cookiejar.New(nil)
 	client := &http.Client{Jar: jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	t.Cleanup(func() { ts.Close(); srv.Close() })
-	return &harness{t: t, fb: fb, srv: srv, ts: ts, client: client}
+	return &harness{t: t, fb: fb, srv: srv, ts: ts, client: client, clock: clock}
 }
 
 func (h *harness) do(req *http.Request) (int, string, http.Header) {
@@ -336,7 +338,7 @@ func TestApprovalRequiresTypedEnvironment(t *testing.T) {
 			}
 		})
 	}
-	code, _, hdr := h.postCSRF("/plans/P1/approve", url.Values{"typed_env": {"Production"}})
+	code, _, hdr := h.approve("P1", url.Values{"typed_env": {"Production"}})
 	if code != http.StatusSeeOther || !strings.HasPrefix(hdr.Get("Location"), "/plans?ok=approved") {
 		t.Fatalf("approve = %d %q", code, hdr.Get("Location"))
 	}
@@ -373,7 +375,7 @@ func TestApprovalRequiresContaminateConfirmation(t *testing.T) {
 	if n := len(h.fb.called("approve")); n != 0 {
 		t.Fatal("backend called despite missing confirmation")
 	}
-	code, _, _ = h.postCSRF("/plans/P1/approve", url.Values{"typed_env": {"Production"}, "typed_contaminate": {"contaminate-experiment"}})
+	code, _, _ = h.approve("P1", url.Values{"typed_env": {"Production"}, "typed_contaminate": {"contaminate-experiment"}})
 	if code != http.StatusSeeOther {
 		t.Fatalf("status = %d", code)
 	}
@@ -386,7 +388,7 @@ func TestBackendErrorsAreShownRedacted(t *testing.T) {
 	h := newHarness(t, nil)
 	h.fb.addPlan(samplePlan("P1", true, false, model.PlanPending))
 	h.fb.failWith = errors.New("plan is stale; token ser.abcdefghijklmnop rejected")
-	code, body, _ := h.postCSRF("/plans/P1/approve", url.Values{"typed_env": {"Production"}})
+	code, body, _ := h.approve("P1", url.Values{"typed_env": {"Production"}})
 	if code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d", code)
 	}

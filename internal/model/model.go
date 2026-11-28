@@ -380,7 +380,15 @@ type Approval struct {
 	ConfirmedEnvironment string    `json:"confirmed_environment,omitempty"`
 	ContaminateConfirmed bool      `json:"contaminate_experiment_confirmed,omitempty"`
 	By                   string    `json:"by"`
-	Channel              string    `json:"channel"` // cli | web
+	// Channel is where the approval came from: "tty" (a person at a real
+	// terminal), "web" (the web UI) or "cli" (a non-interactive command,
+	// never accepted by the CLI for a protected environment).
+	Channel string `json:"channel"`
+	// OSUser is the operating-system account that ran Gatecrasher.
+	OSUser string `json:"os_user,omitempty"`
+	// ByClaimed is true when By is not the OS user: the name is a claim
+	// the approver made, not something Gatecrasher could check.
+	ByClaimed bool `json:"by_claimed,omitempty"`
 }
 
 // PlanState is the lifecycle state of a plan on disk.

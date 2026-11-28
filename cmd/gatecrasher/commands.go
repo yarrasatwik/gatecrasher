@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/yarrasatwik/gatecrasher/internal/app"
+	"github.com/yarrasatwik/gatecrasher/internal/audit"
 	"github.com/yarrasatwik/gatecrasher/internal/config"
 	"github.com/yarrasatwik/gatecrasher/internal/fixes"
 	"github.com/yarrasatwik/gatecrasher/internal/flagsmith"
@@ -260,6 +260,7 @@ func cmdPlan(ctx context.Context, args []string) error {
 		printPlan(rec)
 	}
 	fmt.Println(dim("  approve with: gatecrasher approve <plan_id> --confirm <environment name>"))
+	fmt.Println(dim("  protected environments (" + strings.Join(a.Cfg.Protected(), ", ") + "): a person approves in the web UI (gatecrasher serve) or with gatecrasher approve <plan_id> in a real terminal"))
 	return nil
 }
 
@@ -346,11 +347,16 @@ func diffLine(op model.Operation) string {
 	return "(" + strings.Join(parts, ", ") + ")"
 }
 
-func cmdApprove(ctx context.Context, args []string) error {
+func cmdApprove(ctx context.Context, args []string) error { return approve(ctx, args, newGate()) }
+
+// approve records an approval for one plan. A protected environment is
+// approved only by a person at a real terminal who types the environment
+// name and the end of the plan hash; --confirm works for the others.
+func approve(ctx context.Context, args []string, g *gate) error {
 	fs, c := newFlags("approve")
-	confirm := fs.String("confirm", "", "type the exact environment name (required for production)")
+	confirm := fs.String("confirm", "", "the exact environment name (not accepted for protected environments)")
 	contaminate := fs.String("contaminate", "", "type contaminate-experiment when the plan touches a running experiment")
-	by := fs.String("by", currentUser(), "approver name for the audit log")
+	by := fs.String("by", currentUser(), "approver name for the audit log (recorded as claimed when it is not the OS user)")
 	id, rest := splitID(args)
 	if err := fs.Parse(rest); err != nil {
 		return err
@@ -362,13 +368,51 @@ func cmdApprove(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	rec, err := a.Approve(id, *by, "cli", *confirm, *contaminate)
+	pending, err := a.Store.Get(id)
+	if err != nil {
+		return err
+	}
+	typedEnv, typedContaminate := *confirm, *contaminate
+	if isProtected(a, pending.Plan) {
+		if err := g.refusal(pending.Plan.Environment, *confirm != ""); err != nil {
+			return refused(a, g, *by, id, err)
+		}
+		printPlan(pending)
+		if typedEnv, err = g.confirm(pending.Plan); err != nil {
+			return refused(a, g, *by, id, err)
+		}
+		if pending.Plan.ExperimentWarning != "" && typedContaminate == "" {
+			fmt.Fprintf(g.out, "    type %s to accept the experiment impact: ", fixes.ContaminateToken)
+			if typedContaminate, err = g.readLine(); err != nil {
+				return refused(a, g, *by, id, err)
+			}
+		}
+	} else if *confirm != "" && *confirm != pending.Plan.Environment {
+		return refused(a, g, *by, id, fmt.Errorf("--confirm %q does not match this plan's environment %q", *confirm, pending.Plan.Environment))
+	}
+	rec, err := a.Approve(id, *by, g.channel(), typedEnv, typedContaminate)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("  %s approved by %s until %s (hash %s…)\n", bold(rec.Plan.ID), *by,
 		rec.Approval.ExpiresAt.Local().Format("15:04"), rec.Plan.Hash[:12])
 	return nil
+}
+
+// isProtected reports whether a plan changes a protected environment:
+// either it was planned as one, or the configuration protects it now.
+func isProtected(a *app.App, p model.Plan) bool {
+	return p.Production || a.Cfg.IsProtected(p.Environment)
+}
+
+// refused writes a refused approval to the audit log and returns err.
+func refused(a *app.App, g *gate, by, planID string, err error) error {
+	if a.Log != nil {
+		_, _ = a.Log.Append(by, audit.ActionRefuse, planID, map[string]any{
+			"stage": "approve", "channel": g.channel(), "os_user": fixes.OSUser(), "reason": err.Error(),
+		})
+	}
+	return err
 }
 
 func cmdReject(ctx context.Context, args []string) error {
@@ -458,11 +502,14 @@ func cmdRollback(ctx context.Context, args []string) error {
 	return nil
 }
 
-// cmdFixAll walks every pending plan: show the card, ask a human to type
-// the environment name, apply, then verify. Nothing is auto-approved.
-func cmdFixAll(ctx context.Context, args []string) error {
+func cmdFixAll(ctx context.Context, args []string) error { return fixAll(ctx, args, newGate()) }
+
+// fixAll walks every pending plan: show the card, ask a human to type
+// the environment name, apply, then verify. Nothing is auto-approved, and
+// plans for protected environments are refused unless a person is at a
+// real terminal.
+func fixAll(ctx context.Context, args []string, g *gate) error {
 	fs, c := newFlags("fix-all")
-	in := bufio.NewReader(os.Stdin)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -480,6 +527,7 @@ func cmdFixAll(ctx context.Context, args []string) error {
 		}
 	}
 	var applied []string
+	var gateErr error
 	for _, rec := range recs {
 		if !hasAutomatic(rec.Plan) {
 			printPlan(rec)
@@ -487,20 +535,41 @@ func cmdFixAll(ctx context.Context, args []string) error {
 			continue
 		}
 		printPlan(rec)
-		fmt.Printf("    type %s to approve, or press Enter to skip: ", bold(rec.Plan.Environment))
-		typed, _ := in.ReadString('\n')
-		typed = strings.TrimSpace(typed)
-		if typed == "" {
-			fmt.Println(dim("    skipped"))
-			continue
+		var typed string
+		if isProtected(a, rec.Plan) {
+			if err := g.refusal(rec.Plan.Environment, false); err != nil {
+				gateErr = refused(a, g, currentUser(), rec.Plan.ID, err)
+				fmt.Println("    " + red(safe(err.Error())))
+				continue
+			}
+			typed, err = g.confirm(rec.Plan)
+			if errors.Is(err, errSkipped) {
+				fmt.Println(dim("    skipped"))
+				continue
+			}
+			if err != nil {
+				_ = refused(a, g, currentUser(), rec.Plan.ID, err)
+				fmt.Println("    " + red(safe(err.Error())))
+				continue
+			}
+		} else {
+			fmt.Fprintf(g.out, "    type %s to approve, or press Enter to skip: ", bold(rec.Plan.Environment))
+			typed, _ = g.readLine()
+			if typed == "" {
+				fmt.Println(dim("    skipped"))
+				continue
+			}
+			if typed != rec.Plan.Environment {
+				fmt.Println("    " + red(fmt.Sprintf("that is not the environment name (expected %q); skipped", rec.Plan.Environment)))
+				continue
+			}
 		}
 		contaminate := ""
 		if rec.Plan.ExperimentWarning != "" {
-			fmt.Printf("    type %s to accept the experiment impact: ", fixes.ContaminateToken)
-			contaminate, _ = in.ReadString('\n')
-			contaminate = strings.TrimSpace(contaminate)
+			fmt.Fprintf(g.out, "    type %s to accept the experiment impact: ", fixes.ContaminateToken)
+			contaminate, _ = g.readLine()
 		}
-		if _, err := a.Approve(rec.Plan.ID, currentUser(), "cli", typed, contaminate); err != nil {
+		if _, err := a.Approve(rec.Plan.ID, currentUser(), g.channel(), typed, contaminate); err != nil {
 			fmt.Println("    " + red(safe(err.Error())))
 			continue
 		}
@@ -522,6 +591,9 @@ func cmdFixAll(ctx context.Context, args []string) error {
 		fmt.Println(bold("  re-attack " + id))
 		printVerify(rec.Verify, false)
 		allBlocked = allBlocked && verify.AllBlocked(rec.Verify)
+	}
+	if gateErr != nil {
+		return gateErr
 	}
 	if len(applied) > 0 && !allBlocked {
 		return findingsErr{1}

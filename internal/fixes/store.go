@@ -159,15 +159,28 @@ func (s *Store) Approve(id, by, channel, typedEnv, typedContaminate string, ttl 
 		return nil, err
 	}
 	if err := Approve(rec, by, channel, typedEnv, typedContaminate, ttl); err != nil {
-		_ = s.record(by, audit.ActionRefuse, id, map[string]any{"stage": "approve", "reason": err.Error()})
+		_ = s.record(by, audit.ActionRefuse, id, map[string]any{
+			"stage": "approve", "channel": channel, "os_user": osUser(), "reason": err.Error(),
+		})
 		return rec, err
 	}
 	if err := s.Save(rec); err != nil {
 		return rec, err
 	}
-	return rec, s.record(by, audit.ActionApprove, id, map[string]any{
-		"hash": rec.Plan.Hash, "channel": channel, "expires_at": rec.Approval.ExpiresAt,
-	})
+	// The audit entry says who Gatecrasher could identify (the OS user) and
+	// keeps a name it could not check apart, as "claimed_by".
+	ap := rec.Approval
+	details := map[string]any{
+		"hash": rec.Plan.Hash, "channel": ap.Channel, "os_user": ap.OSUser, "expires_at": ap.ExpiresAt,
+	}
+	actor := by
+	if ap.ByClaimed {
+		details["claimed_by"] = by
+		actor = ap.OSUser
+	} else {
+		details["by"] = by
+	}
+	return rec, s.record(actor, audit.ActionApprove, id, details)
 }
 
 // Reject loads the plan, applies Reject, saves and audits it.

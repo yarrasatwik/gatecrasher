@@ -51,7 +51,7 @@
 
   {{if $p.BeforeSnapshot}}<details><summary>State snapshot this plan is bound to</summary><dl class="facts">{{range $k, $v := $p.BeforeSnapshot}}<div><dt><code>{{rd $k}}</code></dt><dd><code>{{rd (val $v)}}</code></dd></div>{{end}}</dl></details>{{end}}
 
-  {{with .Rec.Approval}}<p class="muted">Approved by {{.By}} via {{.Channel}} on <time>{{time .ApprovedAt}}</time>{{if .ConfirmedEnvironment}}; typed environment confirmation recorded{{end}}.</p>{{end}}
+  {{with .Rec.Approval}}<p class="muted">Approved by {{if .ByClaimed}}OS user {{.OSUser}} (claimed by {{.By}}){{else}}{{.By}}{{end}} via {{.Channel}} on <time>{{time .ApprovedAt}}</time>{{if .ConfirmedEnvironment}}; typed environment confirmation recorded{{end}}.</p>{{end}}
   {{with .Rec.Error}}<p class="err-text">{{rd .}}</p>{{end}}
 
   {{if .Rec.Verify}}<section aria-labelledby="ver-{{$id}}"><h3 id="ver-{{$id}}">Before and after</h3>
@@ -66,6 +66,7 @@
   <form method="post" action="/plans/{{$id}}/approve" class="approve-form" aria-labelledby="appr-{{$id}}">
     <h3 id="appr-{{$id}}">Decision</h3>
     <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+    {{if .Stamp}}<input type="hidden" name="rendered_at" value="{{.Stamp}}">{{end}}
     {{if .NeedsEnv}}<div class="field">
       <label for="env-{{$id}}">Type the environment name <code>{{$p.Environment}}</code> to confirm this Production change</label>
       <input id="env-{{$id}}" name="typed_env" type="text" required autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="env-help-{{$id}}{{if .Err}} err-{{$id}}{{end}}"{{if .Err}} aria-invalid="true"{{end}}>
@@ -77,9 +78,10 @@
       <p class="help" id="exp-help-{{$id}}">Applying it can contaminate the experiment's results.</p>
     </div>{{end}}
     <div class="actions">
-      <button class="btn btn-primary" type="submit">Approve</button>
+      <button class="btn btn-primary" type="submit"{{if .Stamp}} data-unlock-after="{{.UnlockAfter}}" aria-describedby="delay-help-{{$id}}"{{end}}>Approve</button>
       <button class="btn" type="submit" formaction="/plans/{{$id}}/reject" formnovalidate>Reject</button>
     </div>
+    {{if .Stamp}}<p class="help" id="delay-help-{{$id}}">Approve unlocks {{.UnlockAfter}} seconds after this page loads, so a protected environment is never changed by reflex. The server refuses an earlier approval.</p>{{end}}
   </form>
   {{else if or .CanApply .CanVerify .CanRollback .CanReject}}
   <div class="actions" role="group" aria-label="Actions for plan {{$id}}">
@@ -91,4 +93,5 @@
   {{end}}
 </article>
 {{else}}<p class="empty">No plans yet. Build them from a report above.</p>{{end}}
+<script src="/static/approve.js" defer></script>
 {{end}}{{end}}
