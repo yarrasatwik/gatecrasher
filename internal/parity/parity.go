@@ -43,12 +43,39 @@ type testCase struct {
 	traits map[string]string
 }
 
+// Live describes how the environment's public API answers, so the engine's
+// result is compared with what a client can actually receive.
+type Live struct {
+	// IgnoresClientTraits is true when "Allow client SDKs to set user traits"
+	// is off: the API then evaluates without the traits a client sends.
+	IgnoresClientTraits bool
+	// ServerOnly lists flags marked "Server-side only", which the API never
+	// returns to client keys.
+	ServerOnly map[string]bool
+}
+
+// LiveFor builds Live from the environment settings and project features.
+func LiveFor(env flagsmith.Environment, features []flagsmith.Feature) Live {
+	l := Live{IgnoresClientTraits: !env.AllowClientTraits, ServerOnly: map[string]bool{}}
+	for _, f := range features {
+		if f.IsServerKeyOnly {
+			l.ServerOnly[f.Name] = true
+		}
+	}
+	return l
+}
+
 // Run evaluates n random identities with the engine and through the live SDK
 // API and compares every flag's State(). Traits are drawn from the values the
 // segments' conditions mention or accept, mixed with noise, so both matching
 // and non-matching inputs are covered. It stops early if ctx is cancelled,
 // returning the partial result and the context error.
 func Run(ctx context.Context, eng *flagsmith.Engine, sdk *flagsmith.SDK, n int, segments []flagsmith.Segment) (Result, error) {
+	return RunLive(ctx, eng, sdk, n, segments, Live{})
+}
+
+// RunLive is Run for an environment whose public API answers as live says.
+func RunLive(ctx context.Context, eng *flagsmith.Engine, sdk *flagsmith.SDK, n int, segments []flagsmith.Segment, live Live) (Result, error) {
 	cases := generate(eng, segments, n)
 	var (
 		mu  sync.Mutex
@@ -61,7 +88,7 @@ func Run(ctx context.Context, eng *flagsmith.Engine, sdk *flagsmith.SDK, n int, 
 		go func() {
 			defer wg.Done()
 			for tc := range jobs {
-				mism, err := check(ctx, eng, sdk, tc)
+				mism, err := check(ctx, eng, sdk, tc, live)
 				mu.Lock()
 				switch {
 				case err != nil:
@@ -97,15 +124,21 @@ func Run(ctx context.Context, eng *flagsmith.Engine, sdk *flagsmith.SDK, n int, 
 	return res, ctx.Err()
 }
 
-func check(ctx context.Context, eng *flagsmith.Engine, sdk *flagsmith.SDK, tc testCase) ([]Mismatch, error) {
+func check(ctx context.Context, eng *flagsmith.Engine, sdk *flagsmith.SDK, tc testCase, lv Live) ([]Mismatch, error) {
 	live, err := sdk.Identify(ctx, tc.id, tc.traits)
 	if err != nil {
 		return nil, fmt.Errorf("identify %s: %w", tc.id, err)
 	}
-	want := eng.Evaluate(tc.id, tc.traits)
+	traits := tc.traits
+	if lv.IgnoresClientTraits {
+		traits = nil
+	}
+	want := eng.Evaluate(tc.id, traits)
 	names := map[string]bool{}
 	for n := range want {
-		names[n] = true
+		if !lv.ServerOnly[n] {
+			names[n] = true
+		}
 	}
 	for n := range live.Flags {
 		names[n] = true
@@ -156,6 +189,9 @@ func generate(eng *flagsmith.Engine, segments []flagsmith.Segment, n int) []test
 		}
 	}
 	cases := make([]testCase, 0, n)
+	// Each identifier appears in one case only: the live API answers
+	// concurrent requests for the same transient identifier inconsistently.
+	used := map[string]bool{}
 	for i := 0; i < n; i++ {
 		tc := testCase{id: fmt.Sprintf("gc-probe-parity-%d", i), traits: map[string]string{}}
 		if len(cands) > 0 && rng.Intn(2) == 0 {
@@ -163,7 +199,7 @@ func generate(eng *flagsmith.Engine, segments []flagsmith.Segment, n int) []test
 			for k, v := range c.Traits {
 				tc.traits[k] = v
 			}
-			if c.IdentifierForged && strings.HasPrefix(c.Identifier, "gc-probe-") {
+			if c.IdentifierForged && strings.HasPrefix(c.Identifier, "gc-probe-") && !used[c.Identifier] {
 				tc.id = c.Identifier
 			}
 		}
@@ -178,6 +214,7 @@ func generate(eng *flagsmith.Engine, segments []flagsmith.Segment, n int) []test
 		if rng.Intn(3) == 0 {
 			tc.traits[fmt.Sprintf("noise_%d", rng.Intn(10))] = fmt.Sprint(rng.Intn(1000))
 		}
+		used[tc.id] = true
 		cases = append(cases, tc)
 	}
 	return cases

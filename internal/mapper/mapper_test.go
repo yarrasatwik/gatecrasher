@@ -294,3 +294,102 @@ func TestForgeableFindings(t *testing.T) {
 		t.Error("finding IDs must differ")
 	}
 }
+
+// staffByIdentifier is the lab's identifier-targeted segment: internal_tools
+// is switched on for identifiers matching a pattern, with no trait involved.
+func staffByIdentifier() testdoc.Doc {
+	return testdoc.Doc{
+		APIKey:   "envkey",
+		Features: []testdoc.Feature{{Name: "internal_tools", Enabled: false}},
+		Segments: []testdoc.Segment{{ID: 9, Name: "staff_by_identifier",
+			Rules:     []testdoc.Rule{allOf(testdoc.Cond{Property: "$.identity.identifier", Operator: "REGEX", Value: `.*@acmeshop\.dev$`})},
+			Overrides: []testdoc.Override{{Feature: "internal_tools", Enabled: true}}}},
+	}
+}
+
+func TestIdentifierForgerySurvivesClientTraitsOff(t *testing.T) {
+	const wantTitle = "Choosing identifier a@acmeshop.dev unlocks internal_tools — this survives turning off client traits."
+	eng := engineFor(t, staffByIdentifier())
+	off := false
+	for _, tc := range []struct {
+		name     string
+		settings []model.EnvSettings
+	}{
+		{"client traits on", settingsOn()},
+		{"client traits off", []model.EnvSettings{{Environment: "prod", AllowClientTraits: &off}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := mapper.Options{Environment: "prod", ClientSetsIdentifier: true}
+			reach := mapper.Map(eng, nil, nil, tc.settings, opts)
+			if len(reach) != 1 {
+				t.Fatalf("want 1 reachable state, got %+v", reach)
+			}
+			r := reach[0]
+			if r.Forgeable != "yes" || !r.Enabled || len(r.ForgedTraits) != 0 {
+				t.Fatalf("reachable = %+v", r)
+			}
+			// The live probe needs a transient identifier; the report shows
+			// the plain one. The engine must accept both.
+			if r.Identifier != "gc-probe-a@acmeshop.dev" || r.IdentifierExample != "a@acmeshop.dev" {
+				t.Fatalf("identifier = %q, example = %q", r.Identifier, r.IdentifierExample)
+			}
+			for _, id := range []string{r.Identifier, r.IdentifierExample} {
+				if f := eng.Evaluate(id, nil)["internal_tools"]; !f.Enabled {
+					t.Errorf("engine does not enable internal_tools for %q", id)
+				}
+			}
+			fs := mapper.ForgeableFindings(reach, opts)
+			if len(fs) != 1 {
+				t.Fatalf("want 1 finding, got %+v", fs)
+			}
+			f := fs[0]
+			if f.Title != wantTitle {
+				t.Errorf("title = %q\n want  %q", f.Title, wantTitle)
+			}
+			if f.Type != model.FIdentifierForgery || f.Status != model.StatusExploitable || !f.Confirmed || len(f.Traits) != 0 {
+				t.Errorf("finding = %+v", f)
+			}
+			if f.ProofID != "gc-probe-a@acmeshop.dev" || len(f.Unlocked) != 1 || f.Unlocked[0].Flag != "internal_tools" {
+				t.Errorf("proof = %q, unlocked = %+v", f.ProofID, f.Unlocked)
+			}
+			explained := false
+			for _, n := range f.Notes {
+				explained = explained || n == mapper.IdentifierSurvivesNote
+			}
+			if !explained {
+				t.Errorf("notes do not explain why client traits are irrelevant: %q", f.Notes)
+			}
+		})
+	}
+}
+
+func TestIdentifierForgeryNeedsClientChosenIdentifier(t *testing.T) {
+	opts := mapper.Options{Environment: "prod", ClientSetsIdentifier: false}
+	reach := mapper.Map(engineFor(t, staffByIdentifier()), nil, nil, settingsOn(), opts)
+	if len(reach) != 1 || reach[0].Forgeable != "no" {
+		t.Fatalf("server-assigned identifiers: %+v", reach)
+	}
+	if fs := mapper.ForgeableFindings(reach, opts); len(fs) != 0 {
+		t.Fatalf("server-assigned identifiers must not be reported: %+v", fs)
+	}
+}
+
+func TestIdentifierExampleKeepsPrefixWhenRuleNeedsIt(t *testing.T) {
+	d := single(allOf(testdoc.Cond{Property: "$.identity.identifier", Operator: "EQUAL", Value: "gc-probe-vip"}))
+	got := mapDoc(t, d, mapper.Options{ClientSetsIdentifier: true})
+	if len(got) != 1 || got[0].Identifier != "gc-probe-vip" || got[0].IdentifierExample != "gc-probe-vip" {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestPercentageSplitIsNotIdentifierForgery(t *testing.T) {
+	d := single(allOf(testdoc.Cond{Operator: "PERCENTAGE_SPLIT", Value: "10"}))
+	opts := mapper.Options{ClientSetsIdentifier: true}
+	reach := mapDoc(t, d, opts)
+	if len(reach) != 1 || reach[0].Identifier == "" || reach[0].IdentifierExample != "" {
+		t.Fatalf("got %+v", reach)
+	}
+	if fs := mapper.ForgeableFindings(reach, opts); len(fs) != 1 || fs[0].Type != model.FSegmentForgeable {
+		t.Fatalf("a searched rollout identifier is a re-roll, not an identifier forgery: %+v", fs)
+	}
+}

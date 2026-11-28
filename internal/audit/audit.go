@@ -38,13 +38,16 @@ const (
 	ActionRollback   Action = "rollback"
 	ActionRefuse     Action = "refuse"
 	ActionWatchAlert Action = "watch-alert"
+	// ActionConfirmFinding records a human confirming, in the web UI, a
+	// finding that only the AI had suggested.
+	ActionConfirmFinding Action = "confirm-finding"
 )
 
 // Valid reports whether a is a known action.
 func (a Action) Valid() bool {
 	switch a {
 	case ActionPlan, ActionApprove, ActionReject, ActionApply, ActionVerify,
-		ActionRollback, ActionRefuse, ActionWatchAlert:
+		ActionRollback, ActionRefuse, ActionWatchAlert, ActionConfirmFinding:
 		return true
 	}
 	return false

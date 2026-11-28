@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yarrasatwik/gatecrasher/internal/ai"
 	"github.com/yarrasatwik/gatecrasher/internal/attacks"
 	"github.com/yarrasatwik/gatecrasher/internal/flagsmith"
 	"github.com/yarrasatwik/gatecrasher/internal/mapper"
@@ -97,6 +96,7 @@ func (a *App) Audit(ctx context.Context, o AuditOptions) (*model.Report, error) 
 			r.Findings[i].Environment = o.Environment
 		}
 	}
+	dropLiveUnreleased(r, cls)
 	dedupe(r)
 	a.consolidate(r)
 	severity.AssignAll(r.Findings)
@@ -111,6 +111,9 @@ func (a *App) Audit(ctx context.Context, o AuditOptions) (*model.Report, error) 
 				sem <- struct{}{}
 				go func(i int) {
 					defer func() { <-sem; wg.Done() }()
+					if r.Findings[i].Status == model.StatusNeedsReview {
+						return // a suggestion is shown with the AI's reason, not explained as fact
+					}
 					r.Findings[i].Explanation = a.AI.Explain(ctx, r.Findings[i])
 				}(i)
 			}
@@ -121,7 +124,7 @@ func (a *App) Audit(ctx context.Context, o AuditOptions) (*model.Report, error) 
 	r.Stats.ProbesSent = a.HTTP.Sent() - sentBefore
 	r.Stats.DurationMS = time.Since(start).Milliseconds()
 	report.Finalize(r)
-	say("done", fmt.Sprintf("%d ways in", report.WaysIn(r)))
+	say("done", report.Headline(r))
 	return r, nil
 }
 
@@ -159,13 +162,13 @@ func (a *App) outside(ctx context.Context, r *model.Report, target string, cls m
 	say("classify", "classifying flag names and values · AI "+string(a.AI.Mode()))
 	classes, mode := a.AI.Classify(ctx, res.Inventory)
 	r.AIMode = string(mode)
-	r.Classifications = classes
-	for _, c := range classes {
-		cls[c.Flag] = c.Category
-		if ai.Reportable(c) {
-			r.Findings = append(r.Findings, configLeak(c, res.Inventory, r.Environment))
-		}
+	// The AI suggests; deterministic rules or a human decide. Only confirmed
+	// categories reach the severity rules and the settings audit.
+	r.Classifications = adjudicate(classes, res.Inventory, r.Environment, r.CreatedAt, a.confirmedFindings())
+	for flag, cat := range trustedCategories(r.Classifications) {
+		cls[flag] = cat
 	}
+	r.Findings = append(r.Findings, leakFindings(r.Classifications, res.Inventory, r.Environment)...)
 	if a.AI.Mode().On() {
 		agree := 0
 		for i, f := range res.Inventory.Flags {
@@ -178,7 +181,11 @@ func (a *App) outside(ctx context.Context, r *model.Report, target string, cls m
 			r.Stats.AIHeuristicAgree = &v
 		}
 	}
-	return a.outsideAttacks(ctx, r, cls, say)
+	if err := a.outsideAttacks(ctx, r, cls, say); err != nil {
+		return err
+	}
+	dropLiveUnreleased(r, cls)
+	return nil
 }
 
 // outsideAttacks consumes the classified public inventory using only the SDK.
@@ -222,6 +229,7 @@ var leakTypes = map[model.Category]model.FindingType{
 	model.CatUnreleasedProduct: model.FUnreleasedProduct,
 	model.CatPricing:           model.FPricingLeak,
 	model.CatPII:               model.FPIILeak,
+	model.CatPossibleSecret:    model.FPossibleSecret,
 }
 
 var leakTitles = map[model.FindingType]string{
@@ -230,6 +238,7 @@ var leakTitles = map[model.FindingType]string{
 	model.FUnreleasedProduct: "Unreleased product leaked through flag: %s",
 	model.FPricingLeak:       "Pricing data visible to every browser: %s",
 	model.FPIILeak:           "Personal data in a client-visible flag: %s",
+	model.FPossibleSecret:    "Possible secret in a client-visible flag (needs review): %s",
 }
 
 // configLeak turns a sensitive classification of a public flag into a finding.
@@ -282,10 +291,21 @@ func (a *App) inside(ctx context.Context, r *model.Report, o AuditOptions, cls m
 	env = *fresh
 	_ = envMap
 	envs := []flagsmith.Environment{env}
+	var served map[string]bool
+	servedProof := ""
 	if len(cls) == 0 {
-		a.classifyFromAdmin(ctx, env, cls, o.Fast)
+		served, servedProof = a.classifyFromAdmin(ctx, env, cls, o.Fast)
 	}
 	settings, setFindings := mapper.SettingsAudit(envs, features, cls)
+	for i := range setFindings {
+		// The flag list was just read with the public client key: a sensitive
+		// flag in it is reproduced exposure, not only a setting.
+		if f := &setFindings[i]; f.Type == model.FFlagNotServerOnly && served[f.Subject] {
+			f.DetectedBy = appendMethod(f.DetectedBy, model.MethodProbe)
+			f.Evidence = append(f.Evidence, model.Evidence{Kind: "request", Request: servedProof,
+				Note: redact.String(fmt.Sprintf("The public client key received %q.", f.Subject))})
+		}
+	}
 	r.Settings = settings
 	r.Findings = append(r.Findings, setFindings...)
 
@@ -313,18 +333,21 @@ func (a *App) inside(ctx context.Context, r *model.Report, o AuditOptions, cls m
 	r.Reachability = reach
 	findings := mapper.ForgeableFindings(reach, opts)
 	findings = append(findings, variantFindings(eng, reach, env.Name)...)
+	serverOnly := serverOnlyFlags(settings, env.Name)
 	for i := range findings {
+		engineStatus := findings[i].Status
 		if v, ok := verified[findingKey(findings[i])]; ok {
 			markLive(&findings[i], v)
 		}
 		refine(&findings[i], eng, running, expKnown)
+		markHidden(&findings[i], engineStatus, serverOnly)
 	}
 	r.Findings = append(r.Findings, findings...)
 	r.Findings = append(r.Findings, a.identityExposure(ctx, eng, env)...)
 
 	if o.ParitySamples > 0 {
 		say("parity", fmt.Sprintf("engine vs live parity over %d random identities", o.ParitySamples))
-		pr, err := parity.Run(ctx, eng, sdk, o.ParitySamples, segs)
+		pr, err := parity.RunLive(ctx, eng, sdk, o.ParitySamples, segs, parity.LiveFor(env, features))
 		if err != nil && !errors.Is(err, context.Canceled) {
 			r.Notes = append(r.Notes, "parity: "+redact.String(err.Error()))
 		}
@@ -345,12 +368,17 @@ func (a *App) envDocument(ctx context.Context, env flagsmith.Environment) (json.
 }
 
 // classifyFromAdmin classifies flag values from the environment's own
-// /flags/ response when the audit has no outside stage (CI mode).
-func (a *App) classifyFromAdmin(ctx context.Context, env flagsmith.Environment, cls map[string]model.Category, fast bool) {
+// /flags/ response when the audit has no outside stage (CI mode). It returns
+// the flags the public client key received and the request that showed it.
+func (a *App) classifyFromAdmin(ctx context.Context, env flagsmith.Environment, cls map[string]model.Category, fast bool) (served map[string]bool, request string) {
 	sdk := flagsmith.NewSDK(a.HTTP, a.Cfg.Flagsmith.APIURL, env.APIKey)
-	flags, _, err := sdk.EnvironmentFlags(ctx)
+	flags, ev, err := sdk.EnvironmentFlags(ctx)
 	if err != nil {
-		return
+		return nil, ""
+	}
+	served, request = map[string]bool{}, ev.Request
+	for n := range flags {
+		served[n] = true
 	}
 	inv := &model.PublicInventory{APIURL: a.Cfg.Flagsmith.APIURL}
 	for _, n := range flags.Names() {
@@ -359,15 +387,20 @@ func (a *App) classifyFromAdmin(ctx context.Context, env flagsmith.Environment, 
 			ValueType: valueType(f.Value), Preview: redact.String(trim(flagsmith.ValueString(f.Value), 80))})
 	}
 	if fast {
-		for _, f := range inv.Flags {
-			cls[f.Name] = secrets.Classify(f).Category
+		det := make([]model.Classification, len(inv.Flags))
+		for i, f := range inv.Flags {
+			det[i] = secrets.Classify(f)
 		}
-		return
+		for flag, cat := range trustedCategories(adjudicate(det, inv, env.Name, time.Now().UTC(), nil)) {
+			cls[flag] = cat
+		}
+		return served, request
 	}
 	classes, _ := a.AI.Classify(ctx, inv)
-	for _, c := range classes {
-		cls[c.Flag] = c.Category
+	for flag, cat := range trustedCategories(adjudicate(classes, inv, env.Name, time.Now().UTC(), a.confirmedFindings())) {
+		cls[flag] = cat
 	}
+	return served, request
 }
 
 // runningExperiments maps flag name → running experiment. known=false when
@@ -464,6 +497,8 @@ func (a *App) crossCheck(ctx context.Context, sdk *flagsmith.SDK, reach []model.
 	return out
 }
 
+const liveMismatchNote = "Live Flags API did not reproduce the engine result; treated as unconfirmed."
+
 func markLive(f *model.Finding, v liveResult) {
 	f.Evidence = append(f.Evidence, v.evidence)
 	f.Repro = v.repro
@@ -474,9 +509,44 @@ func markLive(f *model.Finding, v liveResult) {
 		}
 		return
 	}
-	f.Notes = append(f.Notes, "Live Flags API did not reproduce the engine result; treated as unconfirmed.")
+	f.Notes = append(f.Notes, liveMismatchNote)
 	f.Confirmed = false
 	f.Status = model.StatusUnknown
+}
+
+// serverOnlyFlags returns the flags marked "Server-side only" in env.
+func serverOnlyFlags(settings []model.EnvSettings, env string) map[string]bool {
+	out := map[string]bool{}
+	for _, s := range settings {
+		if strings.EqualFold(s.Environment, env) {
+			for _, n := range s.ServerOnlyFlags {
+				out[n] = true
+			}
+		}
+	}
+	return out
+}
+
+// markHidden reports an engine-proven mechanism on a Server-side only flag
+// as HIDDEN: client SDKs no longer receive the flag, so the live client
+// probe cannot reproduce it, but the segment or percentage split still
+// exists and a server evaluating the flag for browser-chosen input is still
+// steered. HIDDEN is open, exactly as verify reports it after such a fix.
+func markHidden(f *model.Finding, engineStatus model.Status, serverOnly map[string]bool) {
+	if len(f.Unlocked) == 0 || !serverOnly[f.Unlocked[0].Flag] || engineStatus != model.StatusExploitable {
+		return
+	}
+	if hasMethod(*f, model.MethodProbe) {
+		return // reproduced through the client SDK after all
+	}
+	f.Status = model.StatusHidden
+	kept := f.Notes[:0]
+	for _, n := range f.Notes {
+		if n != liveMismatchNote {
+			kept = append(kept, n)
+		}
+	}
+	f.Notes = append(kept, fmt.Sprintf("%q is Server-side only, so client SDKs no longer receive it, but the mechanism still exists in Flagsmith: a server that evaluates this flag for a browser-chosen identifier or client-written traits is still steered. Hidden is not fixed.", f.Unlocked[0].Flag))
 }
 
 // refine retypes identifier-only reachability as re-roll findings and
@@ -486,6 +556,11 @@ func refine(f *model.Finding, eng *flagsmith.Engine, running map[string]string, 
 		return
 	}
 	flag := f.Unlocked[0].Flag
+	if f.Type == model.FIdentifierForgery {
+		// The mapper keeps the segment as subject for the live cross-check;
+		// reports and fix plans are about the flag it unlocks.
+		f.Subject = flag
+	}
 	if f.Type == model.FSegmentForgeable && len(f.Traits) > 0 && f.Status == model.StatusExploitable {
 		f.Type = model.FTraitForgery
 		f.ID = model.MakeFindingID(f.Type, f.Environment, flag, traitString(f.Traits))
@@ -661,5 +736,18 @@ func (a *App) LoadReport(id string) (*model.Report, error) {
 	if err := json.Unmarshal(b, &r); err != nil {
 		return nil, fmt.Errorf("report %s: %w", id, err)
 	}
+	upgradeReport(&r)
 	return &r, nil
+}
+
+// upgradeReport gives a report written before root causes existed the same
+// grouping and counts a new audit gets, so every surface shows one headline.
+func upgradeReport(r *model.Report) {
+	for _, f := range r.Findings {
+		if f.RootCause == "" {
+			AssignRootCauses(r)
+			break
+		}
+	}
+	report.Finalize(r)
 }

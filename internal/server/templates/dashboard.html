@@ -6,7 +6,7 @@
     <div><dt>Target</dt><dd>{{if .Config.Target}}<code>{{rd .Config.Target}}</code>{{else}}<span class="muted">Not set (inside view only)</span>{{end}}</dd></div>
     <div><dt>AI mode</dt><dd><span class="chip">{{.Config.AIMode}}</span></dd></div>
     <div><dt>Project</dt><dd>{{if .Config.Project}}{{.Config.Project}}{{else}}<span class="muted">Not set</span>{{end}}</dd></div>
-    <div><dt>Environments</dt><dd>{{range .Config.Environments}}<span class="chip">{{.}}</span> {{else}}<span class="muted">None configured</span>{{end}}{{if .Config.Production}}<span class="muted small">Production: {{range $i, $e := .Config.Production}}{{if $i}}, {{end}}{{$e}}{{end}} (changes need typed confirmation)</span>{{end}}</dd></div>
+    <div><dt>Environments</dt><dd>{{range .Config.Environments}}<span class="chip">{{.}}</span> {{else}}<span class="muted">None configured</span>{{end}}{{if .Config.Production}}<span class="muted small">Protected: {{range $i, $e := .Config.Production}}{{if $i}}, {{end}}{{$e}}{{end}} (changes need a person: typed confirmation after a review delay)</span>{{end}}</dd></div>
     <div><dt>Scope lock</dt><dd>{{range .Config.Scope}}<code class="chip">{{.}}</code> {{else}}<span class="muted">Nothing is in scope</span>{{end}}</dd></div>
   </dl>
 </section>
@@ -23,7 +23,7 @@
 </section>
 
 <section class="tiles" aria-label="Summary">
-  <div class="tile"><p class="tile-num">{{if .Latest}}{{.Latest.WaysIn}}{{else}}-{{end}}</p><p class="tile-label">ways in (latest report)</p></div>
+  <div class="tile"><p class="tile-num">{{if .Latest}}{{.Latest.WaysIn}}{{else}}-{{end}}</p><p class="tile-label">ways in (latest report{{if .Latest}}: {{.Latest.Headline}}{{end}})</p></div>
   <a class="tile tile-link" href="/plans"><p class="tile-num">{{.Pending}}</p><p class="tile-label">fix plans awaiting a decision</p></a>
   <a class="tile tile-link" href="/watch"><p class="tile-num">{{.Alerts}}</p><p class="tile-label">watch alerts</p></a>
 </section>
@@ -37,7 +37,7 @@
       <td><time>{{time .CreatedAt}}</time></td>
       <td>{{if .Target}}<code>{{rd .Target}}</code>{{else}}-{{end}}</td>
       <td>{{.Environment}}</td>
-      <td><strong>{{.WaysIn}} way{{if ne .WaysIn 1}}s{{end}} in</strong></td>
+      <td><strong>{{.Headline}}</strong></td>
       <td>{{.AIMode}}</td>
       <td><a href="/report/{{.ID}}">Open <span class="sr-only">report {{.ID}}</span></a></td>
     </tr>{{end}}</tbody>

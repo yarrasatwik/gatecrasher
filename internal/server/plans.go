@@ -41,6 +41,7 @@ type planView struct {
 	Rec              model.PlanRecord
 	Ops              []opView
 	Findings         []findingRef
+	Partial          []findingRef
 	Err              string
 	NeedsEnv         bool
 	NeedsContaminate bool
@@ -50,6 +51,10 @@ type planView struct {
 	CanApply         bool
 	CanVerify        bool
 	CanRollback      bool
+	// Stamp is the signed render timestamp for a protected plan's approve
+	// form; UnlockAfter is the review delay in seconds shown on the button.
+	Stamp       string
+	UnlockAfter int
 }
 
 type plansView struct {
@@ -92,19 +97,35 @@ func (s *Server) buildPlansView(filter string, errs map[string]string) plansView
 		if filter != "" && !addresses(rec.Plan, filter) {
 			continue
 		}
-		v.Plans = append(v.Plans, newPlanView(rec, refs, errs[rec.Plan.ID]))
+		v.Plans = append(v.Plans, s.planCard(rec, refs, errs[rec.Plan.ID]))
 	}
 	if filter != "" && len(v.Plans) == 0 {
 		v.FilterMiss = true
 		for _, rec := range recs {
-			v.Plans = append(v.Plans, newPlanView(rec, refs, errs[rec.Plan.ID]))
+			v.Plans = append(v.Plans, s.planCard(rec, refs, errs[rec.Plan.ID]))
 		}
+	}
+	return v
+}
+
+// planCard builds one plan card and, for a protected environment that can
+// still be approved, starts its review delay.
+func (s *Server) planCard(rec model.PlanRecord, refs map[string]findingRef, errMsg string) planView {
+	v := newPlanView(rec, refs, errMsg)
+	if v.CanApprove && rec.Plan.Production {
+		v.Stamp = s.stamp(rec.Plan)
+		v.UnlockAfter = int(ProtectedApproveDelay / time.Second)
 	}
 	return v
 }
 
 func addresses(p model.Plan, findingID string) bool {
 	for _, id := range p.FindingsAddressed {
+		if id == findingID {
+			return true
+		}
+	}
+	for _, id := range p.PartiallyMitigated {
 		if id == findingID {
 			return true
 		}
@@ -162,6 +183,13 @@ func newPlanView(rec model.PlanRecord, refs map[string]findingRef, errMsg string
 			ref = findingRef{ID: id}
 		}
 		v.Findings = append(v.Findings, ref)
+	}
+	for _, id := range p.PartiallyMitigated {
+		ref, ok := refs[id]
+		if !ok {
+			ref = findingRef{ID: id}
+		}
+		v.Partial = append(v.Partial, ref)
 	}
 	return v
 }
@@ -262,6 +290,9 @@ func (s *Server) dispatch(ctx context.Context, r *http.Request, action string, r
 	switch action {
 	case "approve":
 		if msg := checkApproval(rec, r.PostFormValue("typed_env"), r.PostFormValue("typed_contaminate")); msg != "" {
+			return msg, ""
+		}
+		if msg := s.checkDelay(rec, r.PostFormValue(stampField)); msg != "" {
 			return msg, ""
 		}
 		err = s.be.Approve(ctx, id, strings.TrimSpace(r.PostFormValue("typed_env")),

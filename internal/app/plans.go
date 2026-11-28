@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -32,8 +31,8 @@ func (a *App) MakePlans(ctx context.Context, reportID, onlyFinding string) ([]*m
 	}
 	var open []model.Finding
 	for _, f := range r.Findings {
-		if f.Status == model.StatusBlocked || f.Type == model.FControlOK {
-			continue
+		if !f.Open() {
+			continue // closed, a control that held, or only an AI suggestion
 		}
 		if onlyFinding != "" && f.ID != onlyFinding {
 			continue
@@ -129,6 +128,9 @@ func (a *App) waitLive(ctx context.Context, rec *model.PlanRecord) (time.Duratio
 	}
 	fs := a.planFindings(rec)
 	deadline := time.Now().Add(a.Cfg.PropagationTimeout())
+	// Flagsmith's API workers each cache the environment, so one clean
+	// round can come from a refreshed worker while others are stale.
+	clean := 0
 	for {
 		pending := 0
 		for _, f := range fs {
@@ -140,29 +142,43 @@ func (a *App) waitLive(ctx context.Context, rec *model.PlanRecord) (time.Duratio
 			}
 		}
 		if pending == 0 {
+			clean++
+		} else {
+			clean = 0
+		}
+		if clean >= cleanRounds {
 			return time.Since(start), nil
 		}
 		if time.Now().After(deadline) {
 			return time.Since(start), fmt.Errorf("%d finding(s) still reproduce after %s; run verify later", pending, a.Cfg.PropagationTimeout())
 		}
+		wait := time.Second
+		if clean > 0 {
+			wait = 200 * time.Millisecond
+		}
 		select {
 		case <-ctx.Done():
 			return time.Since(start), ctx.Err()
-		case <-time.After(time.Second):
+		case <-time.After(wait):
 		}
 	}
 }
 
+// cleanRounds is how many consecutive rounds must reproduce nothing before an
+// applied plan counts as live.
+const cleanRounds = 4
+
 // autoFixable reports whether an applied plan is expected to block f.
 func autoFixable(f model.Finding) bool {
 	switch f.Type {
-	case model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging:
+	case model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging, model.FIdentifierForgery:
 		return false
 	}
 	return true
 }
 
-// planFindings returns the latest report's findings addressed by rec, with
+// planFindings returns the latest report's findings addressed (or partially
+// mitigated) by rec, with
 // their status as first reported (so before/after stays honest on re-runs).
 func (a *App) planFindings(rec *model.PlanRecord) []model.Finding {
 	r, err := a.LoadReport("latest")
@@ -171,6 +187,9 @@ func (a *App) planFindings(rec *model.PlanRecord) []model.Finding {
 	}
 	want := map[string]bool{}
 	for _, id := range rec.Plan.FindingsAddressed {
+		want[id] = true
+	}
+	for _, id := range rec.Plan.PartiallyMitigated {
 		want[id] = true
 	}
 	first := map[string]model.Status{}
@@ -202,8 +221,47 @@ func (a *App) Rollback(ctx context.Context, id, by string) (*model.PlanRecord, e
 	if err != nil {
 		return nil, err
 	}
-	err = ap.Rollback(ctx, rec, by)
+	if err := ap.Rollback(ctx, rec, by); err != nil {
+		return rec, err
+	}
+	// The change is undone, so the findings it blocked are open again.
+	r, err := a.LoadReport("latest")
+	if err != nil {
+		return rec, nil // no report to correct
+	}
+	var ids []string
+	for _, f := range a.planFindings(rec) {
+		ids = append(ids, f.ID)
+	}
+	if revertVerified(r, ids) {
+		_, err = a.SaveReport(r)
+	}
 	return rec, err
+}
+
+// revertVerified restores the pre-verify status of the given findings and
+// drops their before/after rows. It reports whether anything changed.
+func revertVerified(r *model.Report, ids []string) bool {
+	want := map[string]bool{}
+	for _, id := range ids {
+		want[id] = true
+	}
+	before := map[string]model.Status{}
+	kept := r.BeforeAfter[:0]
+	for _, row := range r.BeforeAfter {
+		if want[row.FindingID] {
+			before[row.FindingID] = row.Before
+			continue
+		}
+		kept = append(kept, row)
+	}
+	r.BeforeAfter = kept
+	for i := range r.Findings {
+		if st, ok := before[r.Findings[i].ID]; ok {
+			r.Findings[i].Status = st
+		}
+	}
+	return len(before) > 0
 }
 
 // Verify re-runs exactly the checks behind the plan's findings and records
@@ -255,65 +313,87 @@ func mergeRows(old, add []model.VerifyRow) []model.VerifyRow {
 	return old
 }
 
-// Recheck re-runs the single check behind a finding against live
-// Flagsmith and returns EXPLOITABLE or BLOCKED with a redacted proof.
+// Recheck re-runs the original attack behind a finding against live
+// Flagsmith (see verify.Check) and returns EXPLOITABLE, HIDDEN or BLOCKED
+// with a redacted proof.
 func (a *App) Recheck(ctx context.Context, f model.Finding) (model.Status, string, error) {
 	env, err := a.Environment(ctx, nonEmpty(f.Environment, a.defaultEnv()))
 	if err != nil {
 		return model.StatusUnknown, "", err
 	}
-	fresh, err := a.Admin.Environment(ctx, env.APIKey)
-	if err != nil {
-		return model.StatusUnknown, "", err
-	}
-	sdk := flagsmith.NewSDK(a.HTTP, a.Cfg.Flagsmith.APIURL, env.APIKey)
-	switch f.Type {
-	case model.FSettingClientTraitsOn:
-		return statusIf(fresh.AllowClientTraits, fmt.Sprintf("allow_client_traits=%v", fresh.AllowClientTraits))
-	case model.FIdentityTraitLeak, model.FIdentityOverrideLeak:
-		// Replay the exact read-only lookup when the outside view has one: the
-		// public endpoint can serve cached data after the setting changes.
-		if strings.HasPrefix(f.ProofID, "test-") {
-			runner := attacks.New(sdk, attacks.Options{Environment: env.Name, TestIdentities: a.Cfg.TestIdentities})
-			if st, proof, err := runner.Recheck(ctx, f); err == nil {
-				return st, proof, nil
-			}
-		}
-		return statusIf(!fresh.HideSensitiveData, fmt.Sprintf("hide_sensitive_data=%v", fresh.HideSensitiveData))
-	case model.FSettingSensitiveData:
-		return statusIf(!fresh.HideSensitiveData, fmt.Sprintf("hide_sensitive_data=%v", fresh.HideSensitiveData))
-	case model.FSecretExposed, model.FInternalURL, model.FUnreleasedProduct, model.FPricingLeak, model.FPIILeak, model.FFlagNotServerOnly:
-		flags, ev, err := sdk.EnvironmentFlags(ctx)
-		if err != nil {
-			return model.StatusUnknown, "", err
-		}
-		_, visible := flags[f.Subject]
-		return statusIf(visible, fmt.Sprintf("%s → %s visible to client key: %v", ev.Request, f.Subject, visible))
-	case model.FSegmentForgeable, model.FTraitForgery, model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging:
-		if len(f.Unlocked) == 0 {
-			return model.StatusUnknown, "", errors.New("finding has no flag change to re-check")
-		}
-		id := f.ProofID
-		if id == "" {
-			id = probeID()
-		}
-		res, err := sdk.Identify(ctx, id, f.Traits)
-		if err != nil {
-			return model.StatusUnknown, "", err
-		}
-		want := f.Unlocked[0]
-		got := res.Flags[want.Flag].State()
-		return statusIf(got == want.After, fmt.Sprintf("%s → %s is %s (exploited state %s)", res.Evidence.Request, want.Flag, got, want.After))
-	default:
-		return model.StatusUnknown, "", fmt.Errorf("no automatic re-check for %s", f.Type)
-	}
+	return verify.Check(ctx, &liveTarget{a: a, env: env, sdk: flagsmith.NewSDK(a.HTTP, a.Cfg.Flagsmith.APIURL, env.APIKey)}, f)
 }
 
-func statusIf(exploitable bool, proof string) (model.Status, string, error) {
-	if exploitable {
-		return model.StatusExploitable, redact.String(proof), nil
+// liveTarget is verify.Target over the real environment: the client SDK
+// endpoints for the client path, the Admin API for settings, and Flagsmith's
+// engine over the environment document for the server path.
+type liveTarget struct {
+	a   *App
+	env flagsmith.Environment
+	sdk *flagsmith.SDK
+	eng *flagsmith.Engine
+}
+
+var _ verify.Target = (*liveTarget)(nil)
+
+func (t *liveTarget) Settings(ctx context.Context) (verify.Settings, error) {
+	fresh, err := t.a.Admin.Environment(ctx, t.env.APIKey)
+	if err != nil {
+		return verify.Settings{}, err
 	}
-	return model.StatusBlocked, redact.String(proof), nil
+	return verify.Settings{AllowClientTraits: fresh.AllowClientTraits, HideSensitiveData: fresh.HideSensitiveData}, nil
+}
+
+func (t *liveTarget) ClientFlags(ctx context.Context) (map[string]string, string, error) {
+	flags, ev, err := t.sdk.EnvironmentFlags(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+	return states(flags), ev.Request, nil
+}
+
+func (t *liveTarget) ClientIdentify(ctx context.Context, id string, traits map[string]string) (map[string]string, string, error) {
+	res, err := t.sdk.Identify(ctx, id, traits)
+	if err != nil {
+		return nil, "", err
+	}
+	return states(res.Flags), res.Evidence.Request, nil
+}
+
+func (t *liveTarget) ServerEvaluate(ctx context.Context, id string, traits map[string]string) (map[string]string, error) {
+	if t.eng == nil {
+		doc, err := t.a.envDocument(ctx, t.env)
+		if err != nil {
+			return nil, fmt.Errorf("environment document: %w", err)
+		}
+		eng, err := flagsmith.NewEngine(doc)
+		if err != nil {
+			return nil, err
+		}
+		t.eng = eng
+	}
+	return states(t.eng.Evaluate(id, traits)), nil
+}
+
+func (t *liveTarget) ReplayLookup(ctx context.Context, f model.Finding) (model.Status, string, bool, error) {
+	if !strings.HasPrefix(f.ProofID, "test-") {
+		return model.StatusUnknown, "", false, nil
+	}
+	runner := attacks.New(t.sdk, attacks.Options{Environment: t.env.Name, TestIdentities: t.a.Cfg.TestIdentities})
+	st, proof, err := runner.Recheck(ctx, f)
+	return st, proof, true, err
+}
+
+func (t *liveTarget) ClientSetsIdentifier() bool {
+	return t.a.Cfg.ClientSetsIdentifier == nil || *t.a.Cfg.ClientSetsIdentifier
+}
+
+func states(flags flagsmith.Flags) map[string]string {
+	out := make(map[string]string, len(flags))
+	for name, f := range flags {
+		out[name] = f.State()
+	}
+	return out
 }
 
 func nonEmpty(s, def string) string {

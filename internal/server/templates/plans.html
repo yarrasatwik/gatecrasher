@@ -8,7 +8,7 @@
   <form method="post" action="/plans/make" class="inline-form">
     <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
     <label for="report_id">Report</label>
-    <select id="report_id" name="report_id">{{range .Reports}}<option value="{{.ID}}">{{.ID}} - {{.WaysIn}} way{{if ne .WaysIn 1}}s{{end}} in ({{time .CreatedAt}})</option>{{end}}</select>
+    <select id="report_id" name="report_id">{{range .Reports}}<option value="{{.ID}}">{{.ID}} - {{.Headline}} ({{time .CreatedAt}})</option>{{end}}</select>
     <button class="btn" type="submit">Build fix plans</button>
   </form>
   {{else}}<p class="empty">No reports yet. Run an audit from the <a href="/">dashboard</a> first.</p>{{end}}
@@ -45,13 +45,18 @@
   {{if .Findings}}<ul class="plain">{{range .Findings}}<li>{{if .ReportID}}<a href="/report/{{.ReportID}}#f-{{.ID}}">{{if .Title}}{{rd .Title}}{{else}}{{.ID}}{{end}}</a>{{else}}{{.ID}}{{end}} <span class="muted"><code>{{.ID}}</code></span></li>{{end}}</ul>{{else}}<p class="muted">No findings are linked to this plan.</p>{{end}}
   </section>
 
+  {{if .Partial}}<section aria-labelledby="part-{{$id}}"><h3 id="part-{{$id}}">Partially mitigated, not closed</h3>
+  <p class="muted">This plan hides the flag from client SDKs. It does not stop re-rolling, so these findings stay open (HIDDEN) until identifiers are assigned on the server or the rollout is removed.</p>
+  <ul class="plain">{{range .Partial}}<li>{{if .ReportID}}<a href="/report/{{.ReportID}}#f-{{.ID}}">{{if .Title}}{{rd .Title}}{{else}}{{.ID}}{{end}}</a>{{else}}{{.ID}}{{end}} <span class="muted"><code>{{.ID}}</code></span></li>{{end}}</ul>
+  </section>{{end}}
+
   <section aria-labelledby="brk-{{$id}}"><h3 id="brk-{{$id}}">What could break</h3>
   {{if $p.Impact}}<ul class="impact">{{range $p.Impact}}<li><code>{{rd .File}}:{{.Line}}</code> {{if .Breaks}}<span class="chip chip-warn"><span aria-hidden="true">⚠</span> Will break</span>{{else}}<span class="chip chip-quiet">Review</span>{{end}} {{rich .Message}}{{if .Snippet}}<pre class="code" tabindex="0"><code>{{rd .Snippet}}</code></pre>{{end}}</li>{{end}}</ul>{{else}}<p class="muted">No code that reads this setting was found in the scanned repository.</p>{{end}}
   </section>
 
   {{if $p.BeforeSnapshot}}<details><summary>State snapshot this plan is bound to</summary><dl class="facts">{{range $k, $v := $p.BeforeSnapshot}}<div><dt><code>{{rd $k}}</code></dt><dd><code>{{rd (val $v)}}</code></dd></div>{{end}}</dl></details>{{end}}
 
-  {{with .Rec.Approval}}<p class="muted">Approved by {{.By}} via {{.Channel}} on <time>{{time .ApprovedAt}}</time>{{if .ConfirmedEnvironment}}; typed environment confirmation recorded{{end}}.</p>{{end}}
+  {{with .Rec.Approval}}<p class="muted">Approved by {{if .ByClaimed}}OS user {{.OSUser}} (claimed by {{.By}}){{else}}{{.By}}{{end}} via {{.Channel}} on <time>{{time .ApprovedAt}}</time>{{if .ConfirmedEnvironment}}; typed environment confirmation recorded{{end}}.</p>{{end}}
   {{with .Rec.Error}}<p class="err-text">{{rd .}}</p>{{end}}
 
   {{if .Rec.Verify}}<section aria-labelledby="ver-{{$id}}"><h3 id="ver-{{$id}}">Before and after</h3>
@@ -66,6 +71,7 @@
   <form method="post" action="/plans/{{$id}}/approve" class="approve-form" aria-labelledby="appr-{{$id}}">
     <h3 id="appr-{{$id}}">Decision</h3>
     <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+    {{if .Stamp}}<input type="hidden" name="rendered_at" value="{{.Stamp}}">{{end}}
     {{if .NeedsEnv}}<div class="field">
       <label for="env-{{$id}}">Type the environment name <code>{{$p.Environment}}</code> to confirm this Production change</label>
       <input id="env-{{$id}}" name="typed_env" type="text" required autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="env-help-{{$id}}{{if .Err}} err-{{$id}}{{end}}"{{if .Err}} aria-invalid="true"{{end}}>
@@ -77,9 +83,10 @@
       <p class="help" id="exp-help-{{$id}}">Applying it can contaminate the experiment's results.</p>
     </div>{{end}}
     <div class="actions">
-      <button class="btn btn-primary" type="submit">Approve</button>
+      <button class="btn btn-primary" type="submit"{{if .Stamp}} data-unlock-after="{{.UnlockAfter}}" aria-describedby="delay-help-{{$id}}"{{end}}>Approve</button>
       <button class="btn" type="submit" formaction="/plans/{{$id}}/reject" formnovalidate>Reject</button>
     </div>
+    {{if .Stamp}}<p class="help" id="delay-help-{{$id}}">Approve unlocks {{.UnlockAfter}} seconds after this page loads, so a protected environment is never changed by reflex. The server refuses an earlier approval.</p>{{end}}
   </form>
   {{else if or .CanApply .CanVerify .CanRollback .CanReject}}
   <div class="actions" role="group" aria-label="Actions for plan {{$id}}">
@@ -91,4 +98,5 @@
   {{end}}
 </article>
 {{else}}<p class="empty">No plans yet. Build them from a report above.</p>{{end}}
+<script src="/static/approve.js" defer></script>
 {{end}}{{end}}

@@ -27,6 +27,7 @@ import (
 	"github.com/yarrasatwik/gatecrasher/internal/model"
 	"github.com/yarrasatwik/gatecrasher/internal/redact"
 	"github.com/yarrasatwik/gatecrasher/internal/scope"
+	"github.com/yarrasatwik/gatecrasher/internal/verify"
 )
 
 var root string
@@ -99,6 +100,7 @@ var planted = []expectation{
 	{[]model.FindingType{model.FTraitForgery}, "admin_panel"},
 	{[]model.FindingType{model.FTraitForgery}, "staff_preview"},
 	{[]model.FindingType{model.FPercentageReroll}, "early_access_ai"},
+	{[]model.FindingType{model.FIdentifierForgery}, "internal_tools"},
 	{[]model.FindingType{model.FExperimentRigging, model.FVariantReroll}, "pricing_page"},
 	{[]model.FindingType{model.FSecretExposed}, "payment_config"},
 	{[]model.FindingType{model.FInternalURL}, "internal_api_url"},
@@ -236,8 +238,8 @@ func TestFixVerifyRollbackAndReset(t *testing.T) {
 	}
 	checkShop(t)
 	after := fullAudit(t, a, 0)
-	if n := ways(after); n >= ways(before) || n > 2 {
-		t.Errorf("ways in after fixes = %d (before %d); only re-roll guidance should remain", n, ways(before))
+	if n := ways(after); n >= ways(before) || n > 3 {
+		t.Errorf("ways in after fixes = %d (before %d); only re-roll and identifier-forgery guidance should remain", n, ways(before))
 		for _, f := range after.Findings {
 			if f.Status == model.StatusExploitable {
 				t.Logf("  still open: %s %s %v", f.Type, f.Title, f.DetectedBy)
@@ -491,5 +493,107 @@ func TestFixOnV2VersionedEnvironment(t *testing.T) {
 			t.Fatalf("Flagsmith CLI installed but only %d of %d changes went through it", viaCLI, steps)
 		}
 		t.Logf("MEASURED %d of %d changes applied through the Flagsmith CLI on a v2-versioned environment", viaCLI, steps)
+	}
+}
+
+// identifierForgery returns the internal_tools identifier-forgery finding and
+// fails the test unless it is exploitable, reproduced live and worded as
+// documented.
+func identifierForgery(t *testing.T, r *model.Report, when string) *model.Finding {
+	t.Helper()
+	f := find(r, expectation{[]model.FindingType{model.FIdentifierForgery}, "internal_tools"})
+	if f == nil {
+		t.Fatalf("%s: no identifier-forgery finding for internal_tools", when)
+	}
+	if f.Status != model.StatusExploitable || !f.Confirmed {
+		t.Errorf("%s: %s is %s (confirmed=%v), want EXPLOITABLE", when, f.Title, f.Status, f.Confirmed)
+	}
+	live := false
+	for _, m := range f.DetectedBy {
+		live = live || m == model.MethodProbe
+	}
+	if !live {
+		t.Errorf("%s: %s was not reproduced against the live API (%v)", when, f.Title, f.DetectedBy)
+	}
+	const head, tail = "Choosing identifier ", "@acmeshop.dev unlocks internal_tools — this survives turning off client traits."
+	if !strings.HasPrefix(f.Title, head) || !strings.HasSuffix(f.Title, tail) {
+		t.Errorf("%s: title = %q, want %q<name>%q", when, f.Title, head, tail)
+	}
+	return f
+}
+
+// TestIdentifierForgerySurvivesClientTraitsFix shows the hole that the
+// client-traits setting does not close: internal_tools is unlocked by
+// choosing an identifier, before and after "Allow client SDKs to set user
+// traits" is turned off on Production.
+func TestIdentifierForgerySurvivesClientTraitsFix(t *testing.T) {
+	reset(t)
+	defer reset(t)
+	a := newApp(t)
+	ctx := context.Background()
+	before := identifierForgery(t, fullAudit(t, a, 0), "before the client-traits fix")
+
+	recs, err := a.MakePlans(ctx, "latest", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var traitsPlan, guidance *model.PlanRecord
+	for _, rec := range recs {
+		for _, op := range rec.Plan.Operations {
+			if op.Automatic && op.Body["allow_client_traits"] == false {
+				traitsPlan = rec
+			}
+		}
+		for _, id := range rec.Plan.FindingsAddressed {
+			if id == before.ID {
+				guidance = rec
+			}
+		}
+	}
+	if traitsPlan == nil || guidance == nil {
+		t.Fatalf("want a client-traits plan and an identifier guidance plan, got %v / %v", traitsPlan != nil, guidance != nil)
+	}
+	if hasAuto(guidance.Plan) || guidance.Plan.ID == traitsPlan.Plan.ID {
+		t.Fatalf("the identifier-forgery plan must be guidance only, never a Flagsmith change: %+v", guidance.Plan.Operations)
+	}
+	draft := ""
+	for _, op := range guidance.Plan.Operations {
+		draft += op.Description + "\n" + op.Draft + "\n"
+	}
+	if !strings.Contains(strings.ToLower(draft), fixes.IdentifierFixSummary) {
+		t.Errorf("guidance plan does not say %q:\n%s", fixes.IdentifierFixSummary, draft)
+	}
+
+	if _, err := a.Approve(traitsPlan.Plan.ID, "it", "cli", traitsPlan.Plan.Environment, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Apply(ctx, traitsPlan.Plan.ID); err != nil {
+		t.Fatalf("apply client-traits fix: %v", err)
+	}
+	env, err := a.Admin.Environment(ctx, mustEnvKey(t, a))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env.AllowClientTraits {
+		t.Fatal("client traits are still on after the fix")
+	}
+
+	v, err := a.Verify(ctx, guidance.Plan.ID, "it")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(v.Verify) != 1 || v.Verify[0].FindingID != before.ID {
+		t.Fatalf("verify rows = %+v", v.Verify)
+	}
+	if row := v.Verify[0]; row.After != model.StatusExploitable || !strings.Contains(row.Proof, verify.IdentifierStillOpen) {
+		t.Errorf("verify after the client-traits fix: %s, proof %q; want EXPLOITABLE with the identifier explanation", row.After, row.Proof)
+	}
+
+	after := fullAudit(t, a, 0)
+	if f := find(after, expectation{[]model.FindingType{model.FTraitForgery}, "staff_preview"}); f != nil && f.Status == model.StatusExploitable {
+		t.Errorf("trait forgery still exploitable after the client-traits fix: %s", f.Title)
+	}
+	if got := identifierForgery(t, after, "after the client-traits fix"); got.ID != before.ID {
+		t.Errorf("finding ID changed across audits: %s -> %s", before.ID, got.ID)
 	}
 }

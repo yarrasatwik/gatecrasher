@@ -1,6 +1,6 @@
 // Package httpx is the only way Gatecrasher talks to the network. Every
-// request (and every redirect hop) is checked against the scope lock, bodies
-// are size-capped, idempotent requests are retried with backoff, and a
+// request (and every redirect hop) is checked against the scope lock,
+// requests that carry a key never follow redirects, bodies are size-capped, idempotent requests are retried with backoff, and a
 // token-bucket rate limit keeps probing polite.
 package httpx
 
@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -58,16 +59,94 @@ func New(lock *scope.Lock, opts ...Option) *Client {
 	c.hc = &http.Client{
 		Timeout: 15 * time.Second,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// Safeguard 2 runs first and unconditionally: a hop to another
+			// host or port never carries a key, whatever happens below.
+			if len(via) > 0 {
+				stripKeyHeadersOnOriginChange(req, via[len(via)-1])
+			}
 			if len(via) >= 5 {
 				return errors.New("too many redirects")
 			}
-			return lock.Check(req.URL)
+			if err := lock.Check(req.URL); err != nil {
+				return err
+			}
+			// Safeguard 1: a request that carries a key is never redirected.
+			if len(via) > 0 {
+				if h := keyHeader(via[0].Header); h != "" {
+					return &redirectError{header: h, target: redactTarget(req.URL)}
+				}
+			}
+			return nil
 		},
 	}
 	for _, o := range opts {
 		o(c)
 	}
 	return c
+}
+
+// ErrRedirectWithKey is returned (wrapped) when a request carrying
+// X-Environment-Key or Authorization is answered with a redirect. Keys are
+// only ever sent to the exact URL the caller asked for.
+var ErrRedirectWithKey = errors.New("redirect refused for a request carrying a key")
+
+// keyHeaders are the request headers that hold Flagsmith key material.
+var keyHeaders = []string{"X-Environment-Key", "Authorization"}
+
+type redirectError struct{ header, target string }
+
+func (e *redirectError) Error() string {
+	return fmt.Sprintf("%s: the request carries %s and the server redirected it to %s; Gatecrasher does not follow redirects with a key (use the final URL as the API URL)",
+		ErrRedirectWithKey, e.header, e.target)
+}
+
+func (e *redirectError) Unwrap() error { return ErrRedirectWithKey }
+
+// keyHeader returns the canonical name of the first key header set on h.
+func keyHeader(h http.Header) string {
+	for _, k := range keyHeaders {
+		if h.Get(k) != "" {
+			return k
+		}
+	}
+	return ""
+}
+
+// stripKeyHeadersOnOriginChange removes the key headers from next when its
+// host or port differs from prev's.
+func stripKeyHeadersOnOriginChange(next, prev *http.Request) {
+	if next == nil || prev == nil || sameHostPort(next.URL, prev.URL) {
+		return
+	}
+	for _, k := range keyHeaders {
+		next.Header.Del(k)
+	}
+}
+
+func sameHostPort(a, b *url.URL) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	return strings.EqualFold(a.Hostname(), b.Hostname()) && effectivePort(a) == effectivePort(b)
+}
+
+func effectivePort(u *url.URL) string {
+	if p := u.Port(); p != "" {
+		return p
+	}
+	if strings.EqualFold(u.Scheme, "https") {
+		return "443"
+	}
+	return "80"
+}
+
+// redactTarget renders a redirect target for an error message: scheme, host
+// and path only (no userinfo, query or fragment), passed through redact.
+func redactTarget(u *url.URL) string {
+	if u == nil {
+		return "an unknown location"
+	}
+	return redact.String(u.Scheme + "://" + u.Host + u.EscapedPath())
 }
 
 // Lock returns the client's scope lock.
@@ -177,6 +256,11 @@ func (c *Client) Do(ctx context.Context, r Request) (*Response, error) {
 		if err != nil {
 			if errors.Is(err, scope.ErrOutOfScope) {
 				return nil, err
+			}
+			var re *redirectError
+			if errors.As(err, &re) {
+				// Never retried: the answer would be the same redirect.
+				return nil, fmt.Errorf("%s %s: %w", r.Method, redact.String(r.URL), re)
 			}
 			lastErr = fmt.Errorf("%s %s: %s", r.Method, redact.String(r.URL), redact.String(err.Error()))
 			continue

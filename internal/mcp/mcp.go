@@ -10,11 +10,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 	"sync"
 
 	"github.com/yarrasatwik/gatecrasher/internal/model"
 	"github.com/yarrasatwik/gatecrasher/internal/redact"
+	"github.com/yarrasatwik/gatecrasher/internal/report"
 )
 
 // ProtocolVersion is the MCP revision this server implements.
@@ -86,9 +88,69 @@ func (s *Server) Serve(ctx context.Context, r io.Reader, w io.Writer) error {
 }
 
 func (s *Server) write(enc *json.Encoder, r response) {
+	r.Result = withheld(r.Result)
+	if r.Error != nil {
+		r.Error = &rpcError{Code: r.Error.Code, Message: scrub(r.Error.Message)}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_ = enc.Encode(r)
+}
+
+// PendingPlans is all the server ever says about fix plans. A coding agent
+// gets no plan ID and no plan hash, so it has nothing to approve with.
+const PendingPlans = "pending plans: open the web UI to review"
+
+var (
+	planIDRe = regexp.MustCompile(`plan-[0-9a-f]{8}`)
+	// hashRe matches a UUID (kept: probe identifiers are UUIDs) or a run of
+	// 12 or more hex digits, which covers plan hashes and audit-chain
+	// hashes in full and in the shortened form the CLI prints.
+	hashRe = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{12,}`)
+)
+
+// scrub removes plan IDs and hashes from text, wherever it came from.
+func scrub(s string) string {
+	s = planIDRe.ReplaceAllString(s, "[plan withheld]")
+	return hashRe.ReplaceAllStringFunc(s, func(m string) string {
+		if len(m) == 36 && strings.Count(m, "-") == 4 {
+			return m
+		}
+		return "[hash withheld]"
+	})
+}
+
+// withheld scrubs every string inside a JSON-RPC result. It runs on every
+// response, so a new tool cannot leak a plan ID or hash by accident.
+func withheld(v any) any {
+	if v == nil {
+		return nil
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return map[string]any{}
+	}
+	var out any
+	if err := json.Unmarshal(b, &out); err != nil {
+		return map[string]any{}
+	}
+	return scrubValue(out)
+}
+
+func scrubValue(v any) any {
+	switch t := v.(type) {
+	case string:
+		return scrub(t)
+	case []any:
+		for i := range t {
+			t[i] = scrubValue(t[i])
+		}
+	case map[string]any:
+		for k, x := range t {
+			t[k] = scrubValue(x)
+		}
+	}
+	return v
 }
 
 func (s *Server) handle(ctx context.Context, req request) (any, *rpcError) {
@@ -99,7 +161,8 @@ func (s *Server) handle(ctx context.Context, req request) (any, *rpcError) {
 			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
 			"serverInfo":      map[string]any{"name": "gatecrasher", "version": s.version},
 			"instructions": "Gatecrasher audits the user's own Flagsmith setup for flags users can unlock and data they can read. " +
-				"Tools are read-only; fixes require a human to approve them in Gatecrasher.",
+				"Tools are read-only. Fix plans are approved only by a person, in the Gatecrasher web UI or a real terminal; " +
+				"this server never reveals plan IDs or hashes.",
 		}, nil
 	case "ping":
 		return map[string]any{}, nil
@@ -145,7 +208,7 @@ func tools() []map[string]any {
 			"inputSchema": obj(map[string]any{"min_severity": map[string]any{"type": "string", "enum": []string{"critical", "high", "medium", "low", "info"}}}),
 			"annotations": ro},
 		{"name": "gatecrasher_explain", "title": "Explain a finding",
-			"description": "Explain one finding in plain English: what happened, why it matters, how to reproduce it, and the fix plan to approve.",
+			"description": "Explain one finding in plain English: what happened, why it matters, how to reproduce it, and how it is fixed.",
 			"inputSchema": obj(map[string]any{"finding_id": map[string]any{"type": "string", "description": "Finding ID such as GC-688647D2."}}, "finding_id"),
 			"annotations": ro},
 	}
@@ -191,24 +254,23 @@ func (s *Server) call(ctx context.Context, name string, args map[string]any) (st
 // Summary renders a token-efficient text summary of a report.
 func Summary(r *model.Report, min model.Severity) string {
 	var b strings.Builder
-	open := 0
-	for _, f := range r.Findings {
-		if f.Status == model.StatusExploitable && f.Type != model.FControlOK {
-			open++
-		}
-	}
-	fmt.Fprintf(&b, "%d ways in · %s · env %s · AI %s\n", open, r.Target, r.Environment, r.AIMode)
+	pending := 0
+	fmt.Fprintf(&b, "%s · %s · env %s · AI %s\n", report.Headline(r), r.Target, r.Environment, r.AIMode)
 	for _, f := range r.Findings {
 		if f.Severity < min || f.Type == model.FControlOK {
 			continue
 		}
 		fmt.Fprintf(&b, "- [%s] %s %s — %s", strings.ToUpper(f.Severity.String()), f.ID, f.Status, f.Title)
 		if f.FixPlanID != "" {
-			fmt.Fprintf(&b, " (fix plan %s)", f.FixPlanID)
+			b.WriteString(" (fix plan pending)")
+			pending++
 		}
 		b.WriteByte('\n')
 	}
-	b.WriteString("Fixes are applied only after a human approves them: gatecrasher plan, then approve in the CLI or web UI.\n")
+	if pending > 0 {
+		b.WriteString(PendingPlans + " (gatecrasher serve).\n")
+	}
+	b.WriteString("Fixes are applied only after a person approves them in the web UI or a real terminal; a coding agent cannot approve.\n")
 	return b.String()
 }
 
@@ -229,7 +291,7 @@ func Explain(f model.Finding) string {
 		fmt.Fprintf(&b, "Reproduce: %s\n", f.Repro)
 	}
 	if f.FixPlanID != "" {
-		fmt.Fprintf(&b, "Fix plan: %s (needs human approval)\n", f.FixPlanID)
+		b.WriteString("Fix plan: " + PendingPlans + " (gatecrasher serve). A person approves it there or in a real terminal.\n")
 	}
 	return b.String()
 }

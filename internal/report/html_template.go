@@ -72,7 +72,8 @@ dl.meta dd{margin:0;overflow-wrap:anywhere}
 .card.critical{border-left-color:var(--critical-fg)}.card.high{border-left-color:var(--high-fg)}
 .card.medium{border-left-color:var(--medium-fg)}.card.low{border-left-color:var(--low-fg)}.card.info{border-left-color:var(--info-fg)}
 .card header{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin-bottom:6px}
-.card header h3{flex:1 1 220px}
+.card header h3,.card header h4{flex:1 1 220px;font-size:1.08rem;margin:0;line-height:1.25}
+.cause{margin:0 0 28px}.cause>h3{font-size:1.2rem;margin:22px 0 8px}
 .facts{display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--muted);font-size:.88rem;margin:0 0 10px;padding:0;list-style:none}
 .facts code,.card code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em}
 .facts code{overflow-wrap:anywhere}
@@ -121,6 +122,7 @@ footer{margin:48px 0 32px;color:var(--muted);font-size:.85rem}
   <nav class="sections" aria-label="Report sections"><ul>
     <li><a href="#summary">Summary</a></li>
     <li><a href="#findings">Findings</a></li>
+    {{if .Review}}<li><a href="#review">Needs review</a></li>{{end}}
     <li><a href="#settings">Settings</a></li>
     <li><a href="#reachability">Reachability</a></li>
     {{if .BeforeAfter}}<li><a href="#before-after">Before &amp; after</a></li>{{end}}
@@ -131,7 +133,8 @@ footer{margin:48px 0 32px;color:var(--muted);font-size:.85rem}
 
 <section id="summary" aria-labelledby="summary-h" class="hero">
   <h1 id="summary-h">Audit summary{{if .R.Project}} &middot; {{.R.Project}}{{end}}</h1>
-  <p class="big"><span class="n">{{.WaysIn}}</span><span class="l">{{if eq .WaysIn 1}}way in{{else}}ways in{{end}}</span></p>
+  <p class="big"><span class="n">{{.WaysIn}}</span><span class="l">{{if eq .WaysIn 1}}way in{{else}}ways in{{end}} &middot; {{.FindingCount}} {{if eq .FindingCount 1}}finding{{else}}findings{{end}}</span></p>
+  <p>A way in is a root cause that is exploitable now. One root cause can have several findings.</p>
   <ul class="chips" aria-label="Findings by severity">
     {{range .Chips}}<li class="chip sev-{{.Class}}"><b>{{.Count}}</b> {{.Name}}</li>
     {{end}}
@@ -146,12 +149,16 @@ footer{margin:48px 0 32px;color:var(--muted);font-size:.85rem}
 </section>
 
 <section id="findings" aria-labelledby="findings-h">
-  <h2 id="findings-h">Findings, ranked by severity</h2>
+  <h2 id="findings-h">Findings by root cause, highest severity first</h2>
+  {{range .Groups}}
+  <section class="cause" id="{{.ID}}" aria-labelledby="{{.ID}}-h">
+  <h3 id="{{.ID}}-h">{{.Title}}</h3>
+  <ul class="facts"><li><span class="chip sev-{{.SevClass}}">{{.SevName}}</span></li><li><span class="badge">{{.Kind}}</span></li><li>{{.Count}}</li><li>Root cause <code>{{.ID}}</code></li></ul>
   {{range .Findings}}
   <article class="card {{.SevClass}}" id="{{.ID}}" aria-labelledby="{{.ID}}-h">
     <header>
       <span class="chip sev-{{.SevClass}}">{{.SevName}}</span>
-      <h3 id="{{.ID}}-h">{{.Headline}}</h3>
+      <h4 id="{{.ID}}-h">{{.Headline}}</h4>
       <span class="status {{.StatusClass}}">{{.StatusWord}}</span>
     </header>
     <ul class="facts">
@@ -180,8 +187,31 @@ footer{margin:48px 0 32px;color:var(--muted);font-size:.85rem}
     {{if .Locations}}<p class="sub">Affected code</p><ul>{{range .Locations}}<li><code>{{.}}</code></li>{{end}}</ul>{{end}}
     {{if .Fix}}<p class="fix"><span class="lbl">Fix.</span> {{.Fix}}{{if .FixPlanID}} Fix plan <a href="/plans#{{.FixPlanID}}"><code>{{.FixPlanID}}</code></a>.{{end}}</p>{{end}}
   </article>
+  {{end}}
+  </section>
   {{else}}<p class="empty">No findings.</p>{{end}}
 </section>
+
+{{if .Review}}
+<section id="review" aria-labelledby="review-h">
+  <h2 id="review-h">Claude suggests reviewing ({{len .Review}})</h2>
+  <p>{{.ReviewNote}}</p>
+  {{range .Review}}
+  <article class="card info" id="{{.ID}}" aria-labelledby="{{.ID}}-h">
+    <header>
+      <span class="badge">? NEEDS REVIEW</span>
+      <h3 id="{{.ID}}-h">{{.Title}}</h3>
+    </header>
+    <ul class="facts">
+      <li>ID <code>{{.ID}}</code></li>
+      <li>Type <code>{{.Type}}</code></li>
+      <li>Subject <code>{{.Subject}}</code></li>
+    </ul>
+    {{if .Reason}}<p><span class="lbl">Claude's reason.</span> {{.Reason}}</p>{{end}}
+  </article>
+  {{end}}
+</section>
+{{end}}
 
 <section id="settings" aria-labelledby="settings-h">
   <h2 id="settings-h">Environment security settings</h2>

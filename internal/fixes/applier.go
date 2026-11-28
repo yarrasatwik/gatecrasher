@@ -130,22 +130,32 @@ func (a *Applier) Apply(ctx context.Context, rec *model.PlanRecord) error {
 }
 
 // RecordVerify stores the re-attack rows on the record, marks it verified
-// when every row ended BLOCKED, and audits the outcome.
+// when every finding the plan claimed to close ended BLOCKED, and audits the
+// outcome. Partially mitigated findings are never part of that claim: they
+// are counted separately (HIDDEN is still open).
 func (a *Applier) RecordVerify(rec *model.PlanRecord, by string, rows []model.VerifyRow) error {
 	rec.Verify = rows
-	blocked := 0
+	claimed, blocked, hidden := 0, 0, 0
 	for _, r := range rows {
+		if r.After == model.StatusHidden {
+			hidden++
+		}
+		if r.PartiallyMitigated {
+			continue
+		}
+		claimed++
 		if r.After == model.StatusBlocked {
 			blocked++
 		}
 	}
-	if len(rows) > 0 && blocked == len(rows) {
+	if claimed > 0 && blocked == claimed {
 		rec.State = model.PlanVerified
 	}
 	if err := a.save(rec); err != nil {
 		return err
 	}
-	return a.record(by, audit.ActionVerify, rec.Plan.ID, map[string]any{"findings": len(rows), "blocked": blocked})
+	return a.record(by, audit.ActionVerify, rec.Plan.ID, map[string]any{
+		"findings": claimed, "blocked": blocked, "hidden": hidden, "partially_mitigated": len(rows) - claimed})
 }
 
 func automaticSteps(p model.Plan) []step {

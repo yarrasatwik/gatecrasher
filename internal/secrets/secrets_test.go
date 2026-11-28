@@ -23,7 +23,7 @@ func TestClassifyTable(t *testing.T) {
 		{"pem", "-----BEGIN RSA PRIVATE KEY-----\nMIIB\n-----END RSA PRIVATE KEY-----", model.CatSecret, "private_key"},
 		{"stripe_style", "sk_live_abcdefghij1234567890", model.CatSecret, "live_api_key"},
 		{"nested", `{"a":{"b":[{"password":"hunter2hunter2"}]}}`, model.CatSecret, "$.a.b[0].password"},
-		{"entropy", "q8Zx3Lk9PwR2tYv7NmB4cJd1", model.CatSecret, "high_entropy"},
+		{"entropy", "q8Zx3Lk9PwR2tYv7NmB4cJd1", model.CatPossibleSecret, "high_entropy"},
 		{"internal_url", "http://10.0.3.7:8080/admin", model.CatInternalURL, "private_ip"},
 		{"host", "https://api.corp.example.com/v1", model.CatInternalURL, "internal_host"},
 		{"local", "http://localhost:3000", model.CatInternalURL, "localhost"},

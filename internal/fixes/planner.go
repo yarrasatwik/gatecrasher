@@ -88,6 +88,7 @@ const (
 	fixHideSensitive
 	fixServerOnly
 	fixReroll
+	fixIdentifier
 )
 
 func classify(t model.FindingType) fixKind {
@@ -101,6 +102,8 @@ func classify(t model.FindingType) fixKind {
 		return fixServerOnly
 	case model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging:
 		return fixReroll
+	case model.FIdentifierForgery:
+		return fixIdentifier
 	}
 	return fixNone
 }
@@ -109,12 +112,25 @@ type group struct {
 	env      EnvRef
 	target   string
 	findings []model.Finding
+	// partial holds re-roll findings on the same flag that a Server-side
+	// only plan hides but does not close.
+	partial []model.Finding
 }
+
+// identifiersPrefix marks the target of a re-roll guidance plan. Re-rolling
+// is fixed in the app (server-assigned identifiers), not on the feature, so
+// it is never the same plan as a change to the feature.
+const identifiersPrefix = "identifiers:"
 
 // Plan returns one plan per (environment, target object) among the
 // findings. Plans that fail to build are reported in the joined error while
 // the others are still returned. Findings with nothing to fix, or whose fix
 // is already in place, produce no plan.
+//
+// Re-roll and experiment-rigging findings always get their own guidance plan
+// (PR draft: assign identifiers on the server). Marking a flag Server-side
+// only hides it from client SDKs but does not stop re-rolling, so a
+// Server-side only plan lists such a finding only as partially mitigated.
 func (p *Planner) Plan(ctx context.Context, findings []model.Finding) ([]model.Plan, error) {
 	groups, err := p.group(findings)
 	var plans []model.Plan
@@ -122,9 +138,14 @@ func (p *Planner) Plan(ctx context.Context, findings []model.Finding) ([]model.P
 	for _, g := range groups {
 		var plan *model.Plan
 		var berr error
-		if strings.HasPrefix(g.target, "environment:") {
+		switch {
+		case strings.HasPrefix(g.target, "environment:"):
 			plan, berr = p.envPlan(ctx, g)
-		} else {
+		case strings.HasPrefix(g.target, identifiersPrefix):
+			plan = p.rerollPlan(g)
+		case strings.HasPrefix(g.target, identifierTarget):
+			plan = p.identifierPlan(g)
+		default:
 			plan, berr = p.featurePlan(ctx, g)
 		}
 		if berr != nil {
@@ -144,7 +165,7 @@ func (p *Planner) group(findings []model.Finding) ([]*group, error) {
 	var errs []error
 	for _, f := range findings {
 		kind := classify(f.Type)
-		if kind == fixNone || f.Status == model.StatusBlocked {
+		if kind == fixNone || !f.Open() {
 			continue
 		}
 		env, err := p.env(f.Environment)
@@ -153,8 +174,14 @@ func (p *Planner) group(findings []model.Finding) ([]*group, error) {
 			continue
 		}
 		target := "feature:" + f.Subject
-		if kind == fixClientTraits || kind == fixHideSensitive {
+		switch kind {
+		case fixClientTraits, fixHideSensitive:
 			target = "environment:" + env.Name
+		case fixReroll:
+			target = identifiersPrefix + rerollFlag(f)
+		}
+		if kind == fixIdentifier {
+			target = identifierTarget + f.Subject
 		}
 		key := env.Name + "\x00" + target
 		g := byKey[key]
@@ -165,12 +192,27 @@ func (p *Planner) group(findings []model.Finding) ([]*group, error) {
 		}
 		g.findings = append(g.findings, f)
 	}
+	for key, g := range byKey {
+		if flag, ok := strings.CutPrefix(g.target, identifiersPrefix); ok {
+			if fg := byKey[strings.TrimSuffix(key, g.target)+"feature:"+flag]; fg != nil {
+				fg.partial = append(fg.partial, g.findings...)
+			}
+		}
+	}
 	sort.Strings(order)
 	out := make([]*group, 0, len(order))
 	for _, k := range order {
 		out = append(out, byKey[k])
 	}
 	return out, errors.Join(errs...)
+}
+
+// rerollFlag is the flag a re-roll finding is about.
+func rerollFlag(f model.Finding) string {
+	if len(f.Unlocked) > 0 && f.Unlocked[0].Flag != "" {
+		return f.Unlocked[0].Flag
+	}
+	return f.Subject
 }
 
 func (p *Planner) env(name string) (EnvRef, error) {
@@ -228,6 +270,7 @@ func (p *Planner) finish(g *group, plan model.Plan) *model.Plan {
 		}
 	}
 	sort.Strings(plan.FindingsAddressed)
+	sort.Strings(plan.PartiallyMitigated)
 	if plan.Impact == nil {
 		plan.Impact = []model.ImpactItem{}
 	}
@@ -411,6 +454,13 @@ func (p *Planner) featurePlan(ctx context.Context, g *group) (*model.Plan, error
 		if exp := runningExperiment(ctx, p.cfg.Admin, g.env.Key, feat.ID); exp != "" {
 			plan.ExperimentWarning = fmt.Sprintf("Flag `%s` is under the running experiment %q; changing it contaminates experiment results. Gatecrasher will never stop the experiment: restart it after the fix.", flag, exp)
 		}
+		seen := map[string]bool{}
+		for _, f := range g.partial {
+			if !seen[f.ID] {
+				seen[f.ID] = true
+				plan.PartiallyMitigated = append(plan.PartiallyMitigated, f.ID)
+			}
+		}
 	}
 	plan.Operations = append(plan.Operations, p.guidanceOps(g, flag, plan.Impact)...)
 	if len(plan.Operations) == 0 {
@@ -420,6 +470,25 @@ func (p *Planner) featurePlan(ctx context.Context, g *group) (*model.Plan, error
 		plan.Title = fmt.Sprintf("Guidance for `%s` on %s", flag, g.env.Name)
 	}
 	return p.finish(g, plan), nil
+}
+
+// rerollPlan builds the guidance-only plan for re-roll findings on one flag:
+// a PR draft that assigns identifiers on the server, plus the manual steps.
+// It never contains an automatic operation, because no Flagsmith setting
+// stops a browser from choosing its own identifier.
+func (p *Planner) rerollPlan(g *group) *model.Plan {
+	flag := strings.TrimPrefix(g.target, identifiersPrefix)
+	plan := model.Plan{Title: fmt.Sprintf("Assign identifiers on the server for `%s` on %s", flag, g.env.Name)}
+	plan.Operations = append(plan.Operations,
+		p.prDraft(g.findings[0], nil, prPurpose(g.findings[0].Type)),
+		manual(fmt.Sprintf("Re-rolling `%s` closes only when identifiers are assigned on the server, or when the percentage rollout or variant split is removed. Marking the flag Server-side only hides it from client SDKs but does not stop re-rolling: a server that evaluates it for a browser-chosen identifier is still steered.", flag)))
+	for _, f := range g.findings {
+		if f.Type == model.FExperimentRigging {
+			plan.Operations = append(plan.Operations, manual("After the fix is live, restart the experiment so its results are not biased by forged or re-rolled assignments. Gatecrasher never stops or restarts experiments itself."))
+			break
+		}
+	}
+	return p.finish(g, plan)
 }
 
 func (p *Planner) findFeature(ctx context.Context, name string) (flagsmith.Feature, error) {
@@ -479,11 +548,6 @@ func (p *Planner) guidanceOps(g *group, flag string, impact []model.ImpactItem) 
 			draftFor = firstNonNil(draftFor, &g.findings[i])
 		case model.FUnreleasedProduct:
 			ops = append(ops, manual(fmt.Sprintf("Consider renaming `%s` to a neutral name before release: flag names are visible to anyone holding the client key. Renaming is a code and Flagsmith change you make by hand.", flag)))
-		case model.FPercentageReroll, model.FVariantReroll:
-			draftFor = firstNonNil(draftFor, &g.findings[i])
-		case model.FExperimentRigging:
-			draftFor = firstNonNil(draftFor, &g.findings[i])
-			ops = append(ops, manual("After the fix is live, restart the experiment so its results are not biased by forged or re-rolled assignments. Gatecrasher never stops or restarts experiments itself."))
 		}
 	}
 	if draftFor == nil && len(impact) > 0 {
@@ -508,6 +572,29 @@ func prPurpose(t model.FindingType) string {
 		return "assign Flagsmith identifiers on the server"
 	}
 	return "move this value to server-side config and read the flag on your server"
+}
+
+// identifierTarget prefixes the target of identifier-forgery plans. They get
+// a target of their own so they are never bundled with a Flagsmith write.
+const identifierTarget = "identifier-targeting:"
+
+// IdentifierFixSummary is the one fix for identifier forgery.
+const IdentifierFixSummary = "assign identifiers on the server and stop targeting on identifier patterns"
+
+// identifierPlan is the guidance-only plan for flags unlocked by choosing an
+// identifier that a segment rule accepts. No Flagsmith setting closes this
+// (it does not depend on client-set traits), so the plan never contains an
+// automatic operation: only a PR draft and a manual step.
+func (p *Planner) identifierPlan(g *group) *model.Plan {
+	flag := strings.TrimPrefix(g.target, identifierTarget)
+	plan := model.Plan{
+		Title: fmt.Sprintf("Guidance for `%s` on %s: %s", flag, g.env.Name, IdentifierFixSummary),
+		Operations: []model.Operation{
+			p.prDraft(g.findings[0], nil, IdentifierFixSummary),
+			manual(fmt.Sprintf("Replace the segment rule that matches on the identifier for `%s` with one keyed on data only your server can set (a server-set trait, or an identity override made by your backend). Turning off \"Allow client SDKs to set user traits\" does not close this: no trait is involved, and the client still chooses its identifier.", flag)),
+		},
+	}
+	return p.finish(g, plan)
 }
 
 func manual(desc string) model.Operation {

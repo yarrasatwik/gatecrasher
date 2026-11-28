@@ -232,3 +232,69 @@ func TestDefaultDraftIsARealApplicableDiff(t *testing.T) {
 		t.Fatalf("git apply --check failed: %v\n%s\n%s", err, out, patch)
 	}
 }
+
+func identifierFinding() model.Finding {
+	return model.Finding{ID: "GC-IDF", Type: model.FIdentifierForgery, Environment: "Production", Subject: "internal_tools",
+		Title: "Choosing identifier a@acmeshop.dev unlocks internal_tools — this survives turning off client traits.", Status: model.StatusExploitable,
+		ProofID: "gc-probe-a@acmeshop.dev", Unlocked: []model.FlagChange{{Flag: "internal_tools", Before: "off", After: "on"}}}
+}
+
+func TestPlannerIdentifierForgeryIsGuidanceOnly(t *testing.T) {
+	h := newHarness(t)
+	plans, err := h.planner("").Plan(t.Context(), []model.Finding{identifierFinding()})
+	if err != nil || len(plans) != 1 {
+		t.Fatalf("plans=%d err=%v", len(plans), err)
+	}
+	p := plans[0]
+	if got := strings.Join(opKinds(p), ","); got != "pr.draft,manual" {
+		t.Fatalf("operations = %s", got)
+	}
+	for _, o := range p.Operations {
+		if o.Automatic || o.Method != "" || o.Path != "" || len(o.Body) != 0 {
+			t.Fatalf("identifier plans must never change a Flagsmith setting: %+v", o)
+		}
+	}
+	const fix = "assign identifiers on the server and stop targeting on identifier patterns"
+	if !strings.Contains(p.Title, fix) || !strings.Contains(p.Operations[0].Description, fix) || !strings.Contains(strings.ToLower(p.Operations[0].Draft), fix) {
+		t.Fatalf("plan does not carry the fix %q: title=%q op=%+v", fix, p.Title, p.Operations[0])
+	}
+	if !strings.Contains(p.Operations[1].Description, "does not close this") {
+		t.Fatalf("manual step must say the client-traits setting does not help: %q", p.Operations[1].Description)
+	}
+	if len(p.FindingsAddressed) != 1 || p.FindingsAddressed[0] != "GC-IDF" || len(p.BeforeSnapshot) != 0 || p.Hash != p.ComputeHash() {
+		t.Fatalf("plan = %+v", p)
+	}
+	if len(h.stub.writes) != 0 {
+		t.Fatalf("planning wrote to Flagsmith: %v", h.stub.writes)
+	}
+	rec := &model.PlanRecord{Plan: p, State: model.PlanPending}
+	if err := Approve(rec, "me", "cli", "Production", "", 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.applier().Apply(t.Context(), rec); err == nil || !strings.Contains(err.Error(), "no automatic operations") {
+		t.Fatalf("applying guidance-only plan: %v", err)
+	}
+}
+
+// The client-traits plan must neither absorb nor claim to fix an identifier
+// forgery: it stays in its own guidance plan.
+func TestPlannerKeepsIdentifierForgeryOutOfClientTraitsPlan(t *testing.T) {
+	h := newHarness(t)
+	plans, err := h.planner("").Plan(t.Context(), []model.Finding{traitFinding(), identifierFinding()})
+	if err != nil || len(plans) != 2 {
+		t.Fatalf("plans=%d err=%v", len(plans), err)
+	}
+	for _, p := range plans {
+		auto := false
+		for _, o := range p.Operations {
+			auto = auto || o.Automatic
+		}
+		addressesIt := contains(p.FindingsAddressed, "GC-IDF")
+		if auto && addressesIt {
+			t.Fatalf("plan %q changes Flagsmith and claims the identifier forgery: %+v", p.Title, p)
+		}
+		if !auto && !addressesIt {
+			t.Fatalf("unexpected guidance plan %q", p.Title)
+		}
+	}
+}

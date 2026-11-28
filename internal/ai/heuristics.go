@@ -90,6 +90,12 @@ var explainTemplates = map[model.FindingType]explainTemplate{
 		"Paid or privileged features can be used without paying or being authorised.",
 		"Turn off client-side traits for this environment, or move the decision to your server.",
 	},
+	model.FIdentifierForgery: {
+		"Anyone can pick an identifier that matches the pattern a segment looks for, which unlocks %s.",
+		"The segment targets the identifier itself and the browser chooses its own identifier. No trait is involved, so turning off client-set traits does not close this.",
+		"Staff-only or privileged features can be reached by anyone who guesses the identifier pattern.",
+		"Assign identifiers on the server and stop targeting on identifier patterns.",
+	},
 	model.FPercentageReroll: {
 		"A visitor can keep choosing new identifiers until they land in the rollout group for %s.",
 		"Percentage rollouts are decided by the identifier, which the client controls.",
@@ -149,6 +155,12 @@ var explainTemplates = map[model.FindingType]explainTemplate{
 		"Personal data in flag values is shown to every visitor.",
 		"This may breach privacy obligations and harms the people affected.",
 		"Remove the personal data from the flag and mark the flag server-side only.",
+	},
+	model.FPossibleSecret: {
+		"The flag %s serves a random-looking value to every visitor. It needs review.",
+		"It matches no known secret format, so it may be a harmless identifier or a credential.",
+		"If it is a credential, anyone could use it.",
+		"Check what the value is. Rotate and remove it if it is a credential.",
 	},
 	model.FSettingClientTraitsOn: {
 		"The environment %s allows client-side traits.",

@@ -14,6 +14,7 @@ import (
 // (engine map) found about the same hole into one finding, keeps only
 // minimal forged-trait sets, and gives every finding a readable title. One
 // hole, one finding, with every method that independently confirmed it.
+// Finally every finding is linked to its root cause (AssignRootCauses).
 func (a *App) consolidate(r *model.Report) {
 	tokens := map[string]string{} // identity token -> masked identifier
 	for _, id := range a.Cfg.TestIdentities {
@@ -50,6 +51,8 @@ func (a *App) consolidate(r *model.Report) {
 		case model.FVariantReroll:
 			if hasType(fs, model.FExperimentRigging, f.Environment, firstFlag(f)) {
 				f.Type = model.FExperimentRigging // merged into the experiment finding below
+			} else if hasType(fs, model.FPercentageReroll, f.Environment, firstFlag(f)) {
+				f.Type = model.FPercentageReroll // the same rollout, reached by the same re-roll
 			}
 		}
 		key := groupKey(f)
@@ -74,6 +77,7 @@ func (a *App) consolidate(r *model.Report) {
 		}
 	}
 	r.Findings = out
+	AssignRootCauses(r)
 }
 
 // groupKey identifies "the same hole" across outside and inside findings.
@@ -212,4 +216,166 @@ func dedupeStrings(in []string) []string {
 		}
 	}
 	return out
+}
+
+// Root-cause mechanisms. A root cause is one fixable thing: every finding
+// that the same single fix would close shares it.
+const (
+	// MechClientTraits: the environment accepts traits written by clients.
+	MechClientTraits = "client-traits"
+	// MechSensitiveData: the environment returns stored identity data to client keys.
+	MechSensitiveData = "identity-data"
+	// MechClientVisible: a flag with sensitive content is served to browsers.
+	MechClientVisible = "client-visible-flag"
+	// MechIdentifier: the browser chooses the identifier that decides a flag.
+	MechIdentifier = "client-chosen-identifier"
+	// MechBundleKey: a server-side key ships in the JavaScript bundle.
+	MechBundleKey = "bundle-server-key"
+	// MechControl: a control that held (never a way in).
+	MechControl = "control"
+)
+
+// AssignRootCauses links every finding of r to exactly one root cause and
+// rebuilds r.RootCauses. It is deterministic and idempotent, so it can also
+// upgrade a report written before root causes existed.
+//
+// Settings findings are causes, not separate ways in: "client traits are
+// allowed" shares its root cause with every forgery it enables, and "sensitive
+// data is visible" with every identity leak. A setting with nothing exploiting
+// it is the only member of its root cause, which report.Summarize then counts
+// as hardening instead of a way in.
+func AssignRootCauses(r *model.Report) {
+	type group struct {
+		cause   model.RootCause
+		members []model.Finding
+	}
+	byID := map[string]*group{}
+	var order []string
+	for i := range r.Findings {
+		f := &r.Findings[i]
+		mech, env, subject := rootCauseKey(*f)
+		id := model.MakeRootCauseID(mech, env, subject)
+		f.RootCause = id
+		g := byID[id]
+		if g == nil {
+			g = &group{cause: model.RootCause{ID: id, Mechanism: mech, Environment: env, Subject: subject}}
+			byID[id] = g
+			order = append(order, id)
+		}
+		g.members = append(g.members, *f)
+		g.cause.FindingIDs = append(g.cause.FindingIDs, f.ID)
+	}
+	r.RootCauses = make([]model.RootCause, 0, len(order))
+	for _, id := range order {
+		g := byID[id]
+		g.cause.Title = rootCauseTitle(g.cause, g.members)
+		r.RootCauses = append(r.RootCauses, g.cause)
+	}
+}
+
+// rootCauseKey names the one fixable thing behind a finding.
+func rootCauseKey(f model.Finding) (mechanism, env, subject string) {
+	env = f.Environment
+	switch f.Type {
+	case model.FSettingClientTraitsOn:
+		return MechClientTraits, env, ""
+	case model.FTraitForgery, model.FSegmentForgeable:
+		if len(f.Traits) > 0 {
+			return MechClientTraits, env, ""
+		}
+		if f.ProofID != "" {
+			return MechIdentifier, env, firstFlag(f)
+		}
+	case model.FIdentifierForgery:
+		return MechIdentifier, env, firstFlag(f)
+	case model.FIdentityTraitLeak, model.FIdentityOverrideLeak, model.FSettingSensitiveData:
+		return MechSensitiveData, env, ""
+	case model.FSecretExposed, model.FInternalURL, model.FUnreleasedProduct, model.FPricingLeak, model.FPIILeak, model.FPossibleSecret, model.FFlagNotServerOnly:
+		if f.Type == model.FSecretExposed && f.Subject == "bundle" {
+			return MechBundleKey, env, ""
+		}
+		return MechClientVisible, env, f.Subject
+	case model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging:
+		return MechIdentifier, env, firstFlag(f)
+	case model.FControlOK:
+		return MechControl, env, f.ID
+	}
+	// Anything else is its own root cause.
+	return strings.ToLower(string(f.Type)), env, f.Subject + "|" + f.ID
+}
+
+// leakWords says what a client-visible flag contains, worst first.
+var leakWords = []struct {
+	t    model.FindingType
+	cat  model.Category
+	what string
+}{
+	{model.FSecretExposed, model.CatSecret, "a live secret"},
+	{model.FPIILeak, model.CatPII, "personal data"},
+	{model.FInternalURL, model.CatInternalURL, "an internal URL"},
+	{model.FPricingLeak, model.CatPricing, "pricing data"},
+	{model.FUnreleasedProduct, model.CatUnreleasedProduct, "an unreleased product name"},
+}
+
+// possibleSecretOnly reports whether the only thing known about a flag is a
+// value that looks random (POSSIBLE_SECRET): something to review, not a leak.
+func possibleSecretOnly(members []model.Finding) bool {
+	n := 0
+	for _, f := range members {
+		switch {
+		case f.Type == model.FPossibleSecret:
+			n++
+		case f.Type == model.FFlagNotServerOnly && f.Category == model.CatPossibleSecret:
+		default:
+			return false
+		}
+	}
+	return n > 0
+}
+
+func rootCauseTitle(c model.RootCause, members []model.Finding) string {
+	env := nonEmpty(c.Environment, "The environment")
+	switch c.Mechanism {
+	case MechClientTraits:
+		return env + " lets clients set traits"
+	case MechSensitiveData:
+		return env + " returns stored identity data to anyone holding the client key"
+	case MechBundleKey:
+		return "A server-side Flagsmith key ships in the JavaScript bundle"
+	case MechIdentifier:
+		for _, f := range members {
+			if f.Type == model.FExperimentRigging {
+				return fmt.Sprintf("Browsers choose the identifier that decides their group in the %s experiment", c.Subject)
+			}
+		}
+		for _, f := range members {
+			if f.Type != model.FIdentifierForgery && !(len(f.Traits) == 0 && (f.Type == model.FTraitForgery || f.Type == model.FSegmentForgeable)) {
+				return fmt.Sprintf("Browsers choose the identifier that decides %s", c.Subject)
+			}
+		}
+		return fmt.Sprintf("Browsers choose the identifier that unlocks %s", c.Subject)
+	case MechClientVisible:
+		if possibleSecretOnly(members) {
+			return fmt.Sprintf("%s is served to browsers and may contain a secret (needs review)", c.Subject)
+		}
+		confirmed := false
+		for _, f := range members {
+			confirmed = confirmed || f.Status != model.StatusNeedsReview
+		}
+		for _, w := range leakWords {
+			for _, f := range members {
+				if f.Type == w.t || (f.Type == model.FFlagNotServerOnly && f.Category == w.cat) {
+					if !confirmed {
+						return fmt.Sprintf("%s is served to browsers and may contain %s (unconfirmed)", c.Subject, w.what)
+					}
+					return fmt.Sprintf("%s is served to browsers and contains %s", c.Subject, w.what)
+				}
+			}
+		}
+		return fmt.Sprintf("%s is served to browsers and looks sensitive", c.Subject)
+	}
+	if len(members) > 0 {
+		return members[0].Title
+	}
+	return c.Subject
 }

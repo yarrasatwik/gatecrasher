@@ -7,14 +7,20 @@ import (
 	"github.com/yarrasatwik/gatecrasher/internal/redact"
 )
 
-// color is on when stdout is a terminal and NO_COLOR is unset.
-var color = func() bool {
-	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {
+// color is on when stdout is a terminal and NO_COLOR is unset;
+// CLICOLOR_FORCE forces it on (e.g. when piping through tee).
+var color = colorEnabled(os.Getenv, os.Stdout.Stat)
+
+func colorEnabled(getenv func(string) string, stat func() (os.FileInfo, error)) bool {
+	if getenv("NO_COLOR") != "" || getenv("TERM") == "dumb" {
 		return false
 	}
-	fi, err := os.Stdout.Stat()
+	if v := getenv("CLICOLOR_FORCE"); v != "" && v != "0" {
+		return true
+	}
+	fi, err := stat()
 	return err == nil && fi.Mode()&os.ModeCharDevice != 0
-}()
+}
 
 func sgr(code, s string) string {
 	if !color {

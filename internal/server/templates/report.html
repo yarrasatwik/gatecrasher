@@ -1,7 +1,8 @@
 {{define "content"}}{{with .Body}}{{$r := .Report}}
 <p class="crumb"><a href="/">Dashboard</a> / Report <code>{{$r.ID}}</code></p>
 <header class="report-head">
-  <h1>{{.WaysIn}} way{{if ne .WaysIn 1}}s{{end}} in</h1>
+  <h1>{{.Headline}}</h1>
+  <p class="muted">A way in is a root cause that is exploitable now. One root cause can have several findings.</p>
   <p class="muted">{{if $r.Target}}<code>{{rd $r.Target}}</code> · {{end}}{{if $r.Environment}}{{$r.Environment}} · {{end}}<time>{{time $r.CreatedAt}}</time> · AI: {{$r.AIMode}}</p>
   <p class="downloads">Download: <a class="btn btn-small" href="/files/{{$r.ID}}.html" download>HTML</a> <a class="btn btn-small" href="/files/{{$r.ID}}.json" download>JSON</a> <a class="btn btn-small" href="/files/{{$r.ID}}.sarif" download>SARIF</a></p>
   <form method="post" action="/plans/make" class="inline-form">
@@ -11,12 +12,27 @@
   </form>
 </header>
 
-<nav class="sev-summary" aria-label="Findings by severity"><ul class="plain inline">
-{{range .Groups}}<li><a href="#sev-{{.Severity.String}}">{{template "sev" .Severity}} <span class="count-num">{{len .Findings}}</span></a></li>{{else}}<li class="muted">No findings.</li>{{end}}
+<nav class="sev-summary" aria-label="Root causes"><ul class="plain">
+{{range .Causes}}<li><a href="#{{.Anchor}}">{{template "sev" .Cause.Severity}} {{rd .Cause.Title}}</a> <span class="chip chip-quiet">{{.Kind}}</span> <span class="count-num">{{len .Findings}}</span></li>{{else}}<li class="muted">No findings.</li>{{end}}
 </ul></nav>
 
-{{range .Groups}}<section aria-labelledby="sev-{{.Severity.String}}"><h2 id="sev-{{.Severity.String}}">{{.Severity.String | upper}} ({{len .Findings}})</h2>
+{{range .Causes}}<section aria-labelledby="{{.Anchor}}"><h2 id="{{.Anchor}}">{{rd .Cause.Title}}</h2>
+<p class="meta">{{template "sev" .Cause.Severity}} <span class="chip">{{.Kind}}</span> {{len .Findings}} finding{{if ne (len .Findings) 1}}s{{end}} · root cause <code>{{.Cause.ID}}</code></p>
 {{range .Findings}}{{template "finding" .}}{{end}}</section>{{end}}
+
+{{if .Review}}<section aria-labelledby="review-h"><h2 id="review-h">Claude suggests reviewing ({{len .Review}})</h2>
+<p class="muted"><strong>Not counted.</strong> Only the AI flagged these: no deterministic rule and no probe agrees, so they are not findings, not ways in and not in the severity totals. Confirm one only if you know it is real; your decision is written to the audit log.</p>
+{{range .Review}}<article class="card review" id="f-{{.ID}}" aria-labelledby="t-{{.ID}}">
+  <header class="card-head">
+    <div class="card-title"><span class="chip status-needs_review"><span aria-hidden="true">?</span> NEEDS REVIEW</span><h3 id="t-{{.ID}}">{{rich .Title}}</h3></div>
+    <p class="meta"><code>{{.ID}}</code> · {{.Type}}{{if .Environment}} · {{.Environment}}{{end}}{{if .Subject}} · <code>{{rd .Subject}}</code>{{end}}{{if .Category}} · {{.Category}}{{end}}</p>
+  </header>
+  {{if .Reason}}<p><strong>Claude's reason.</strong> {{rd .Reason}}</p>{{end}}
+  <form method="post" action="/report/{{$r.ID}}/confirm/{{.ID}}" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
+    <button class="btn" type="submit">Confirm as a finding</button>
+  </form>
+</article>{{end}}</section>{{end}}
 
 {{if .Controls}}<section aria-labelledby="controls-h"><h2 id="controls-h">Controls that held ({{len .Controls}})</h2>
 <ul class="plain">{{range .Controls}}<li><span class="chip status-blocked"><span aria-hidden="true">✓</span> OK</span> {{rd .Title}} <span class="muted"><code>{{.ID}}</code></span></li>{{end}}</ul></section>{{end}}

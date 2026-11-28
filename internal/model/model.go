@@ -76,10 +76,14 @@ const (
 	CatPII               Category = "PII"
 	CatSecurityControl   Category = "SECURITY_CONTROL"
 	CatHarmless          Category = "HARMLESS"
+	// CatPossibleSecret is a value that only looks random: no known secret
+	// pattern, secret-named key or URL credential backs it. It needs a
+	// human review and is never rated above LOW.
+	CatPossibleSecret Category = "POSSIBLE_SECRET"
 )
 
 // AllCategories lists every valid category.
-var AllCategories = []Category{CatSecret, CatInternalURL, CatUnreleasedProduct, CatPricing, CatPII, CatSecurityControl, CatHarmless}
+var AllCategories = []Category{CatSecret, CatInternalURL, CatUnreleasedProduct, CatPricing, CatPII, CatSecurityControl, CatPossibleSecret, CatHarmless}
 
 // Valid reports whether c is a known category.
 func (c Category) Valid() bool {
@@ -97,6 +101,7 @@ type FindingType string
 // Finding types (spec §8, docs/findings-catalog.md).
 const (
 	FTraitForgery          FindingType = "TRAIT_FORGERY"
+	FIdentifierForgery     FindingType = "IDENTIFIER_FORGERY"
 	FPercentageReroll      FindingType = "PERCENTAGE_REROLL"
 	FVariantReroll         FindingType = "VARIANT_REROLL"
 	FExperimentRigging     FindingType = "EXPERIMENT_RIGGING"
@@ -112,6 +117,9 @@ const (
 	FFlagNotServerOnly     FindingType = "FLAG_NOT_SERVER_ONLY"
 	FSegmentForgeable      FindingType = "SEGMENT_FORGEABLE"
 	FControlOK             FindingType = "CONTROL_OK"
+	// FPossibleSecret is a high-entropy client-visible value with no other
+	// evidence that it is a credential: LOW, "needs review".
+	FPossibleSecret FindingType = "POSSIBLE_SECRET_IN_CLIENT_VALUE"
 )
 
 // Method records which mechanism produced or confirmed a finding.
@@ -124,6 +132,9 @@ const (
 	MethodDeterministic Method = "deterministic"
 	MethodAI            Method = "ai"
 	MethodSettings      Method = "admin-settings"
+	// MethodHuman marks a finding a person confirmed in the web UI after the
+	// AI suggested it. The confirmation is recorded in the audit log.
+	MethodHuman Method = "human-review"
 )
 
 // Status is the exploitability state of a finding.
@@ -134,7 +145,30 @@ const (
 	StatusExploitable Status = "EXPLOITABLE"
 	StatusBlocked     Status = "BLOCKED"
 	StatusUnknown     Status = "UNKNOWN"
+	// StatusHidden means the flag is no longer reachable by client SDKs but
+	// the mechanism still exists on a server path (for example a percentage
+	// split on a flag that was only marked Server-side only). It is still
+	// open: it counts like EXPLOITABLE everywhere.
+	StatusHidden Status = "HIDDEN"
+	// StatusNeedsReview marks a suggestion only the AI made: no deterministic
+	// rule and no probe agrees. It is not a finding yet. It is shown in its
+	// own section, is never counted as a way in or in severity totals, and
+	// becomes EXPLOITABLE only when a rule or a human confirms it.
+	StatusNeedsReview Status = "NEEDS_REVIEW"
 )
+
+// Counted reports whether f is a confirmed problem that headline numbers,
+// severity totals and fail-on thresholds count: not a control that held and
+// not an unconfirmed AI suggestion.
+func (f Finding) Counted() bool {
+	return f.Type != FControlOK && f.Status != StatusNeedsReview
+}
+
+// Open reports whether f is a counted finding that is not closed. HIDDEN and
+// UNKNOWN are open: neither is ever reported as safe.
+func (f Finding) Open() bool {
+	return f.Counted() && f.Status != StatusBlocked
+}
 
 // Evidence is one redacted request/response pair or observation.
 // Every string here MUST already have passed through redact.
@@ -187,6 +221,31 @@ type Finding struct {
 	Evidence    []Evidence        `json:"evidence,omitempty"`
 	FixPlanID   string            `json:"fix_plan_id,omitempty"`
 	Notes       []string          `json:"notes,omitempty"`
+	// RootCause is the ID of the one root cause this finding belongs to.
+	RootCause string `json:"root_cause"`
+}
+
+// RootCause is one fixable thing ("payment_config is served to browsers and
+// contains a live secret", "Production lets clients set traits"). Every
+// finding links to exactly one. The headline "N ways in" counts the root
+// causes that are exploitable, so one problem is never counted several times.
+type RootCause struct {
+	ID         string   `json:"id"`
+	Title      string   `json:"title"`
+	Severity   Severity `json:"severity"`
+	FindingIDs []string `json:"finding_ids"`
+	// Exploitable is true when at least one of its findings is open and the
+	// cause is more than a hardening note (a setting nothing exploits).
+	Exploitable bool   `json:"exploitable"`
+	Mechanism   string `json:"mechanism,omitempty"`
+	Environment string `json:"environment,omitempty"`
+	Subject     string `json:"subject,omitempty"`
+}
+
+// MakeRootCauseID returns the stable ID of a root cause.
+func MakeRootCauseID(mechanism, env, subject string) string {
+	h := sha256.Sum256([]byte(mechanism + "\x00" + env + "\x00" + subject))
+	return "RC-" + strings.ToUpper(hex.EncodeToString(h[:])[:8])
 }
 
 // MakeFindingID returns a stable short ID derived from the finding identity,
@@ -235,6 +294,8 @@ type Classification struct {
 	Rationale  string   `json:"rationale"`
 	Method     Method   `json:"method"`
 	Signals    []string `json:"signals,omitempty"`
+	// NeedsReview is true when only the AI says the flag is sensitive.
+	NeedsReview bool `json:"needs_review,omitempty"`
 }
 
 // EnvSettings captures the security-relevant settings of one environment.
@@ -261,6 +322,12 @@ type Reachable struct {
 	Forgeable      string            `json:"forgeable"`            // yes|no|unknown
 	EngineVerified bool              `json:"engine_verified"`
 	LiveVerified   *bool             `json:"live_verified,omitempty"`
+
+	// IdentifierExample is set only when a segment rule tests the identifier
+	// itself (not a percentage split): the plainest identifier the engine
+	// proved to match. Identifier then holds the transient-prefixed form
+	// used for the live probe, when the rule accepts one.
+	IdentifierExample string `json:"identifier_example,omitempty"`
 }
 
 // VerifyRow is one before/after row produced by re-attacking.
@@ -270,6 +337,9 @@ type VerifyRow struct {
 	Before    Status `json:"before"`
 	After     Status `json:"after"`
 	Proof     string `json:"proof"`
+	// PartiallyMitigated marks a finding the plan only hides and never
+	// claimed to close; its row never counts towards "the plan worked".
+	PartiallyMitigated bool `json:"partially_mitigated,omitempty"`
 }
 
 // Stats holds measured numbers for the README and report.
@@ -285,15 +355,27 @@ type Stats struct {
 
 // Report is the canonical audit output; every other format derives from it.
 type Report struct {
-	SchemaVersion   string           `json:"schema_version"`
-	ID              string           `json:"id"`
-	Tool            string           `json:"tool"`
-	Version         string           `json:"version"`
-	CreatedAt       time.Time        `json:"created_at"`
-	Target          string           `json:"target,omitempty"`
-	Project         string           `json:"project,omitempty"`
-	Environment     string           `json:"environment,omitempty"`
-	AIMode          string           `json:"ai_mode"` // "on (model)" | "off (heuristics)"
+	SchemaVersion string    `json:"schema_version"`
+	ID            string    `json:"id"`
+	Tool          string    `json:"tool"`
+	Version       string    `json:"version"`
+	CreatedAt     time.Time `json:"created_at"`
+	Target        string    `json:"target,omitempty"`
+	Project       string    `json:"project,omitempty"`
+	Environment   string    `json:"environment,omitempty"`
+	AIMode        string    `json:"ai_mode"` // "on (model)" | "off (heuristics)"
+	// WaysIn is the number of exploitable root causes: the headline "N ways in".
+	WaysIn int `json:"ways_in"`
+	// FindingCount is the number of confirmed findings (controls that held
+	// and AI-only suggestions are not findings). FindingCount − BlockedCount
+	// = OpenCount, exactly.
+	FindingCount int `json:"finding_count"`
+	BlockedCount int `json:"blocked_count"`
+	OpenCount    int `json:"open_count"`
+	// ReviewCount is the number of NEEDS_REVIEW suggestions, counted nowhere else.
+	ReviewCount int `json:"needs_review_count"`
+	// RootCauses groups the findings, highest severity first.
+	RootCauses      []RootCause      `json:"root_causes"`
 	Scope           []string         `json:"scope"`
 	Inventory       *PublicInventory `json:"inventory,omitempty"`
 	Classifications []Classification `json:"classifications,omitempty"`
@@ -309,7 +391,7 @@ type Report struct {
 func (r *Report) CountAtOrAbove(min Severity) int {
 	n := 0
 	for _, f := range r.Findings {
-		if f.Severity >= min && f.Type != FControlOK {
+		if f.Severity >= min && f.Counted() {
 			n++
 		}
 	}
@@ -352,8 +434,12 @@ type Plan struct {
 	Operations        []Operation    `json:"operations"`
 	Impact            []ImpactItem   `json:"impact"`
 	FindingsAddressed []string       `json:"findings_addressed"`
-	ExperimentWarning string         `json:"experiment_warning,omitempty"`
-	Hash              string         `json:"hash"`
+	// PartiallyMitigated lists findings this plan makes harder to reach but
+	// does not close (a re-roll finding on a flag the plan only marks
+	// Server-side only). Verify reports them HIDDEN, never BLOCKED.
+	PartiallyMitigated []string `json:"partially_mitigated,omitempty"`
+	ExperimentWarning  string   `json:"experiment_warning,omitempty"`
+	Hash               string   `json:"hash"`
 }
 
 // ComputeHash returns the canonical SHA-256 of the plan without its Hash.
@@ -373,7 +459,15 @@ type Approval struct {
 	ConfirmedEnvironment string    `json:"confirmed_environment,omitempty"`
 	ContaminateConfirmed bool      `json:"contaminate_experiment_confirmed,omitempty"`
 	By                   string    `json:"by"`
-	Channel              string    `json:"channel"` // cli | web
+	// Channel is where the approval came from: "tty" (a person at a real
+	// terminal), "web" (the web UI) or "cli" (a non-interactive command,
+	// never accepted by the CLI for a protected environment).
+	Channel string `json:"channel"`
+	// OSUser is the operating-system account that ran Gatecrasher.
+	OSUser string `json:"os_user,omitempty"`
+	// ByClaimed is true when By is not the OS user: the name is a claim
+	// the approver made, not something Gatecrasher could check.
+	ByClaimed bool `json:"by_claimed,omitempty"`
 }
 
 // PlanState is the lifecycle state of a plan on disk.

@@ -109,14 +109,23 @@ func identityAlts(c Condition, kind propKind, want bool, env string) []assign {
 		return []assign{a}
 	}
 	var out []assign
-	for _, v := range valueCandidates(c.Operator, c.Value, want) {
-		if kind == kindIdentityKey {
-			v = strings.TrimPrefix(v, env+"_")
-		}
+	set := func(v string) {
 		a := newAssign()
 		a.vals[identifierProp] = v
 		a.props[identifierProp] = true
 		out = append(out, a)
+	}
+	for _, v := range valueCandidates(c.Operator, c.Value, want) {
+		if kind == kindIdentityKey {
+			v = strings.TrimPrefix(v, env+"_")
+		}
+		// Offer a transient-prefixed identifier first: when the rule accepts
+		// it (the engine decides), the result can be replayed live without
+		// ever using an identifier a real user could own.
+		if want && kind == kindIdentifier && !strings.HasPrefix(v, transientPrefix) {
+			set(transientPrefix + v)
+		}
+		set(v)
 	}
 	return tidy(out)
 }

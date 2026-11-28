@@ -11,6 +11,7 @@ import (
 
 	"github.com/yarrasatwik/gatecrasher/internal/model"
 	"github.com/yarrasatwik/gatecrasher/internal/redact"
+	"github.com/yarrasatwik/gatecrasher/internal/report"
 	"github.com/yarrasatwik/gatecrasher/internal/watch"
 )
 
@@ -53,12 +54,29 @@ type sevGroup struct {
 	Findings []model.Finding
 }
 
+// causeGroup is one root cause with its findings, as shown in the report.
+type causeGroup struct {
+	report.Group
+	Anchor string
+}
+
 type reportView struct {
 	Report   *model.Report
 	WaysIn   int
+	Headline string
+	Causes   []causeGroup
 	Groups   []sevGroup
 	Controls []model.Finding
-	Counts   []sevGroup
+	// Review holds what only the AI suggested. These are not findings: they
+	// are shown apart, never counted, and a person can confirm each one.
+	Review []reviewItem
+	Counts []sevGroup
+}
+
+// reviewItem is one NEEDS_REVIEW suggestion with the AI's stated reason.
+type reviewItem struct {
+	model.Finding
+	Reason string
 }
 
 func (s *Server) report(w http.ResponseWriter, r *http.Request) {
@@ -80,11 +98,28 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request) {
 }
 
 func buildReportView(rep *model.Report) reportView {
-	v := reportView{Report: rep, WaysIn: WaysIn(rep)}
+	sum := report.Summarize(rep)
+	v := reportView{Report: rep, WaysIn: sum.WaysIn, Headline: report.HeadlineOf(sum.WaysIn, sum.Findings)}
+	for _, g := range report.GroupByRootCause(rep) {
+		if g.Kind == "control held" {
+			continue // listed under "Controls that held"
+		}
+		v.Causes = append(v.Causes, causeGroup{Group: g, Anchor: "rc-" + g.Cause.ID})
+	}
 	bySev := map[model.Severity][]model.Finding{}
 	for _, f := range rep.Findings {
 		if f.Type == model.FControlOK {
 			v.Controls = append(v.Controls, f)
+			continue
+		}
+		if f.Status == model.StatusNeedsReview {
+			item := reviewItem{Finding: f}
+			for _, e := range f.Evidence {
+				if e.Note != "" {
+					item.Reason = e.Note
+				}
+			}
+			v.Review = append(v.Review, item)
 			continue
 		}
 		bySev[f.Severity] = append(bySev[f.Severity], f)
@@ -95,6 +130,49 @@ func buildReportView(rep *model.Report) reportView {
 		}
 	}
 	return v
+}
+
+// confirmFinding handles POST /report/{id}/confirm/{finding}: a person marks
+// something only the AI suggested as a real finding. Like every other
+// state-changing request it has passed the CSRF and same-origin checks; the
+// backend records it in the audit log.
+func (s *Server) confirmFinding(w http.ResponseWriter, r *http.Request) {
+	id, fid := r.PathValue("id"), r.PathValue("finding")
+	if !idPattern.MatchString(id) || !idPattern.MatchString(fid) {
+		s.notFound(w, r, "Report")
+		return
+	}
+	rep, err := s.be.Report(id)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			s.notFound(w, r, "Report")
+			return
+		}
+		s.fail(w, r, err)
+		return
+	}
+	var target *model.Finding
+	for i := range rep.Findings {
+		if rep.Findings[i].ID == fid {
+			target = &rep.Findings[i]
+		}
+	}
+	if target == nil {
+		s.notFound(w, r, "Finding")
+		return
+	}
+	if target.Status != model.StatusNeedsReview {
+		s.render(w, r, "message", http.StatusConflict, pageData{Title: "Nothing to confirm",
+			Error: "Finding " + fid + " is not awaiting review."})
+		return
+	}
+	ctx, cancel := actionContext(r)
+	defer cancel()
+	if err := s.be.ConfirmFinding(ctx, id, fid, s.opts.Operator); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	http.Redirect(w, r, "/report/"+id+"?ok=confirmed#f-"+fid, http.StatusSeeOther)
 }
 
 func (s *Server) watchPage(w http.ResponseWriter, r *http.Request) {

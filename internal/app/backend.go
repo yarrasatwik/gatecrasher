@@ -56,6 +56,7 @@ func (b *Backend) Reports() []server.ReportSummary {
 		}
 		var r model.Report
 		if json.Unmarshal(raw, &r) == nil {
+			upgradeReport(&r)
 			out = append(out, server.SummarizeReport(&r))
 		}
 		return nil
@@ -103,7 +104,7 @@ func (b *Backend) MakePlans(ctx context.Context, reportID string) error {
 
 // Approve records a web approval.
 func (b *Backend) Approve(ctx context.Context, id, typedEnv, typedContaminate, by string) error {
-	_, err := b.A.Approve(id, by, "web", typedEnv, typedContaminate)
+	_, err := b.A.Approve(id, by, fixes.ChannelWeb, typedEnv, typedContaminate)
 	return err
 }
 
@@ -128,6 +129,12 @@ func (b *Backend) Verify(ctx context.Context, id string) error {
 // Rollback undoes an applied plan.
 func (b *Backend) Rollback(ctx context.Context, id string) error {
 	_, err := b.A.Rollback(ctx, id, "web")
+	return err
+}
+
+// ConfirmFinding records a human confirmation of an AI-only suggestion.
+func (b *Backend) ConfirmFinding(ctx context.Context, reportID, findingID, by string) error {
+	_, err := b.A.ConfirmFinding(ctx, reportID, findingID, by)
 	return err
 }
 
@@ -167,7 +174,7 @@ func (b *Backend) SubscribeAlerts() (<-chan watch.Alert, func()) { return b.A.al
 func (b *Backend) Config() server.SafeConfigView {
 	c := b.A.Cfg
 	return server.SafeConfigView{Target: c.TargetURL, Scope: c.Lock().Entries(), AIMode: string(b.A.AI.Mode()),
-		Project: c.Flagsmith.Project, Environments: c.Flagsmith.Environments, Production: c.Flagsmith.ProductionEnvironments, Version: Version}
+		Project: c.Flagsmith.Project, Environments: c.Flagsmith.Environments, Production: c.Protected(), Version: Version}
 }
 
 func findingIDs(r *model.Report) []string {

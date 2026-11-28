@@ -36,6 +36,32 @@
               }
             },
             {
+              "id": "IDENTIFIER_FORGERY",
+              "name": "IdentifierForgery",
+              "shortDescription": {
+                "text": "A client-chosen identifier matches a segment rule and unlocks a protected flag."
+              },
+              "fullDescription": {
+                "text": "A segment rule tests the identity's identifier (for example with a regular expression). When the client chooses its own identifier it can pick one that matches. No trait is involved, so turning off allow_client_traits does not close it."
+              },
+              "help": {
+                "text": "A segment rule tests the identity's identifier (for example with a regular expression). When the client chooses its own identifier it can pick one that matches. No trait is involved, so turning off allow_client_traits does not close it.\n\nFix: Assign identifiers on the server and stop targeting on identifier patterns.",
+                "markdown": "**A client-chosen identifier matches a segment rule and unlocks a protected flag.**\n\nA segment rule tests the identity's identifier (for example with a regular expression). When the client chooses its own identifier it can pick one that matches. No trait is involved, so turning off allow_client_traits does not close it.\n\n**Fix:** Assign identifiers on the server and stop targeting on identifier patterns."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "precision": "high",
+                "security-severity": "9.5",
+                "tags": [
+                  "security",
+                  "feature-flags",
+                  "flagsmith"
+                ]
+              }
+            },
+            {
               "id": "PERCENTAGE_REROLL",
               "name": "PercentageRolloutReroll",
               "shortDescription": {
@@ -430,20 +456,20 @@
       },
       "results": [
         {
-          "ruleId": "SECRET_IN_CLIENT_VALUE",
-          "ruleIndex": 6,
+          "ruleId": "IDENTIFIER_FORGERY",
+          "ruleIndex": 1,
           "level": "error",
           "message": {
-            "text": "Payment secret exposed in a public feature flag: Anyone holding the client key, which ships inside the app, can request the production flag list and read the payment_config flag. It contains what looks like a live payment provider API secret."
+            "text": "Anyone can unlock internal tools by picking a staff-style email: The internal_tools flag turns on for any identifier matching the staff rule, such as a@acmeshop.dev. An outsider using the public client key can send that identifier and receive the feature. No account trait is involved."
           },
           "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-8B6A1273"
+            "gatecrasherFindingId/v1": "GC-32B2A0B1"
           },
           "locations": [
             {
               "physicalLocation": {
                 "artifactLocation": {
-                  "uri": "flagsmith/Production/payment_config"
+                  "uri": "flagsmith/Production/internal_tools"
                 },
                 "region": {
                   "startLine": 1
@@ -451,8 +477,8 @@
               },
               "logicalLocations": [
                 {
-                  "name": "payment_config",
-                  "fullyQualifiedName": "Production/payment_config",
+                  "name": "internal_tools",
+                  "fullyQualifiedName": "Production/internal_tools",
                   "kind": "member"
                 }
               ]
@@ -460,86 +486,17 @@
           ],
           "properties": {
             "confirmed": true,
-            "security-severity": "9.5",
-            "status": "EXPLOITABLE"
-          }
-        },
-        {
-          "ruleId": "TRAIT_FORGERY",
-          "ruleIndex": 0,
-          "level": "error",
-          "message": {
-            "text": "Anyone can switch on the admin panel by claiming to be an admin: In Production, the app trusts a self-reported 'role' value sent by the client. Testing with an outside-style request claiming role=admin turned the 'admin_panel' flag from off to on. No password or special access was needed."
-          },
-          "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-70850605"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "flagsmith/Production/admins"
-                },
-                "region": {
-                  "startLine": 1
-                }
-              },
-              "logicalLocations": [
-                {
-                  "name": "admins",
-                  "fullyQualifiedName": "Production/admins",
-                  "kind": "member"
-                }
-              ]
-            }
-          ],
-          "properties": {
-            "confirmed": true,
-            "security-severity": "9.5",
-            "status": "EXPLOITABLE"
-          }
-        },
-        {
-          "ruleId": "TRAIT_FORGERY",
-          "ruleIndex": 0,
-          "level": "error",
-          "message": {
-            "text": "Anyone can unlock staff-only features by typing a staff email: Using only the public client key, a test request claimed the email a@acmeshop.dev. The system trusted it and switched the staff_preview flag from off to on in Production. No login or proof was needed."
-          },
-          "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-1A45D85C"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "flagsmith/Production/staff"
-                },
-                "region": {
-                  "startLine": 1
-                }
-              },
-              "logicalLocations": [
-                {
-                  "name": "staff",
-                  "fullyQualifiedName": "Production/staff",
-                  "kind": "member"
-                }
-              ]
-            }
-          ],
-          "properties": {
-            "confirmed": true,
+            "root_cause": "RC-A2E6FEBF",
             "security-severity": "9.5",
             "status": "EXPLOITABLE"
           }
         },
         {
           "ruleId": "EXPERIMENT_RIGGING",
-          "ruleIndex": 3,
+          "ruleIndex": 4,
           "level": "error",
           "message": {
-            "text": "Users can pick their own group in experiment \"Pricing page price test\" (pricing_page): An outsider can steer which variant of pricing_page they receive and feed results into the experiment."
+            "text": "Visitors can choose their own price in the pricing test: Anyone using the public client key can request the pricing page flag with any identifier they like. By trying different identifiers, they can keep going until they land in the cheaper \"price_low\" group instead of \"price_high\". About half of attempts succeed."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-DED120AC"
@@ -565,226 +522,17 @@
           ],
           "properties": {
             "confirmed": true,
+            "root_cause": "RC-D72363A6",
             "security-severity": "8.0",
-            "status": "EXPLOITABLE"
-          }
-        },
-        {
-          "ruleId": "FLAG_NOT_SERVER_ONLY",
-          "ruleIndex": 13,
-          "level": "error",
-          "message": {
-            "text": "Payment settings flag is sent to client apps: The production flag \"payment_config\" is marked secret, but its \"Server-side only\" setting is off. This means client SDKs, such as those in browsers or mobile apps, receive it."
-          },
-          "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-0B5C5F67"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "flagsmith/Production/payment_config"
-                },
-                "region": {
-                  "startLine": 1
-                }
-              },
-              "logicalLocations": [
-                {
-                  "name": "payment_config",
-                  "fullyQualifiedName": "Production/payment_config",
-                  "kind": "member"
-                }
-              ]
-            }
-          ],
-          "properties": {
-            "confirmed": true,
-            "security-severity": "8.0",
-            "status": "EXPLOITABLE"
-          }
-        },
-        {
-          "ruleId": "IDENTITY_TRAIT_LEAK",
-          "ruleIndex": 4,
-          "level": "error",
-          "message": {
-            "text": "Customer profile data readable with a public key: Anyone holding the public client key, which ships inside the app, can look up a customer by email and get back the 3 traits stored on their profile. The test confirmed the traits are returned; their contents were not read."
-          },
-          "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-914405C1"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "flagsmith/Production/ce%2A%2A%2A@acmeshop.dev"
-                },
-                "region": {
-                  "startLine": 1
-                }
-              },
-              "logicalLocations": [
-                {
-                  "name": "ce***@acmeshop.dev",
-                  "fullyQualifiedName": "Production/ce***@acmeshop.dev",
-                  "kind": "member"
-                }
-              ]
-            }
-          ],
-          "properties": {
-            "confirmed": true,
-            "security-severity": "8.0",
-            "status": "EXPLOITABLE"
-          }
-        },
-        {
-          "ruleId": "IDENTITY_TRAIT_LEAK",
-          "ruleIndex": 4,
-          "level": "error",
-          "message": {
-            "text": "User profile data readable with a public key: Anyone holding the public client key, which ships inside the app, can request a user's stored traits from the production identities endpoint. The test confirmed it for one account and returned one trait. Values were masked in our evidence."
-          },
-          "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-1305BD20"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "flagsmith/Production/qa%2A%2A%2A@acmeshop.dev"
-                },
-                "region": {
-                  "startLine": 1
-                }
-              },
-              "logicalLocations": [
-                {
-                  "name": "qa***@acmeshop.dev",
-                  "fullyQualifiedName": "Production/qa***@acmeshop.dev",
-                  "kind": "member"
-                }
-              ]
-            }
-          ],
-          "properties": {
-            "confirmed": true,
-            "security-severity": "8.0",
-            "status": "EXPLOITABLE"
-          }
-        },
-        {
-          "ruleId": "TRAIT_FORGERY",
-          "ruleIndex": 0,
-          "level": "error",
-          "message": {
-            "text": "Anyone can unlock the premium export by claiming to be a gold customer: Using only the public client key, an outsider sent a request saying their plan was \"gold\". The system accepted it and switched the premium_export feature from off to on. No login or payment was needed."
-          },
-          "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-688647D2"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "flagsmith/Production/gold_plan"
-                },
-                "region": {
-                  "startLine": 1
-                }
-              },
-              "logicalLocations": [
-                {
-                  "name": "gold_plan",
-                  "fullyQualifiedName": "Production/gold_plan",
-                  "kind": "member"
-                }
-              ]
-            }
-          ],
-          "properties": {
-            "confirmed": true,
-            "security-severity": "8.0",
-            "status": "EXPLOITABLE"
-          }
-        },
-        {
-          "ruleId": "IDENTITY_OVERRIDE_LEAK",
-          "ruleIndex": 5,
-          "level": "warning",
-          "message": {
-            "text": "Per-user feature override can be read by outsiders: Anyone who knows a user's identifier and the public client key can request that user's settings and see that their beta_dashboard flag differs from the default. The check showed it turning from off to on in Production. The actual values were masked."
-          },
-          "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-58B8A822"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "flagsmith/Production/beta_dashboard"
-                },
-                "region": {
-                  "startLine": 1
-                }
-              },
-              "logicalLocations": [
-                {
-                  "name": "beta_dashboard",
-                  "fullyQualifiedName": "Production/beta_dashboard",
-                  "kind": "member"
-                }
-              ]
-            }
-          ],
-          "properties": {
-            "confirmed": true,
-            "security-severity": "5.5",
-            "status": "EXPLOITABLE"
-          }
-        },
-        {
-          "ruleId": "INTERNAL_URL_LEAK",
-          "ruleIndex": 7,
-          "level": "warning",
-          "message": {
-            "text": "Internal admin address exposed to all website visitors: Anyone holding the public client key can request the flag list and see a setting named internal_api_url. It reveals a private network address pointing to an admin endpoint."
-          },
-          "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-63E8DE85"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "flagsmith/Production/internal_api_url"
-                },
-                "region": {
-                  "startLine": 1
-                }
-              },
-              "logicalLocations": [
-                {
-                  "name": "internal_api_url",
-                  "fullyQualifiedName": "Production/internal_api_url",
-                  "kind": "member"
-                }
-              ]
-            }
-          ],
-          "properties": {
-            "confirmed": true,
-            "security-severity": "5.5",
             "status": "EXPLOITABLE"
           }
         },
         {
           "ruleId": "PERCENTAGE_REROLL",
-          "ruleIndex": 1,
+          "ruleIndex": 2,
           "level": "warning",
           "message": {
-            "text": "Unreleased AI feature can be unlocked by guessing identifiers: The early_access_ai feature is meant for a 10% test group. Anyone can send a made-up user identifier to the public API and see whether the feature turns on. About 1 in 11 tries succeeds, so an outsider can quickly find an identifier that unlocks it."
+            "text": "Anyone can unlock the early AI feature by changing their ID: The early_access_ai flag is meant for a 10% canary group. Because users choose their own identifier, an outsider can try new IDs until one lands in the group. About 9% succeed, so roughly 11 tries are enough, and the flag turns on."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-B626FA94"
@@ -810,252 +558,8 @@
           ],
           "properties": {
             "confirmed": true,
+            "root_cause": "RC-1C4189EB",
             "security-severity": "5.5",
-            "status": "EXPLOITABLE"
-          }
-        },
-        {
-          "ruleId": "SETTING_CLIENT_TRAITS_ON",
-          "ruleIndex": 11,
-          "level": "warning",
-          "message": {
-            "text": "Production lets users set their own traits: In Production, the setting that lets client SDKs set user traits is on. Anyone with the public client key can assign themselves any traits they like."
-          },
-          "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-A60CCA1A"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "flagsmith/Production/allow_client_traits"
-                },
-                "region": {
-                  "startLine": 1
-                }
-              },
-              "logicalLocations": [
-                {
-                  "name": "allow_client_traits",
-                  "fullyQualifiedName": "Production/allow_client_traits",
-                  "kind": "member"
-                }
-              ]
-            }
-          ],
-          "properties": {
-            "confirmed": true,
-            "security-severity": "5.5",
-            "status": "EXPLOITABLE"
-          }
-        },
-        {
-          "ruleId": "SETTING_SENSITIVE_DATA_VISIBLE",
-          "ruleIndex": 12,
-          "level": "warning",
-          "message": {
-            "text": "Production feature flag data is not hidden: The \"Hide sensitive data\" setting is turned off in the Production environment. This means sensitive values tied to feature flags are not masked in that environment's dashboard."
-          },
-          "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-9FE52BC7"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "flagsmith/Production/hide_sensitive_data"
-                },
-                "region": {
-                  "startLine": 1
-                }
-              },
-              "logicalLocations": [
-                {
-                  "name": "hide_sensitive_data",
-                  "fullyQualifiedName": "Production/hide_sensitive_data",
-                  "kind": "member"
-                }
-              ]
-            }
-          ],
-          "properties": {
-            "confirmed": true,
-            "security-severity": "5.5",
-            "status": "EXPLOITABLE"
-          }
-        },
-        {
-          "ruleId": "UNRELEASED_PRODUCT_LEAK",
-          "ruleIndex": 8,
-          "level": "warning",
-          "message": {
-            "text": "Flag name reveals an unreleased AI feature: Anyone holding the public client key can list your feature flags in Production. The flag named \"early_access_ai\" appears in the list, even though its value is empty."
-          },
-          "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-DEBD1D23"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "flagsmith/Production/early_access_ai"
-                },
-                "region": {
-                  "startLine": 1
-                }
-              },
-              "logicalLocations": [
-                {
-                  "name": "early_access_ai",
-                  "fullyQualifiedName": "Production/early_access_ai",
-                  "kind": "member"
-                }
-              ]
-            }
-          ],
-          "properties": {
-            "confirmed": true,
-            "security-severity": "5.5",
-            "status": "EXPLOITABLE"
-          }
-        },
-        {
-          "ruleId": "UNRELEASED_PRODUCT_LEAK",
-          "ruleIndex": 8,
-          "level": "warning",
-          "message": {
-            "text": "Flag name reveals an unreleased product: Anyone holding the public client key can list the feature flags in Production. One flag's name, project_nightjar_launch_2026_12_15, exposes an unreleased product's codename and planned launch date."
-          },
-          "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-07590992"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "flagsmith/Production/project_nightjar_launch_2026_12_15"
-                },
-                "region": {
-                  "startLine": 1
-                }
-              },
-              "logicalLocations": [
-                {
-                  "name": "project_nightjar_launch_2026_12_15",
-                  "fullyQualifiedName": "Production/project_nightjar_launch_2026_12_15",
-                  "kind": "member"
-                }
-              ]
-            }
-          ],
-          "properties": {
-            "confirmed": true,
-            "security-severity": "5.5",
-            "status": "EXPLOITABLE"
-          }
-        },
-        {
-          "ruleId": "FLAG_NOT_SERVER_ONLY",
-          "ruleIndex": 13,
-          "level": "note",
-          "message": {
-            "text": "Unreleased AI feature flag is visible to client apps: The flag \"early_access_ai\", which marks an unreleased product, is not set to \"Server-side only\" in Production. Because of that, client SDKs receive it, so anyone inspecting the app's flag data could see it exists."
-          },
-          "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-EA6AFCDF"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "flagsmith/Production/early_access_ai"
-                },
-                "region": {
-                  "startLine": 1
-                }
-              },
-              "logicalLocations": [
-                {
-                  "name": "early_access_ai",
-                  "fullyQualifiedName": "Production/early_access_ai",
-                  "kind": "member"
-                }
-              ]
-            }
-          ],
-          "properties": {
-            "confirmed": true,
-            "security-severity": "3.0",
-            "status": "EXPLOITABLE"
-          }
-        },
-        {
-          "ruleId": "FLAG_NOT_SERVER_ONLY",
-          "ruleIndex": 13,
-          "level": "note",
-          "message": {
-            "text": "Internal API address exposed to client apps: In Production, the flag \"internal_api_url\" is not marked \"Server-side only\", so client SDKs receive it. Anyone using the app or SDK could potentially read it."
-          },
-          "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-03878136"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "flagsmith/Production/internal_api_url"
-                },
-                "region": {
-                  "startLine": 1
-                }
-              },
-              "logicalLocations": [
-                {
-                  "name": "internal_api_url",
-                  "fullyQualifiedName": "Production/internal_api_url",
-                  "kind": "member"
-                }
-              ]
-            }
-          ],
-          "properties": {
-            "confirmed": true,
-            "security-severity": "3.0",
-            "status": "EXPLOITABLE"
-          }
-        },
-        {
-          "ruleId": "FLAG_NOT_SERVER_ONLY",
-          "ruleIndex": 13,
-          "level": "note",
-          "message": {
-            "text": "Unreleased product flag is visible to client apps: The flag named for an unreleased product launch in Production is not set to \"Server-side only\", so client SDKs receive it. Anyone using the public app or website can potentially read the flag's name."
-          },
-          "partialFingerprints": {
-            "gatecrasherFindingId/v1": "GC-64038665"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "flagsmith/Production/project_nightjar_launch_2026_12_15"
-                },
-                "region": {
-                  "startLine": 1
-                }
-              },
-              "logicalLocations": [
-                {
-                  "name": "project_nightjar_launch_2026_12_15",
-                  "fullyQualifiedName": "Production/project_nightjar_launch_2026_12_15",
-                  "kind": "member"
-                }
-              ]
-            }
-          ],
-          "properties": {
-            "confirmed": true,
-            "security-severity": "3.0",
             "status": "EXPLOITABLE"
           }
         }
@@ -1063,9 +567,119 @@
       "invocations": [
         {
           "executionSuccessful": true,
-          "endTimeUtc": "2026-11-27T20:21:38Z"
+          "endTimeUtc": "2026-11-28T14:43:00Z"
         }
-      ]
+      ],
+      "properties": {
+        "finding_count": 17,
+        "headline": "3 ways in · 17 findings",
+        "root_causes": [
+          {
+            "id": "RC-A2E6FEBF",
+            "title": "Browsers choose the identifier that unlocks internal_tools",
+            "severity": "critical",
+            "finding_ids": [
+              "GC-32B2A0B1"
+            ],
+            "exploitable": true,
+            "mechanism": "client-chosen-identifier",
+            "environment": "Production",
+            "subject": "internal_tools"
+          },
+          {
+            "id": "RC-D41DCAF8",
+            "title": "Production lets clients set traits",
+            "severity": "critical",
+            "finding_ids": [
+              "GC-70850605",
+              "GC-1A45D85C",
+              "GC-688647D2",
+              "GC-A60CCA1A"
+            ],
+            "exploitable": false,
+            "mechanism": "client-traits",
+            "environment": "Production"
+          },
+          {
+            "id": "RC-C11B4554",
+            "title": "payment_config is served to browsers and contains a live secret",
+            "severity": "critical",
+            "finding_ids": [
+              "GC-8B6A1273",
+              "GC-0B5C5F67"
+            ],
+            "exploitable": false,
+            "mechanism": "client-visible-flag",
+            "environment": "Production",
+            "subject": "payment_config"
+          },
+          {
+            "id": "RC-D72363A6",
+            "title": "Browsers choose the identifier that decides their group in the pricing_page experiment",
+            "severity": "high",
+            "finding_ids": [
+              "GC-DED120AC"
+            ],
+            "exploitable": true,
+            "mechanism": "client-chosen-identifier",
+            "environment": "Production",
+            "subject": "pricing_page"
+          },
+          {
+            "id": "RC-0D1B0E5B",
+            "title": "Production returns stored identity data to anyone holding the client key",
+            "severity": "high",
+            "finding_ids": [
+              "GC-914405C1",
+              "GC-1305BD20",
+              "GC-58B8A822",
+              "GC-9FE52BC7"
+            ],
+            "exploitable": false,
+            "mechanism": "identity-data",
+            "environment": "Production"
+          },
+          {
+            "id": "RC-1C4189EB",
+            "title": "Browsers choose the identifier that decides early_access_ai",
+            "severity": "medium",
+            "finding_ids": [
+              "GC-B626FA94"
+            ],
+            "exploitable": true,
+            "mechanism": "client-chosen-identifier",
+            "environment": "Production",
+            "subject": "early_access_ai"
+          },
+          {
+            "id": "RC-E570099E",
+            "title": "internal_api_url is served to browsers and contains an internal URL",
+            "severity": "medium",
+            "finding_ids": [
+              "GC-63E8DE85",
+              "GC-03878136"
+            ],
+            "exploitable": false,
+            "mechanism": "client-visible-flag",
+            "environment": "Production",
+            "subject": "internal_api_url"
+          },
+          {
+            "id": "RC-F2DE0CCF",
+            "title": "project_nightjar_launch_2026_12_15 is served to browsers and contains an unreleased product name",
+            "severity": "medium",
+            "finding_ids": [
+              "GC-07590992",
+              "GC-64038665"
+            ],
+            "exploitable": false,
+            "mechanism": "client-visible-flag",
+            "environment": "Production",
+            "subject": "project_nightjar_launch_2026_12_15"
+          }
+        ],
+        "ways_in": 3
+      }
     }
   ]
 }

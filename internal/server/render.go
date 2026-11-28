@@ -44,6 +44,7 @@ var notices = map[string]string{
 	"verified":   "Verification finished. The before/after results are below.",
 	"rolledback": "Plan rolled back. The previous state was restored.",
 	"planned":    "Fix plans created from the report. Review each one below.",
+	"confirmed":  "Finding confirmed by you and recorded in the audit log. It now counts.",
 }
 
 // richText redacts and escapes s, then renders `backtick` spans as <code>.

@@ -11,8 +11,10 @@ import (
 	"github.com/yarrasatwik/gatecrasher/internal/secrets"
 )
 
-// MinAIConfidence is the confidence at which an AI classification may create
-// a finding on its own (spec §8.2).
+// MinAIConfidence is the confidence at which an AI classification is passed
+// on at all. It never creates a finding on its own: a classification only
+// the AI made is a NEEDS_REVIEW suggestion until a deterministic rule or a
+// human confirms it (see app.adjudicate).
 const MinAIConfidence = 0.7
 
 type flagInput struct {
@@ -45,8 +47,10 @@ func Reportable(c model.Classification) bool {
 
 // Classify sorts every flag of the inventory into a category. The
 // deterministic pass always runs; when the AI is on, its answers are merged:
-// a finding is created when the deterministic pass says not-HARMLESS, or the
-// AI does with confidence >= 0.7. Each result names the Method that decided it.
+// the deterministic result wins whenever it is not HARMLESS; otherwise an AI
+// answer with confidence >= 0.7 is returned with Method "ai", which marks it
+// as an unconfirmed suggestion for the caller. Each result names the Method
+// that produced it.
 func (c *Client) Classify(ctx context.Context, inv *model.PublicInventory) ([]model.Classification, Mode) {
 	det := make([]model.Classification, len(inv.Flags))
 	for i, f := range inv.Flags {

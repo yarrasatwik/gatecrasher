@@ -33,6 +33,17 @@ type findingView struct {
 	Locations   []string
 }
 
+// groupView is one root cause with its finding cards.
+type groupView struct {
+	ID, Title, SevName, SevClass, Kind, Count string
+	Findings                                  []findingView
+}
+
+// reviewView is one AI-only suggestion.
+type reviewView struct {
+	ID, Title, Type, Subject, Reason string
+}
+
 type settingView struct {
 	Environment, Traits, TraitsClass, Hidden, HiddenClass string
 	ServerOnly, ClientVisible                             int
@@ -49,8 +60,12 @@ type changeView struct {
 type htmlView struct {
 	R              *model.Report
 	WaysIn         int
+	FindingCount   int
+	Groups         []groupView
 	Chips          []chipView
 	Findings       []findingView
+	Review         []reviewView
+	ReviewNote     string
 	Settings       []settingView
 	Reach          []reachView
 	BeforeAfter    []changeView
@@ -76,7 +91,8 @@ func WriteHTML(w io.Writer, r *model.Report) error {
 func buildHTMLView(p *model.Report) htmlView {
 	v := htmlView{
 		R:              p,
-		WaysIn:         WaysIn(p),
+		WaysIn:         p.WaysIn,
+		FindingCount:   p.FindingCount,
 		Duration:       humanDuration(p.Stats.DurationMS),
 		EngineVersion:  engineVersion(),
 		Generated:      p.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
@@ -86,7 +102,20 @@ func buildHTMLView(p *model.Report) htmlView {
 		v.Chips = append(v.Chips, chipView{Name: titleCase(s.String()), Class: s.String(), Count: p.Stats.BySeverity[s.String()]})
 	}
 	for _, f := range p.Findings {
+		if f.Status == model.StatusNeedsReview {
+			v.Review = append(v.Review, reviewView{ID: f.ID, Title: f.Title, Type: string(f.Type), Subject: f.Subject, Reason: aiReason(f)})
+			continue
+		}
 		v.Findings = append(v.Findings, buildFindingView(f))
+	}
+	v.ReviewNote = reviewNote
+	for _, g := range GroupByRootCause(p) {
+		gv := groupView{ID: g.Cause.ID, Title: g.Cause.Title, SevName: titleCase(g.Cause.Severity.String()),
+			SevClass: g.Cause.Severity.String(), Kind: g.Kind, Count: plural(len(g.Findings), "finding")}
+		for _, f := range g.Findings {
+			gv.Findings = append(gv.Findings, buildFindingView(f))
+		}
+		v.Groups = append(v.Groups, gv)
 	}
 	for _, s := range p.Settings {
 		v.Settings = append(v.Settings, buildSettingView(s))
@@ -189,7 +218,7 @@ func statusClass(s model.Status) string {
 	switch s {
 	case model.StatusBlocked:
 		return "good"
-	case model.StatusExploitable:
+	case model.StatusExploitable, model.StatusHidden:
 		return "bad"
 	default:
 		return "unk"
