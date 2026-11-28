@@ -17,6 +17,12 @@ x-flagsmith-env: &flagsmith-env
   # Lets `gatecrasher watch` register org webhooks that point at the host machine
   # (Flagsmith otherwise rejects private/internal webhook targets as SSRF).
   SSRF_ALLOWED_HOSTS: host.docker.internal
+  # One API worker process (with threads): Flagsmith keeps project segments in a
+  # per-process memory cache for 5 minutes, so with several workers a segment
+  # change is seen by some workers and not others. One process keeps every
+  # answer consistent with the environment document the lab just wrote.
+  GUNICORN_WORKERS: "1"
+  GUNICORN_THREADS: "4"
 
 services:
   postgres:
