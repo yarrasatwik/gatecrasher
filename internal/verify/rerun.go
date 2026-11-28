@@ -72,7 +72,7 @@ func Check(ctx context.Context, t Target, f model.Finding) (model.Status, string
 			return st, redact.String(proof), nil
 		}
 		return sensitiveData(ctx, t)
-	case model.FSecretExposed, model.FInternalURL, model.FUnreleasedProduct, model.FPricingLeak, model.FPIILeak, model.FFlagNotServerOnly:
+	case model.FSecretExposed, model.FInternalURL, model.FUnreleasedProduct, model.FPricingLeak, model.FPIILeak, model.FPossibleSecret, model.FFlagNotServerOnly:
 		// The attack is reading the value with the public key.
 		flags, req, err := t.ClientFlags(ctx)
 		if err != nil {
@@ -80,7 +80,7 @@ func Check(ctx context.Context, t Target, f model.Finding) (model.Status, string
 		}
 		_, visible := flags[f.Subject]
 		return statusIf(visible, fmt.Sprintf("%s → %s visible to client key: %v", req, f.Subject, visible))
-	case model.FSegmentForgeable, model.FTraitForgery:
+	case model.FSegmentForgeable, model.FTraitForgery, model.FIdentifierForgery:
 		return forgery(ctx, t, f)
 	case model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging:
 		return reroll(ctx, t, f)
@@ -272,8 +272,25 @@ func rerunOne(ctx context.Context, f model.Finding, recheck Recheck) model.Verif
 		row.After, row.Proof = model.StatusUnknown, "re-check failed: "+redact.String(err.Error())
 		return row
 	}
-	row.After, row.Proof = after, redact.String(proof)
+	row.After, row.Proof = after, redact.String(identifierProof(f, after, proof))
 	return row
+}
+
+// IdentifierStillOpen is appended to the proof of an identifier forgery that
+// still reproduces: the client-traits fix is not expected to close it.
+const IdentifierStillOpen = "Still exploitable: choosing an identifier is not affected by the client-traits setting. " +
+	"Assign identifiers on the server and stop targeting on identifier patterns."
+
+// identifierProof explains an identifier forgery that survives a re-check,
+// so a reader who just turned off client traits knows why it is still open.
+func identifierProof(f model.Finding, after model.Status, proof string) string {
+	if f.Type != model.FIdentifierForgery || after != model.StatusExploitable {
+		return proof
+	}
+	if proof == "" {
+		return IdentifierStillOpen
+	}
+	return proof + ". " + IdentifierStillOpen
 }
 
 // AllBlocked reports whether every finding the plan claimed to close ended

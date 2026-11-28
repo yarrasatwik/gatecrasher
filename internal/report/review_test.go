@@ -17,8 +17,8 @@ const reviewID = "GC-REVIEW01"
 func reviewReport() *model.Report {
 	r := reporttest.SampleReport()
 	r.Findings = append(r.Findings, model.Finding{
-		ID: reviewID, Type: model.FPricingLeak, Environment: reporttest.Env, Subject: "partner_portal",
-		Title: "Pricing data visible to every browser: partner_portal (suggested by Claude, needs review)", Category: model.CatPricing,
+		ID: reviewID, Type: model.FPricingLeak, Environment: reporttest.Env, Subject: "reseller_tiers",
+		Title: "Pricing data visible to every browser: reseller_tiers (suggested by Claude, needs review)", Category: model.CatPricing,
 		DetectedBy: []model.Method{model.MethodAI}, Status: model.StatusNeedsReview,
 		Evidence: []model.Evidence{{Kind: "request", Note: "Looks like a partner pricing tier."}},
 	})
@@ -68,7 +68,7 @@ func TestCountsExcludeNeedsReviewInEveryFormat(t *testing.T) {
 func TestReviewSectionIsSeparate(t *testing.T) {
 	r := reviewReport()
 	md := render(t, func(b *bytes.Buffer) error { return WriteMarkdown(b, r) })
-	i, j := strings.Index(md, "## Claude suggests reviewing"), strings.Index(md, "partner_portal")
+	i, j := strings.Index(md, "## Claude suggests reviewing"), strings.Index(md, "reseller_tiers")
 	if i < 0 || j < i {
 		t.Fatalf("markdown lacks the review section before the suggestion (section %d, item %d)", i, j)
 	}
@@ -86,7 +86,7 @@ func TestReviewSectionIsSeparate(t *testing.T) {
 		}
 	}
 	findings := page[strings.Index(page, `<section id="findings"`):strings.Index(page, `<section id="review"`)]
-	if strings.Contains(findings, "partner_portal") {
+	if strings.Contains(findings, "reseller_tiers") {
 		t.Error("the suggestion is rendered among the findings")
 	}
 }

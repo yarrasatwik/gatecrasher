@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 )
 
 type apiMVState struct {
@@ -193,7 +194,16 @@ func (s *seeder) ensureSegmentOverride(ctx context.Context, envName string, env 
 		}
 		path := fmt.Sprintf("environments/%s/features/%d/create-segment-override/", env.ClientKey, feat.ID)
 		if err := s.api.call(ctx, s.admin, "POST", path, body, nil); err != nil {
-			return err
+			if !strings.Contains(err.Error(), "v2 feature versioning") {
+				return err
+			}
+			// A v2-versioned environment only takes new overrides through a
+			// published feature version (addressed by environment ID).
+			vpath := fmt.Sprintf("environments/%d/features/%d/versions/", env.ID, feat.ID)
+			vbody := map[string]any{"publish_immediately": true, "feature_states_to_create": []any{body}}
+			if err := s.api.call(ctx, s.admin, "POST", vpath, vbody, nil); err != nil {
+				return fmt.Errorf("create segment override in a new feature version: %w", err)
+			}
 		}
 		s.changed("%s: %s targets segment %q", envName, f.Name, o.Segment)
 		return nil

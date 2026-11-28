@@ -284,9 +284,11 @@ func rootCauseKey(f model.Finding) (mechanism, env, subject string) {
 		if f.ProofID != "" {
 			return MechIdentifier, env, firstFlag(f)
 		}
+	case model.FIdentifierForgery:
+		return MechIdentifier, env, firstFlag(f)
 	case model.FIdentityTraitLeak, model.FIdentityOverrideLeak, model.FSettingSensitiveData:
 		return MechSensitiveData, env, ""
-	case model.FSecretExposed, model.FInternalURL, model.FUnreleasedProduct, model.FPricingLeak, model.FPIILeak, model.FFlagNotServerOnly:
+	case model.FSecretExposed, model.FInternalURL, model.FUnreleasedProduct, model.FPricingLeak, model.FPIILeak, model.FPossibleSecret, model.FFlagNotServerOnly:
 		if f.Type == model.FSecretExposed && f.Subject == "bundle" {
 			return MechBundleKey, env, ""
 		}
@@ -313,6 +315,22 @@ var leakWords = []struct {
 	{model.FUnreleasedProduct, model.CatUnreleasedProduct, "an unreleased product name"},
 }
 
+// possibleSecretOnly reports whether the only thing known about a flag is a
+// value that looks random (POSSIBLE_SECRET): something to review, not a leak.
+func possibleSecretOnly(members []model.Finding) bool {
+	n := 0
+	for _, f := range members {
+		switch {
+		case f.Type == model.FPossibleSecret:
+			n++
+		case f.Type == model.FFlagNotServerOnly && f.Category == model.CatPossibleSecret:
+		default:
+			return false
+		}
+	}
+	return n > 0
+}
+
 func rootCauseTitle(c model.RootCause, members []model.Finding) string {
 	env := nonEmpty(c.Environment, "The environment")
 	switch c.Mechanism {
@@ -328,8 +346,16 @@ func rootCauseTitle(c model.RootCause, members []model.Finding) string {
 				return fmt.Sprintf("Browsers choose the identifier that decides their group in the %s experiment", c.Subject)
 			}
 		}
-		return fmt.Sprintf("Browsers choose the identifier that decides %s", c.Subject)
+		for _, f := range members {
+			if f.Type != model.FIdentifierForgery && !(len(f.Traits) == 0 && (f.Type == model.FTraitForgery || f.Type == model.FSegmentForgeable)) {
+				return fmt.Sprintf("Browsers choose the identifier that decides %s", c.Subject)
+			}
+		}
+		return fmt.Sprintf("Browsers choose the identifier that unlocks %s", c.Subject)
 	case MechClientVisible:
+		if possibleSecretOnly(members) {
+			return fmt.Sprintf("%s is served to browsers and may contain a secret (needs review)", c.Subject)
+		}
 		confirmed := false
 		for _, f := range members {
 			confirmed = confirmed || f.Status != model.StatusNeedsReview

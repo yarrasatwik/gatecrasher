@@ -35,7 +35,7 @@ func init() {
 		{"map", "inside view only: settings, engine reachability, live cross-check", cmdMap},
 		{"plan", "build fix plans from the latest report", cmdPlan},
 		{"plans", "list fix plans and their state", cmdPlans},
-		{"approve", "approve one plan (Production needs --confirm <env name>)", cmdApprove},
+		{"approve", "approve one plan (protected environments need a real terminal or the web UI)", cmdApprove},
 		{"reject", "reject one plan", cmdReject},
 		{"apply", "apply an approved plan (re-checks live state first)", cmdApply},
 		{"verify", "re-run the checks behind a plan: before/after", cmdVerify},

@@ -68,12 +68,12 @@ func TestFinalize(t *testing.T) {
 func TestWaysIn(t *testing.T) {
 	r := reporttest.SampleReport()
 	// The sample has no root-cause links, so each finding is its own root
-	// cause: 17 findings, minus the control that held, minus the three
+	// cause: 18 findings, minus the control that held, minus the three
 	// settings findings nothing reproduced (hardening, not ways in).
-	if got := WaysIn(r); got != 13 {
-		t.Fatalf("WaysIn = %d, want 13", got)
+	if got := WaysIn(r); got != 14 {
+		t.Fatalf("WaysIn = %d, want 14", got)
 	}
-	if got := Headline(r); got != "13 ways in · 16 findings" {
+	if got := Headline(r); got != "14 ways in · 17 findings" {
 		t.Fatalf("Headline = %q", got)
 	}
 	// Findings that share a root cause are one way in.
@@ -83,11 +83,11 @@ func TestWaysIn(t *testing.T) {
 		}
 	}
 	r.RootCauses = []model.RootCause{{ID: "RC-TRAITS", Title: "Production lets clients set traits"}}
-	if got := Headline(r); got != "12 ways in · 16 findings" {
+	if got := Headline(r); got != "13 ways in · 17 findings" {
 		t.Fatalf("grouped Headline = %q", got)
 	}
 	Finalize(r)
-	if r.WaysIn != 12 || r.FindingCount != 16 || r.FindingCount-r.BlockedCount != r.OpenCount {
+	if r.WaysIn != 13 || r.FindingCount != 17 || r.FindingCount-r.BlockedCount != r.OpenCount {
 		t.Fatalf("stored counts: %d ways in, %d − %d = %d", r.WaysIn, r.FindingCount, r.BlockedCount, r.OpenCount)
 	}
 	var traits *model.RootCause
@@ -162,7 +162,7 @@ func TestWriteMarkdown(t *testing.T) {
 	out := render(t, func(b *bytes.Buffer) error { return WriteMarkdown(b, r) })
 	for _, want := range []string{
 		"# Gatecrasher security report",
-		"**13 ways in · 16 findings**",
+		"**14 ways in · 17 findings**",
 		"## Findings by root cause",
 		"### Root cause: ",
 		"way in · 1 finding",
@@ -207,7 +207,7 @@ func TestWriteHTML(t *testing.T) {
 	for _, want := range []string{
 		"<!doctype html>", `<html lang="en">`, `name="viewport"`, "prefers-color-scheme: dark",
 		"<main", "<nav", "<header", "<footer", `class="skip"`, ":focus-visible",
-		`<span class="n">13</span>`, "ways in &middot; 16 findings",
+		`<span class="n">14</span>`, "ways in &middot; 17 findings",
 		"Findings by root cause, highest severity first", `class="cause"`, "Root cause <code>RC-", "Environment security settings", "Reachability map",
 		"Before and after", "Method and scope",
 		"&lt;CLIENT_KEY&gt;", "<details>", "live-probe", "flagsmith-engine", "ai", "deterministic",
@@ -443,7 +443,7 @@ func TestSARIFOmitsBlockedAndHandlesUnknownType(t *testing.T) {
 		t.Fatal(err)
 	}
 	props := log.Runs[0].Properties
-	if props["ways_in"] != float64(13) || props["finding_count"] != float64(17) || props["headline"] != "13 ways in · 17 findings" {
+	if props["ways_in"] != float64(14) || props["finding_count"] != float64(18) || props["headline"] != "14 ways in · 18 findings" {
 		t.Errorf("run.properties = ways_in %v finding_count %v headline %v", props["ways_in"], props["finding_count"], props["headline"])
 	}
 	if causes, ok := props["root_causes"].([]any); !ok || len(causes) == 0 {

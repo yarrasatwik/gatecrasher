@@ -2,6 +2,8 @@ package fixes
 
 import (
 	"fmt"
+	"os/user"
+	"strings"
 	"time"
 
 	"github.com/yarrasatwik/gatecrasher/internal/model"
@@ -10,6 +12,49 @@ import (
 // ContaminateToken is what a human must type to accept that changing a flag
 // under a running experiment contaminates its results.
 const ContaminateToken = "contaminate-experiment"
+
+// Approval channels recorded on every approval and in the audit log.
+const (
+	// ChannelTTY is a person typing the confirmation at a real terminal.
+	ChannelTTY = "tty"
+	// ChannelWeb is the web UI.
+	ChannelWeb = "web"
+	// ChannelCLI is a non-interactive command (flags, pipes, scripts). The
+	// CLI never uses it for a protected environment.
+	ChannelCLI = "cli"
+)
+
+// unknownUser is recorded when the OS will not say who is running.
+const unknownUser = "unknown"
+
+// osUser is replaced in tests.
+var osUser = OSUser
+
+// OSUser returns the operating-system account running this process. Unlike
+// a --by name or the USER variable it cannot be set by the caller.
+func OSUser() string {
+	u, err := user.Current()
+	if err != nil || strings.TrimSpace(u.Username) == "" {
+		return unknownUser
+	}
+	return u.Username
+}
+
+// sameUser reports whether the name given by the approver is the OS user.
+// Windows reports DOMAIN\name, so the bare account name also matches.
+func sameUser(by, osName string) bool {
+	if osName == "" || osName == unknownUser {
+		return false
+	}
+	by = strings.TrimSpace(by)
+	if strings.EqualFold(by, osName) {
+		return true
+	}
+	if i := strings.LastIndex(osName, `\`); i >= 0 {
+		return strings.EqualFold(by, osName[i+1:])
+	}
+	return false
+}
 
 // DefaultApprovalTTL is how long an approval stays valid (spec §8.10).
 const DefaultApprovalTTL = 30 * time.Minute
@@ -35,8 +80,8 @@ func approveAt(now time.Time, rec *model.PlanRecord, by, channel, typedEnv, type
 	if by == "" {
 		return fmt.Errorf("approval needs the name of the person approving")
 	}
-	if channel != "cli" && channel != "web" {
-		return fmt.Errorf("approval channel must be \"cli\" or \"web\", got %q", channel)
+	if channel != ChannelTTY && channel != ChannelWeb && channel != ChannelCLI {
+		return fmt.Errorf("approval channel must be \"tty\", \"web\" or \"cli\", got %q", channel)
 	}
 	if p.Production && typedEnv != p.Environment {
 		return fmt.Errorf("%w (expected %q, got %q)", ErrConfirmEnvironment, p.Environment, typedEnv)
@@ -51,6 +96,8 @@ func approveAt(now time.Time, rec *model.PlanRecord, by, channel, typedEnv, type
 		PlanID: p.ID, PlanHash: p.Hash, ApprovedAt: now.UTC(), ExpiresAt: now.UTC().Add(ttl),
 		By: by, Channel: channel,
 	}
+	rec.Approval.OSUser = osUser()
+	rec.Approval.ByClaimed = !sameUser(by, rec.Approval.OSUser)
 	if p.Production {
 		rec.Approval.ConfirmedEnvironment = typedEnv
 	}

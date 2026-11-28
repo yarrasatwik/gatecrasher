@@ -155,7 +155,7 @@ func (a *App) waitLive(ctx context.Context, rec *model.PlanRecord) (time.Duratio
 // autoFixable reports whether an applied plan is expected to block f.
 func autoFixable(f model.Finding) bool {
 	switch f.Type {
-	case model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging:
+	case model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging, model.FIdentifierForgery:
 		return false
 	}
 	return true

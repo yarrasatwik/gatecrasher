@@ -9,6 +9,8 @@
 //	                                or admin-like (name contains admin, staff, internal,
 //	                                superuser or root, or tagged "admin"); otherwise High
 //	                                (a paid feature)
+//	IDENTIFIER_FORGERY              same rule as TRAIT_FORGERY (the input forged is the
+//	                                identifier instead of a trait)
 //	IDENTITY_TRAIT_LEAK             High
 //	PII_IN_CLIENT_VALUE             High
 //	EXPERIMENT_RIGGING              High on pricing/revenue flags (name contains price,
@@ -24,6 +26,7 @@
 //	SETTING_CLIENT_TRAITS_ON        Medium when forgeable segments exist, else Low
 //	SETTING_SENSITIVE_DATA_VISIBLE  Medium when an identity lookup is possible, else Low
 //	FLAG_NOT_SERVER_ONLY            High when the flag holds a SECRET, else Low
+//	POSSIBLE_SECRET_IN_CLIENT_VALUE Low, always (high entropy alone; needs review)
 //	CONTROL_OK                      Info
 //	anything else                   Medium
 //
@@ -116,7 +119,7 @@ func Rate(f model.Finding, ctx Context) model.Severity {
 	switch f.Type {
 	case model.FSecretExposed:
 		return model.SevCritical
-	case model.FTraitForgery:
+	case model.FTraitForgery, model.FIdentifierForgery:
 		if isAdminLike(f) {
 			return model.SevCritical
 		}
@@ -134,6 +137,8 @@ func Rate(f model.Finding, ctx Context) model.Severity {
 		return lowUnless(ctx.LookupPossible, model.SevMedium)
 	case model.FFlagNotServerOnly:
 		return lowUnless(ctx.HoldsSecret, model.SevHigh)
+	case model.FPossibleSecret:
+		return model.SevLow
 	case model.FControlOK:
 		return model.SevInfo
 	default:

@@ -42,6 +42,8 @@ func DefaultDraft(repoDir string) DraftFunc {
 			return traitDraft(repoDir, impact)
 		case fixReroll:
 			return rerollDraft(f)
+		case fixIdentifier:
+			return identifierDraft(f)
 		default:
 			return serverOnlyDraft(f, impact)
 		}
@@ -139,6 +141,20 @@ func rerollDraft(f model.Finding) string {
 	b.WriteString("1. Generate the identifier on the server (for example an HMAC of the user id or a signed session id).\n")
 	b.WriteString("2. Pass it to the client in the page or API response; never let the client choose or change it.\n")
 	b.WriteString("3. If an experiment ran with client-chosen identifiers, restart it after the fix: its results are biased.\n")
+	return b.String()
+}
+
+func identifierDraft(f model.Finding) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Assign identifiers on the server and stop targeting on identifier patterns (`%s`)\n\n", f.Subject)
+	b.WriteString("A Flagsmith segment unlocks this flag for identifiers that match a pattern (for example an email\n")
+	b.WriteString("domain). The browser chooses the identifier it sends, so anyone can pick one that matches. Turning off\n")
+	b.WriteString("\"Allow client SDKs to set user traits\" does not help: no trait is involved.\n\n")
+	b.WriteString("1. Generate the Flagsmith identifier on the server from the authenticated session (for example the\n")
+	b.WriteString("   user id, or an HMAC of it); never accept an identifier typed or chosen in the browser.\n")
+	b.WriteString("2. Replace the identifier-pattern rule with a rule on data only your server sets (a server-set trait\n")
+	b.WriteString("   such as `is_staff`, written with the server SDK after checking your own user records).\n")
+	b.WriteString("3. For staff-only or internal features, evaluate the flag on the server and enforce access there.\n")
 	return b.String()
 }
 

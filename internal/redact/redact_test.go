@@ -33,6 +33,49 @@ func TestPatterns(t *testing.T) {
 	}
 }
 
+// Publishable Stripe keys are public by design and the classifier does not
+// call them secrets, but output still never prints them in full.
+func TestPublishableKeysStillRedacted(t *testing.T) {
+	Reset()
+	for _, s := range []string{"pk_live_51H8xYzAbCdEfGhIjKlMnOpQr", `{"publishableKey":"pk_test_TYooMQauvdEDq54NiTphI7jx"}`} {
+		if out := String(s); strings.Contains(out, "MnOpQr") || strings.Contains(out, "NiTphI7jx") || !strings.Contains(out, "len=") {
+			t.Errorf("publishable key not redacted: %q", out)
+		}
+	}
+}
+
+func TestURLPasswordRedacted(t *testing.T) {
+	Reset()
+	for in, password := range map[string]string{
+		"postgres://app:Hunter2pass@db.internal:5432/prod":           "Hunter2pass",
+		"mongodb+srv://svc:Pa55word@cluster0.ab1cd.mongodb.net/app":  "Pa55word",
+		"redis://:s3cretpass@localhost:6379/0":                       "s3cretpass",
+		`{"webhook":"https://hook:Wh00kPass@hooks.example.com/in"}`:  "Wh00kPass",
+		"dial amqp://guest:Gu3stPass@rabbit.example.com:5672 failed": "Gu3stPass",
+	} {
+		out := String(in)
+		if strings.Contains(out, password) {
+			t.Errorf("password left in %q", out)
+		}
+		if !strings.Contains(out, "URL_PASSWORD len=") || !strings.Contains(out, "@") {
+			t.Errorf("unexpected redaction %q", out)
+		}
+		if again := String(out); again != out {
+			t.Errorf("not idempotent: %q -> %q", out, again)
+		}
+	}
+	for _, s := range []string{
+		"http://localhost:8000/api/v1/flags/",
+		"https://example.com:8443/a@b",
+		"https://abc123def456@o12345.ingest.sentry.io/678",
+		"ratio 3:1 @ noon",
+	} {
+		if out := String(s); out != s {
+			t.Errorf("%q must be left alone, got %q", s, out)
+		}
+	}
+}
+
 func TestRegistryAndIdempotence(t *testing.T) {
 	Reset()
 	Register("CQJFFFBP5Hk65U5vDHU3MS", "CLIENT_KEY")

@@ -76,10 +76,14 @@ const (
 	CatPII               Category = "PII"
 	CatSecurityControl   Category = "SECURITY_CONTROL"
 	CatHarmless          Category = "HARMLESS"
+	// CatPossibleSecret is a value that only looks random: no known secret
+	// pattern, secret-named key or URL credential backs it. It needs a
+	// human review and is never rated above LOW.
+	CatPossibleSecret Category = "POSSIBLE_SECRET"
 )
 
 // AllCategories lists every valid category.
-var AllCategories = []Category{CatSecret, CatInternalURL, CatUnreleasedProduct, CatPricing, CatPII, CatSecurityControl, CatHarmless}
+var AllCategories = []Category{CatSecret, CatInternalURL, CatUnreleasedProduct, CatPricing, CatPII, CatSecurityControl, CatPossibleSecret, CatHarmless}
 
 // Valid reports whether c is a known category.
 func (c Category) Valid() bool {
@@ -97,6 +101,7 @@ type FindingType string
 // Finding types (spec §8, docs/findings-catalog.md).
 const (
 	FTraitForgery          FindingType = "TRAIT_FORGERY"
+	FIdentifierForgery     FindingType = "IDENTIFIER_FORGERY"
 	FPercentageReroll      FindingType = "PERCENTAGE_REROLL"
 	FVariantReroll         FindingType = "VARIANT_REROLL"
 	FExperimentRigging     FindingType = "EXPERIMENT_RIGGING"
@@ -112,6 +117,9 @@ const (
 	FFlagNotServerOnly     FindingType = "FLAG_NOT_SERVER_ONLY"
 	FSegmentForgeable      FindingType = "SEGMENT_FORGEABLE"
 	FControlOK             FindingType = "CONTROL_OK"
+	// FPossibleSecret is a high-entropy client-visible value with no other
+	// evidence that it is a credential: LOW, "needs review".
+	FPossibleSecret FindingType = "POSSIBLE_SECRET_IN_CLIENT_VALUE"
 )
 
 // Method records which mechanism produced or confirmed a finding.
@@ -314,6 +322,12 @@ type Reachable struct {
 	Forgeable      string            `json:"forgeable"`            // yes|no|unknown
 	EngineVerified bool              `json:"engine_verified"`
 	LiveVerified   *bool             `json:"live_verified,omitempty"`
+
+	// IdentifierExample is set only when a segment rule tests the identifier
+	// itself (not a percentage split): the plainest identifier the engine
+	// proved to match. Identifier then holds the transient-prefixed form
+	// used for the live probe, when the rule accepts one.
+	IdentifierExample string `json:"identifier_example,omitempty"`
 }
 
 // VerifyRow is one before/after row produced by re-attacking.
@@ -445,7 +459,15 @@ type Approval struct {
 	ConfirmedEnvironment string    `json:"confirmed_environment,omitempty"`
 	ContaminateConfirmed bool      `json:"contaminate_experiment_confirmed,omitempty"`
 	By                   string    `json:"by"`
-	Channel              string    `json:"channel"` // cli | web
+	// Channel is where the approval came from: "tty" (a person at a real
+	// terminal), "web" (the web UI) or "cli" (a non-interactive command,
+	// never accepted by the CLI for a protected environment).
+	Channel string `json:"channel"`
+	// OSUser is the operating-system account that ran Gatecrasher.
+	OSUser string `json:"os_user,omitempty"`
+	// ByClaimed is true when By is not the OS user: the name is a claim
+	// the approver made, not something Gatecrasher could check.
+	ByClaimed bool `json:"by_claimed,omitempty"`
 }
 
 // PlanState is the lifecycle state of a plan on disk.

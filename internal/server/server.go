@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"log/slog"
@@ -50,6 +52,9 @@ type Options struct {
 	Operator string
 	// Logger defaults to slog.Default().
 	Logger *slog.Logger
+	// Now is the clock used for the protected-environment review delay;
+	// defaults to time.Now.
+	Now func() time.Time
 }
 
 // Server is the web UI.
@@ -62,6 +67,9 @@ type Server struct {
 	mux    *http.ServeMux
 	base   context.Context
 	cancel context.CancelFunc
+	// stampKey signs the render timestamps of approve forms. It is random
+	// per process and never leaves it.
+	stampKey []byte
 
 	runMu sync.Mutex
 	run   runState
@@ -81,13 +89,20 @@ func New(opts Options) (*Server, error) {
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
 	}
+	if opts.Now == nil {
+		opts.Now = time.Now
+	}
+	stampKey := make([]byte, 32)
+	if _, err := rand.Read(stampKey); err != nil {
+		return nil, fmt.Errorf("server: no entropy for the approval timestamp key: %w", err)
+	}
 	pages, err := loadTemplates()
 	if err != nil {
 		return nil, err
 	}
 	base, cancel := context.WithCancel(context.Background())
 	s := &Server{be: opts.Backend, opts: opts, log: opts.Logger, pages: pages, base: base, cancel: cancel,
-		hosts: allowedHosts(opts)}
+		hosts: allowedHosts(opts), stampKey: stampKey}
 	s.mux = s.routes()
 	return s, nil
 }

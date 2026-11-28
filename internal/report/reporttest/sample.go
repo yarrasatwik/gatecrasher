@@ -104,6 +104,8 @@ func SampleFindings() []model.Finding {
 			ev("request", "POST /api/v1/identities/ identifier=vip-1", "vip_banner enabled=true"), "Do not expose per-user overrides to clients."),
 		finding(model.FSegmentForgeable, "beta-testers", "", "Segment membership depends only on client traits.",
 			ev("engine", "", "segment beta-testers matched with beta=true"), "Base segments on server-controlled traits."),
+		finding(model.FIdentifierForgery, "partner_portal", "", "Choosing identifier a@acme.test unlocks partner_portal — this survives turning off client traits.",
+			ev("engine", "", "segment staff_by_identifier matched identifier a@acme.test"), "Assign identifiers on the server and stop targeting on identifier patterns."),
 		finding(model.FPricingLeak, "enterprise_price", model.CatPricing, "Unannounced enterprise pricing is public.",
 			ev("bundle", "", "value: {\"seat\": 49}"), "Keep price tables out of client flags."),
 		finding(model.FSettingClientTraitsOn, Env, "", "The environment accepts traits written by clients.",

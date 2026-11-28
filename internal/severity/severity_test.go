@@ -38,6 +38,8 @@ func TestRate(t *testing.T) {
 		{"identity override", model.Finding{Type: model.FIdentityOverrideLeak}, Context{}, model.SevMedium},
 		{"segment forgeable", model.Finding{Type: model.FSegmentForgeable}, Context{}, model.SevMedium},
 		{"pricing leak", model.Finding{Type: model.FPricingLeak}, Context{}, model.SevMedium},
+		{"possible secret", model.Finding{Type: model.FPossibleSecret, Category: model.CatPossibleSecret}, Context{}, model.SevLow},
+		{"possible secret never raised", model.Finding{Type: model.FPossibleSecret, Category: model.CatPossibleSecret}, Context{HoldsSecret: true, ForgeableSegments: true, LookupPossible: true}, model.SevLow},
 		{"traits on, forgeable", model.Finding{Type: model.FSettingClientTraitsOn}, Context{ForgeableSegments: true}, model.SevMedium},
 		{"traits on, none", model.Finding{Type: model.FSettingClientTraitsOn}, Context{}, model.SevLow},
 		{"sensitive visible, no lookup", model.Finding{Type: model.FSettingSensitiveData}, Context{}, model.SevLow},
@@ -119,5 +121,16 @@ func TestSort(t *testing.T) {
 	}
 	if got != "abcde" {
 		t.Fatalf("order = %s, want abcde", got)
+	}
+}
+
+func TestIdentifierForgeryRatedLikeTraitForgery(t *testing.T) {
+	staff := model.Finding{Type: model.FIdentifierForgery, Subject: "internal_tools"}
+	if got := Rate(staff, Context{}); got != model.SevCritical {
+		t.Errorf("staff-only flag: %s, want critical", got)
+	}
+	paid := model.Finding{Type: model.FIdentifierForgery, Subject: "premium_export"}
+	if got := Rate(paid, Context{}); got != model.SevHigh {
+		t.Errorf("paid feature: %s, want high", got)
 	}
 }

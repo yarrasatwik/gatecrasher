@@ -229,6 +229,7 @@ var leakTypes = map[model.Category]model.FindingType{
 	model.CatUnreleasedProduct: model.FUnreleasedProduct,
 	model.CatPricing:           model.FPricingLeak,
 	model.CatPII:               model.FPIILeak,
+	model.CatPossibleSecret:    model.FPossibleSecret,
 }
 
 var leakTitles = map[model.FindingType]string{
@@ -237,6 +238,7 @@ var leakTitles = map[model.FindingType]string{
 	model.FUnreleasedProduct: "Unreleased product leaked through flag: %s",
 	model.FPricingLeak:       "Pricing data visible to every browser: %s",
 	model.FPIILeak:           "Personal data in a client-visible flag: %s",
+	model.FPossibleSecret:    "Possible secret in a client-visible flag (needs review): %s",
 }
 
 // configLeak turns a sensitive classification of a public flag into a finding.
@@ -554,6 +556,11 @@ func refine(f *model.Finding, eng *flagsmith.Engine, running map[string]string, 
 		return
 	}
 	flag := f.Unlocked[0].Flag
+	if f.Type == model.FIdentifierForgery {
+		// The mapper keeps the segment as subject for the live cross-check;
+		// reports and fix plans are about the flag it unlocks.
+		f.Subject = flag
+	}
 	if f.Type == model.FSegmentForgeable && len(f.Traits) > 0 && f.Status == model.StatusExploitable {
 		f.Type = model.FTraitForgery
 		f.ID = model.MakeFindingID(f.Type, f.Environment, flag, traitString(f.Traits))

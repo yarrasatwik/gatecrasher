@@ -36,6 +36,39 @@ func TestCheck(t *testing.T) {
 	}
 }
 
+// host:port entries work in allowed_domains as well as allowed_api_hosts and
+// match that port only; a bare host matches every port.
+func TestHostPortEntriesPinThePort(t *testing.T) {
+	pinned := MustNew([]string{"localhost:3030", "http://shop.test:8080/path", "[::1]:3030"}, []string{"localhost:8000"})
+	for url, ok := range map[string]bool{
+		"http://localhost:3030/":         true,
+		"http://LOCALHOST:3030/app.js":   true,
+		"http://localhost:8000/api/v1/":  true,
+		"http://shop.test:8080/":         true,
+		"http://[::1]:3030/":             true,
+		"http://localhost/":              false,
+		"https://localhost/":             false,
+		"http://localhost:22/":           false,
+		"http://localhost:30300/":        false,
+		"http://localhost:8787/":         false,
+		"http://shop.test/":              false,
+		"http://[::1]:8000/":             false,
+		"http://localhost:3030@evil.io/": false,
+	} {
+		if err := pinned.CheckURL(url); (err == nil) != ok {
+			t.Errorf("pinned %s: err=%v, want ok=%v", url, err, ok)
+		}
+	}
+	// Default ports are matched when the entry names them.
+	web := MustNew([]string{"shop.test:443"}, nil)
+	if web.CheckURL("https://shop.test/") != nil || web.CheckURL("http://shop.test/") == nil {
+		t.Error("shop.test:443 must allow https on the default port only")
+	}
+	if got := pinned.Entries(); len(got) != 4 {
+		t.Errorf("entries = %v", got)
+	}
+}
+
 func TestNilEmptyAndWildcardRefused(t *testing.T) {
 	var l *Lock
 	if l.CheckURL("http://localhost/") == nil {

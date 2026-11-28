@@ -35,6 +35,14 @@ func isSetting(f model.Finding) bool {
 	return false
 }
 
+// needsReview reports whether f is a deterministic "look at this" item
+// rather than a proven problem: a value that only looks random
+// (POSSIBLE_SECRET). It is a LOW finding, but never a way in on its own.
+func needsReview(f model.Finding) bool {
+	return f.Type == model.FPossibleSecret ||
+		(f.Type == model.FFlagNotServerOnly && f.Category == model.CatPossibleSecret)
+}
+
 func hasProbe(f model.Finding) bool {
 	for _, m := range f.DetectedBy {
 		if m == model.MethodProbe {
@@ -51,7 +59,9 @@ func hasProbe(f model.Finding) bool {
 // A root cause is exploitable, and therefore a way in, when at least one of
 // its findings is open (EXPLOITABLE, HIDDEN or UNKNOWN) and it is more than
 // hardening. Hardening is a root cause made only of settings findings that no
-// live probe reproduced: a risky setting nothing currently exploits.
+// live probe reproduced: a risky setting nothing currently exploits. A root
+// cause made only of POSSIBLE_SECRET items (a value that merely looks random)
+// needs a human review and is not a way in either.
 func Summarize(r *model.Report) Summary {
 	t := Count(r)
 	s := Summary{Findings: t.Found, Blocked: t.Blocked, Open: t.Remaining, Review: t.Review}
@@ -60,9 +70,9 @@ func Summarize(r *model.Report) Summary {
 		meta[c.ID] = c
 	}
 	type acc struct {
-		cause             model.RootCause
-		open, exploit     bool
-		counted, anyFound bool
+		cause         model.RootCause
+		open, exploit bool
+		counted       bool
 	}
 	byID := map[string]*acc{}
 	var order []string
@@ -91,7 +101,7 @@ func Summarize(r *model.Report) Summary {
 		}
 		a.counted = true
 		a.open = a.open || f.Open()
-		a.exploit = a.exploit || !isSetting(f) || hasProbe(f)
+		a.exploit = a.exploit || (!needsReview(f) && (!isSetting(f) || hasProbe(f)))
 	}
 	for _, id := range order {
 		a := byID[id]
@@ -140,7 +150,7 @@ func HeadlineOf(waysIn, findings int) string {
 type Group struct {
 	Cause    model.RootCause
 	Findings []model.Finding
-	// Kind is "way in", "hardening", "closed" or "control held".
+	// Kind is "way in", "hardening", "needs review", "closed" or "control held".
 	Kind string
 }
 
@@ -157,7 +167,7 @@ func GroupByRootCause(r *model.Report) []Group {
 	var out []Group
 	for _, c := range s.RootCauses {
 		g := Group{Cause: c}
-		open, control := false, true
+		open, control, review := false, true, true
 		for _, id := range c.FindingIDs {
 			f := byID[id]
 			if f.Status == model.StatusNeedsReview {
@@ -166,6 +176,7 @@ func GroupByRootCause(r *model.Report) []Group {
 			g.Findings = append(g.Findings, f)
 			open = open || f.Open()
 			control = control && f.Type == model.FControlOK
+			review = review && needsReview(f)
 		}
 		if len(g.Findings) == 0 {
 			continue
@@ -175,6 +186,8 @@ func GroupByRootCause(r *model.Report) []Group {
 			g.Kind = "control held"
 		case c.Exploitable:
 			g.Kind = "way in"
+		case open && review:
+			g.Kind = "needs review"
 		case open:
 			g.Kind = "hardening"
 		default:
