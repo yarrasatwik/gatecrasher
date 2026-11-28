@@ -221,8 +221,47 @@ func (a *App) Rollback(ctx context.Context, id, by string) (*model.PlanRecord, e
 	if err != nil {
 		return nil, err
 	}
-	err = ap.Rollback(ctx, rec, by)
+	if err := ap.Rollback(ctx, rec, by); err != nil {
+		return rec, err
+	}
+	// The change is undone, so the findings it blocked are open again.
+	r, err := a.LoadReport("latest")
+	if err != nil {
+		return rec, nil // no report to correct
+	}
+	var ids []string
+	for _, f := range a.planFindings(rec) {
+		ids = append(ids, f.ID)
+	}
+	if revertVerified(r, ids) {
+		_, err = a.SaveReport(r)
+	}
 	return rec, err
+}
+
+// revertVerified restores the pre-verify status of the given findings and
+// drops their before/after rows. It reports whether anything changed.
+func revertVerified(r *model.Report, ids []string) bool {
+	want := map[string]bool{}
+	for _, id := range ids {
+		want[id] = true
+	}
+	before := map[string]model.Status{}
+	kept := r.BeforeAfter[:0]
+	for _, row := range r.BeforeAfter {
+		if want[row.FindingID] {
+			before[row.FindingID] = row.Before
+			continue
+		}
+		kept = append(kept, row)
+	}
+	r.BeforeAfter = kept
+	for i := range r.Findings {
+		if st, ok := before[r.Findings[i].ID]; ok {
+			r.Findings[i].Status = st
+		}
+	}
+	return len(before) > 0
 }
 
 // Verify re-runs exactly the checks behind the plan's findings and records
