@@ -101,3 +101,32 @@ func sameOrigin(r *http.Request) bool {
 	site := r.Header.Get("Sec-Fetch-Site")
 	return site == "" || site == "same-origin" || site == "none"
 }
+
+// fromBrowserPage reports whether the request carries proof that a browser
+// sent it from this server's own page: an Origin that matches the Host, or
+// Sec-Fetch-Site: same-origin. Every modern browser sends one of them on a
+// form POST; curl and scripts send neither. sameOrigin lets a header-less
+// request through for ordinary actions, so protected changes also require
+// this.
+func fromBrowserPage(r *http.Request) bool {
+	if origin := r.Header.Get("Origin"); origin != "" && origin != "null" {
+		u, err := url.Parse(origin)
+		return err == nil && strings.EqualFold(u.Host, r.Host)
+	}
+	return r.Header.Get("Sec-Fetch-Site") == "same-origin"
+}
+
+// browserOnlyMessage is shown when a protected change arrives from
+// something other than the web page.
+const browserOnlyMessage = "This action must be submitted from the Gatecrasher page in a browser. " +
+	"Requests from scripts and command-line tools are refused for protected changes."
+
+// requireBrowserPage refuses r unless fromBrowserPage. It reports whether
+// the request may continue.
+func (s *Server) requireBrowserPage(w http.ResponseWriter, r *http.Request) bool {
+	if fromBrowserPage(r) {
+		return true
+	}
+	s.render(w, r, "message", http.StatusForbidden, pageData{Title: "Refused", Error: browserOnlyMessage})
+	return false
+}

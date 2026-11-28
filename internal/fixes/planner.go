@@ -47,6 +47,18 @@ type EnvRef struct {
 // output is redacted before it is stored.
 type DraftFunc func(f model.Finding, impact []model.ImpactItem) string
 
+// Draft is a PR draft with its verified diff. Diff is empty unless it was
+// checked to apply to the repo files; Note then says why it is not shown.
+type Draft struct {
+	Text string
+	Diff string
+	Note string
+}
+
+// DraftDetailFunc is DraftFunc that also returns a diff. It takes precedence
+// over PlannerConfig.Draft.
+type DraftDetailFunc func(f model.Finding, impact []model.ImpactItem) Draft
+
 // PlannerConfig configures a Planner.
 type PlannerConfig struct {
 	Admin        AdminAPI
@@ -56,6 +68,8 @@ type PlannerConfig struct {
 	RepoDir string
 	// Draft overrides the deterministic PR drafts.
 	Draft DraftFunc
+	// DraftDetail, when set, is used instead of Draft and can attach a diff.
+	DraftDetail DraftDetailFunc
 	// CLISupports marks operations the Flagsmith CLI will execute so their
 	// plan shows Via "flagsmith-cli". Optional.
 	CLISupports func(model.Operation) bool
@@ -67,13 +81,14 @@ type PlannerConfig struct {
 type Planner struct {
 	cfg     PlannerConfig
 	draft   DraftFunc
+	detail  DraftDetailFunc
 	usages  []Usage
 	scanned bool
 }
 
 // NewPlanner returns a Planner.
 func NewPlanner(cfg PlannerConfig) *Planner {
-	p := &Planner{cfg: cfg, draft: cfg.Draft}
+	p := &Planner{cfg: cfg, draft: cfg.Draft, detail: cfg.DraftDetail}
 	if p.draft == nil {
 		p.draft = DefaultDraft(cfg.RepoDir)
 	}
@@ -279,11 +294,17 @@ func (p *Planner) finish(g *group, plan model.Plan) *model.Plan {
 }
 
 func (p *Planner) prDraft(f model.Finding, impact []model.ImpactItem, what string) model.Operation {
-	return model.Operation{
+	op := model.Operation{
 		Kind:        OpPRDraft,
 		Description: "Draft a pull request to " + what + " (review and open it yourself; Gatecrasher never pushes code).",
-		Draft:       redact.String(p.draft(f, impact)),
 	}
+	if p.detail != nil {
+		d := p.detail(f, impact)
+		op.Draft, op.Diff, op.DiffNote = redact.String(d.Text), redact.String(d.Diff), redact.String(d.Note)
+		return op
+	}
+	op.Draft = redact.String(p.draft(f, impact))
+	return op
 }
 
 // envPlan builds the environment-settings plan.

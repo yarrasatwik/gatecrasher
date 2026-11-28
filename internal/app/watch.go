@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/yarrasatwik/gatecrasher/internal/audit"
+	"github.com/yarrasatwik/gatecrasher/internal/httpx"
 	"github.com/yarrasatwik/gatecrasher/internal/model"
+	"github.com/yarrasatwik/gatecrasher/internal/report"
 	"github.com/yarrasatwik/gatecrasher/internal/watch"
 )
 
@@ -50,6 +52,10 @@ func (a *App) StartWatch(ctx context.Context, publicURL, baseURL string) (*Watch
 	if err != nil {
 		rcv.Close()
 		return nil, fmt.Errorf("baseline map: %w", err)
+	}
+	if n := report.IncompleteNote(base); n != "" {
+		rcv.Close()
+		return nil, fmt.Errorf("baseline map %s Raise probes.max_requests so the baseline can finish.", n)
 	}
 	rcv.Seed(findingIDs(base))
 	reg, err := watch.Register(ctx, a.Admin, p.Organisation, publicURL, secret)
@@ -93,11 +99,23 @@ func (a *App) recheckChange(ctx context.Context, c watch.Change) ([]model.Findin
 			env = e
 		}
 	}
+	hb := a.hourlyBudget()
+	left := hb.remaining()
+	if left <= 0 {
+		return nil, errHourly(a.Cfg.Watch.MaxRequestsPerHour)
+	}
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	r, err := a.Audit(ctx, AuditOptions{Inside: true, Environment: env, Fast: true})
+	b := httpx.NewBudget(int64(left))
+	r, err := a.Audit(ctx, AuditOptions{Inside: true, Environment: env, Fast: true, budget: b})
+	hb.record(int(b.Used()))
 	if err != nil {
 		return nil, err
+	}
+	if n := report.IncompleteNote(r); n != "" {
+		// Findings the cut-off re-check could not examine are unknown; an
+		// error alert says so instead of a clean "nothing new".
+		return nil, fmt.Errorf("re-check %s", n)
 	}
 	if c.Feature == "" && c.Segment == "" {
 		return r.Findings, nil

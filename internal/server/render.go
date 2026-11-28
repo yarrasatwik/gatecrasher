@@ -68,6 +68,7 @@ func templateFuncs() template.FuncMap {
 	return template.FuncMap{
 		"rd":        func(s string) string { return redact.String(s) },
 		"rich":      richText,
+		"diff":      diffHTML,
 		"time":      fmtTime,
 		"sevGlyph":  sevGlyph,
 		"val":       fmtVal,

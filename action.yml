@@ -35,6 +35,10 @@ inputs:
     description: Upload SARIF to GitHub code scanning (needs security-events write).
     required: false
     default: "true"
+  version:
+    description: Release tag to install (e.g. v1.1.0). Default is the action's own tag, or the latest release when the action is used at a moving ref such as v1.
+    required: false
+    default: ""
 
 outputs:
   ways-in:
@@ -47,20 +51,37 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-go@v7
-      with:
-        go-version: stable
-        check-latest: true
-        cache-dependency-path: ${{ github.action_path }}/go.sum
-    - name: Build Gatecrasher
+    - name: Install Gatecrasher (prebuilt release, checksum verified)
+      id: install
       shell: bash
+      env:
+        GC_VERSION: ${{ inputs.version }}
+        GC_ACTION_REF: ${{ github.action_ref }}
+        GC_ACTION_REPO: ${{ github.action_repository }}
+        GC_INSTALL_DIR: ${{ runner.temp }}/gatecrasher-bin
+      run: bash "$GITHUB_ACTION_PATH/scripts/install-gatecrasher.sh"
+    - name: Set up Go (build from source only)
+      if: ${{ steps.install.outputs.build == 'true' }}
+      uses: actions/setup-go@v7
+      with:
+        go-version-file: ${{ github.action_path }}/go.mod
+        cache-dependency-path: ${{ github.action_path }}/go.sum
+    - name: Build Gatecrasher from source (no release asset for this platform)
+      id: build
+      if: ${{ steps.install.outputs.build == 'true' }}
+      shell: bash
+      env:
+        GC_BIN_DIR: ${{ runner.temp }}/gatecrasher-bin
       run: |
         cd "$GITHUB_ACTION_PATH"
-        go build -trimpath -o "$RUNNER_TEMP/gatecrasher" ./cmd/gatecrasher
+        mkdir -p "$GC_BIN_DIR"
+        go build -trimpath -o "$GC_BIN_DIR/gatecrasher" ./cmd/gatecrasher
+        echo "bin=$GC_BIN_DIR/gatecrasher" >> "$GITHUB_OUTPUT"
     - name: Audit Flagsmith (inside view, read-only)
       id: run
       shell: bash
       env:
+        GC_BIN: ${{ steps.build.outputs.bin || steps.install.outputs.bin }}
         GATECRASHER_ORG_API_KEY: ${{ inputs.org-api-key }}
         GC_API_URL: ${{ inputs.api-url }}
         GC_SERVER_KEY: ${{ inputs.server-key }}
@@ -69,22 +90,8 @@ runs:
         GC_APP: ${{ inputs.app-path }}
         GC_FAIL_ON: ${{ inputs.fail-on }}
       run: |
-        host="$(printf '%s' "$GC_API_URL" | sed -E 's#^[a-z]+://([^/]+).*#\1#')"
-        if [ -n "$GC_SERVER_KEY" ]; then export GATECRASHER_SERVER_KEYS="$GC_ENV=$GC_SERVER_KEY"; fi
-        cfg="$RUNNER_TEMP/gatecrasher.yaml"
-        {
-          echo "allowed_domains: []"
-          echo "flagsmith:"
-          echo "  api_url: \"$GC_API_URL\""
-          echo "  allowed_api_hosts: [\"$host\"]"
-          echo "  project: \"$GC_PROJECT\""
-          echo "  environments: [\"$GC_ENV\"]"
-          echo "  use_cli: false"
-          echo "app_repo: \"$GC_APP\""
-          echo "state_dir: \"$RUNNER_TEMP/gatecrasher-state\""
-        } > "$cfg"
         set +e
-        "$RUNNER_TEMP/gatecrasher" ci -config "$cfg" -env "$GC_ENV" -fail-on "$GC_FAIL_ON" -json > "$RUNNER_TEMP/gc.json"
+        "$GC_BIN" ci --from-env -json > "$RUNNER_TEMP/gc.json"
         code=$?
         set -e
         cat "$RUNNER_TEMP/gc.json"
@@ -101,6 +108,9 @@ runs:
     - name: Enforce fail-on
       if: ${{ steps.run.outputs.exit-code == '1' }}
       shell: bash
+      env:
+        GC_WAYS_IN: ${{ steps.run.outputs.ways-in }}
+        GC_FAIL_ON: ${{ inputs.fail-on }}
       run: |
-        echo "::error title=Gatecrasher::${{ steps.run.outputs.ways-in }} open finding(s) at or above '${{ inputs.fail-on }}'"
+        echo "::error title=Gatecrasher::${GC_WAYS_IN} open finding(s) at or above '${GC_FAIL_ON}'"
         exit 1

@@ -1,7 +1,8 @@
 // Package httpx is the only way Gatecrasher talks to the network. Every
 // request (and every redirect hop) is checked against the scope lock,
 // requests that carry a key never follow redirects, bodies are size-capped, idempotent requests are retried with backoff, and a
-// token-bucket rate limit keeps probing polite.
+// token-bucket rate limit keeps probing polite. A Budget attached to the
+// context counts every request and stops new ones once it is used up.
 package httpx
 
 import (
@@ -250,6 +251,9 @@ func (c *Client) Do(ctx context.Context, r Request) (*Response, error) {
 		}
 		for k, v := range r.Header {
 			req.Header.Set(k, v)
+		}
+		if b := BudgetFrom(ctx); b != nil && !b.take() {
+			return nil, budgetError(b)
 		}
 		c.sent.Add(1)
 		resp, err := c.hc.Do(req)

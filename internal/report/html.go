@@ -72,6 +72,9 @@ type htmlView struct {
 	Duration       string
 	Stages         []string
 	Parity         string
+	Incomplete     string
+	RequestsText   string
+	StageRequests  []string
 	AgreeText      string
 	EngineVersion  string
 	Generated      string
@@ -131,6 +134,9 @@ func buildHTMLView(p *model.Report) htmlView {
 		})
 	}
 	v.Stages = stageLabels(p.Stats.StageMS)
+	v.Incomplete = IncompleteNote(p)
+	v.RequestsText = RequestsLine(p)
+	v.StageRequests = stageRequestLines(p)
 	if p.Stats.ParityChecked > 0 {
 		v.Parity = fmt.Sprintf("%d/%d probes agree with the engine", p.Stats.ParityAgreed, p.Stats.ParityChecked)
 	}

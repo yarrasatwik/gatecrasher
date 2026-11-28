@@ -43,7 +43,7 @@ func (a *App) MakePlans(ctx context.Context, reportID, onlyFinding string) ([]*m
 		return nil, fmt.Errorf("finding %s not found or already blocked", onlyFinding)
 	}
 	pl := fixes.NewPlanner(fixes.PlannerConfig{Admin: a.Admin, ProjectID: p.ID, Environments: refs,
-		RepoDir: a.Cfg.AppRepo, Draft: a.prDraft(ctx)})
+		RepoDir: a.Cfg.AppRepo, DraftDetail: a.prDraft(ctx)})
 	plans, err := pl.Plan(ctx, open)
 	if err != nil {
 		return nil, err
@@ -71,16 +71,21 @@ func (a *App) MakePlans(ctx context.Context, reportID, onlyFinding string) ([]*m
 
 // prDraft lets the AI write PR drafts when it is on; otherwise the planner's
 // deterministic drafts are used.
-func (a *App) prDraft(ctx context.Context) fixes.DraftFunc {
+func (a *App) prDraft(ctx context.Context) fixes.DraftDetailFunc {
 	if !a.AI.Mode().On() {
 		return nil
 	}
-	return func(f model.Finding, impact []model.ImpactItem) string {
-		d := a.AI.FixPR(ctx, f, impact)
+	return func(f model.Finding, impact []model.ImpactItem) fixes.Draft {
+		// The AI sees the full (redacted, bounded) content of the affected
+		// files and the server file; its diff is verified against them.
+		d := a.AI.FixPRFiles(ctx, f, impact, fixes.CollectSources(a.Cfg.AppRepo, impact))
 		if d == nil {
-			return ""
+			return fixes.Draft{}
 		}
-		return redact.String(fmt.Sprintf("%s\n\n%s\n\n%s", d.Title, d.Body, d.Diff))
+		return fixes.Draft{
+			Text: redact.String(fmt.Sprintf("%s\n\n%s", d.Title, d.Body)),
+			Diff: d.Diff, Note: d.DiffNote,
+		}
 	}
 }
 

@@ -35,6 +35,9 @@ func mdHeader(b *strings.Builder, p *model.Report) {
 	}
 	fmt.Fprintf(b, "%s\n\n", strings.Join(chips, " · "))
 	fmt.Fprintf(b, "- Target: %s\n- Environment: %s\n- AI mode: %s\n\n", mdInline(p.Target), mdInline(p.Environment), mdInline(p.AIMode))
+	if n := IncompleteNote(p); n != "" {
+		fmt.Fprintf(b, "> **Incomplete.** %s\n\n", mdInline(n))
+	}
 }
 
 func mdFindings(b *strings.Builder, p *model.Report) {
@@ -195,7 +198,17 @@ func mdMethod(b *strings.Builder, p *model.Report) {
 	for _, s := range p.Scope {
 		fmt.Fprintf(b, "- `%s`\n", s)
 	}
-	fmt.Fprintf(b, "\n- Probes sent: %d\n- Duration: %s\n", p.Stats.ProbesSent, humanDuration(p.Stats.DurationMS))
+	fmt.Fprintf(b, "\n- Probes sent: %d\n", p.Stats.ProbesSent)
+	if p.Stats.Budget > 0 {
+		fmt.Fprintf(b, "- Request budget: %s\n", RequestsLine(p))
+	}
+	for _, l := range stageRequestLines(p) {
+		fmt.Fprintf(b, "  - %s\n", l)
+	}
+	if n := IncompleteNote(p); n != "" {
+		fmt.Fprintf(b, "- Stages incomplete: %s\n", mdInline(n))
+	}
+	fmt.Fprintf(b, "- Duration: %s\n", humanDuration(p.Stats.DurationMS))
 	stages := make([]string, 0, len(p.Stats.StageMS))
 	for k := range p.Stats.StageMS {
 		stages = append(stages, k)

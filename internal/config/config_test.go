@@ -51,8 +51,26 @@ test_identities: [ceo@acmeshop.dev]
 	if c.Lock().CheckURL("http://example.com") == nil {
 		t.Fatal("scope lock must refuse example.com")
 	}
-	if c.Probes.RerollSamples != 200 || c.ApprovalTTLMinutes != 30 || !*c.ClientSetsIdentifier {
+	if c.RerollSamples() != 200 || c.ApprovalTTLMinutes != 30 || !*c.ClientSetsIdentifier {
 		t.Fatal("defaults not applied")
+	}
+}
+
+func TestReconMaxScripts(t *testing.T) {
+	base := "target_url: http://localhost:3030\nallowed_domains: [localhost]\nflagsmith:\n  allowed_api_hosts: [\"localhost:8000\"]\n"
+	c, err := Load(write(t, t.TempDir(), "g.yaml", base))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Recon.MaxScripts != 60 {
+		t.Fatalf("default recon.max_scripts = %d, want 60", c.Recon.MaxScripts)
+	}
+	c, err = Load(write(t, t.TempDir(), "g.yaml", base+"recon:\n  max_scripts: 12\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Recon.MaxScripts != 12 {
+		t.Fatalf("recon.max_scripts = %d, want 12", c.Recon.MaxScripts)
 	}
 }
 

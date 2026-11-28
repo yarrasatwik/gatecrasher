@@ -16,6 +16,7 @@ import (
 
 	"github.com/yarrasatwik/gatecrasher/internal/attacks"
 	"github.com/yarrasatwik/gatecrasher/internal/flagsmith"
+	"github.com/yarrasatwik/gatecrasher/internal/httpx"
 	"github.com/yarrasatwik/gatecrasher/internal/mapper"
 	"github.com/yarrasatwik/gatecrasher/internal/model"
 	"github.com/yarrasatwik/gatecrasher/internal/parity"
@@ -46,8 +47,16 @@ type AuditOptions struct {
 	// Fast skips AI calls (deterministic classification only); watch-mode
 	// re-checks use it so an alert never waits on a model round-trip.
 	Fast bool
+	// Budget caps the requests this run may send (0 = probes.max_requests
+	// from the config, which is 0 = no cap). Stages the cap stops are
+	// reported "incomplete (budget)", never safe.
+	Budget int
 	// Progress receives stage updates; may be nil.
 	Progress Progress
+
+	// budget, when set, replaces the one Audit builds from Budget (watch
+	// re-checks share an hourly allowance).
+	budget *httpx.Budget
 }
 
 // Audit runs the configured stages and returns the finalized report. It
@@ -64,13 +73,22 @@ func (a *App) Audit(ctx context.Context, o AuditOptions) (*model.Report, error) 
 	if o.Environment == "" {
 		o.Environment = a.defaultEnv()
 	}
-	sentBefore := a.HTTP.Sent()
+	b := o.budget
+	if b == nil {
+		limit := int64(o.Budget)
+		if limit <= 0 {
+			limit = int64(a.Cfg.Probes.MaxRequests)
+		}
+		b = httpx.NewBudget(limit)
+	}
+	ctx = httpx.WithBudget(ctx, b)
 	r := &model.Report{
 		SchemaVersion: model.SchemaVersion, ID: newReportID(), Tool: report.ToolName, Version: Version,
 		CreatedAt: time.Now().UTC(), Target: o.Target, Project: a.Cfg.Flagsmith.Project,
 		Environment: o.Environment, AIMode: string(a.AI.Mode()), Scope: a.Cfg.Lock().Entries(),
-		Stats: model.Stats{StageMS: map[string]int64{}},
+		Stats: model.Stats{StageMS: map[string]int64{}, StageRequests: map[string]int64{}, Budget: b.Max()},
 	}
+	tr := &tracker{b: b, r: r}
 	stage := func(name string, fn func() error) error {
 		t := time.Now()
 		err := fn()
@@ -79,14 +97,14 @@ func (a *App) Audit(ctx context.Context, o AuditOptions) (*model.Report, error) 
 	}
 	cls := map[string]model.Category{}
 	if o.Outside && o.Target != "" {
-		if err := stage("recon", func() error { return a.outside(ctx, r, o.Target, cls, say) }); err != nil {
+		if err := stage("recon", func() error { return a.outside(ctx, r, o.Target, cls, say, tr) }); err != nil {
 			return nil, err
 		}
 	}
 	if o.Inside {
 		if a.Admin == nil {
 			r.Notes = append(r.Notes, "Inside view skipped: no organisation API key (GATECRASHER_ORG_API_KEY).")
-		} else if err := stage("map", func() error { return a.inside(ctx, r, o, cls, say) }); err != nil {
+		} else if err := stage("map", func() error { return a.inside(ctx, r, o, cls, say, tr) }); err != nil {
 			return nil, err
 		}
 	}
@@ -104,24 +122,26 @@ func (a *App) Audit(ctx context.Context, o AuditOptions) (*model.Report, error) 
 	if o.Explain {
 		_ = stage("explain", func() error {
 			say("explain", fmt.Sprintf("explaining %d findings · AI %s", len(r.Findings), a.AI.Mode()))
-			sem := make(chan struct{}, 4)
-			var wg sync.WaitGroup
-			for i := range r.Findings {
-				wg.Add(1)
-				sem <- struct{}{}
-				go func(i int) {
-					defer func() { <-sem; wg.Done() }()
-					if r.Findings[i].Status == model.StatusNeedsReview {
-						return // a suggestion is shown with the AI's reason, not explained as fact
-					}
-					r.Findings[i].Explanation = a.AI.Explain(ctx, r.Findings[i])
-				}(i)
+			// Parallel (ai.concurrency), index-aligned: output order never
+			// depends on which call finishes first.
+			exps := a.AI.ExplainAll(ctx, r.Findings, func(f model.Finding) bool {
+				return f.Status == model.StatusNeedsReview // shown with the AI's reason, not explained as fact
+			})
+			for i, e := range exps {
+				if e != nil {
+					r.Findings[i].Explanation = e
+				}
 			}
-			wg.Wait()
 			return nil
 		})
 	}
-	r.Stats.ProbesSent = a.HTTP.Sent() - sentBefore
+	r.Stats.ProbesSent = b.Used()
+	if n := report.IncompleteNote(r); n != "" {
+		r.Notes = append(r.Notes, fmt.Sprintf("%s (budget %d requests, %d used)", n, b.Max(), b.Used()))
+	}
+	if len(r.Stats.StageRequests) == 0 {
+		r.Stats.StageRequests = nil
+	}
 	r.Stats.DurationMS = time.Since(start).Milliseconds()
 	report.Finalize(r)
 	say("done", report.Headline(r))
@@ -141,11 +161,21 @@ func (a *App) defaultEnv() string {
 }
 
 // outside runs recon and classification: what any visitor can see.
-func (a *App) outside(ctx context.Context, r *model.Report, target string, cls map[string]model.Category, say Progress) error {
+func (a *App) outside(ctx context.Context, r *model.Report, target string, cls map[string]model.Category, say Progress, tr *tracker) error {
 	say("recon", "fetching "+redact.String(target)+" and its scripts")
-	res, err := recon.Run(ctx, a.HTTP, recon.ReconConfig{TargetURL: target, APIURL: a.Cfg.Flagsmith.APIURL})
+	var res *recon.Result
+	err := tr.stage("recon", func() (err error) {
+		if res, err = recon.Run(ctx, a.HTTP, recon.ReconConfig{TargetURL: target, APIURL: a.Cfg.Flagsmith.APIURL, MaxScripts: a.Cfg.Recon.MaxScripts, SuppliedKeys: a.Cfg.ClientKeys}); err != nil {
+			return fmt.Errorf("recon: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("recon: %w", err)
+		return err
+	}
+	if res == nil || res.Inventory == nil || res.Inventory.Key == "" {
+		tr.mark("attack") // the budget stopped recon: there is no key to probe with
+		return nil
 	}
 	r.Inventory = res.Inventory
 	r.Notes = append(r.Notes, res.Notes...)
@@ -181,7 +211,7 @@ func (a *App) outside(ctx context.Context, r *model.Report, target string, cls m
 			r.Stats.AIHeuristicAgree = &v
 		}
 	}
-	if err := a.outsideAttacks(ctx, r, cls, say); err != nil {
+	if err := tr.stage("attack", func() error { return a.outsideAttacks(ctx, r, cls, say) }); err != nil {
 		return err
 	}
 	dropLiveUnreleased(r, cls)
@@ -209,7 +239,7 @@ func (a *App) outsideAttacks(ctx context.Context, r *model.Report, cls map[strin
 	clientIDs := a.Cfg.ClientSetsIdentifier == nil || *a.Cfg.ClientSetsIdentifier
 	runner := attacks.New(sdk, attacks.Options{Environment: r.Environment, TestIdentities: a.Cfg.TestIdentities,
 		MaxHypotheses: a.Cfg.Probes.MaxHypotheses, MaxCombos: a.Cfg.Probes.MaxCombos,
-		RerollSamples: a.Cfg.Probes.RerollSamples, ClientSetsIdentifier: clientIDs})
+		RerollSamples: a.Cfg.RerollSamples(), ClientSetsIdentifier: clientIDs})
 	findings, err := runner.Run(ctx, base.Flags, hs)
 	for i := range findings {
 		if c, ok := cls[findings[i].Subject]; ok {
@@ -264,94 +294,136 @@ func configLeak(c model.Classification, inv *model.PublicInventory, env string) 
 
 // inside runs the read-only inside map: settings, segments, the official
 // engine over the environment document, live cross-checks and parity.
-func (a *App) inside(ctx context.Context, r *model.Report, o AuditOptions, cls map[string]model.Category, say Progress) error {
-	proj, envMap, err := a.Project(ctx)
-	if err != nil {
-		return fmt.Errorf("inside view: %w", err)
-	}
-	env, err := a.Environment(ctx, o.Environment)
-	if err != nil {
-		return err
-	}
-	say("map", fmt.Sprintf("reading settings, features and segments of %s / %s", proj.Name, env.Name))
-	features, err := a.Admin.Features(ctx, proj.ID)
-	if err != nil {
-		return fmt.Errorf("features: %w", err)
-	}
-	segs, err := a.Admin.Segments(ctx, proj.ID)
-	if err != nil {
-		return fmt.Errorf("segments: %w", err)
-	}
-	// Settings are security-relevant and change at runtime: always read them
-	// fresh instead of trusting the cached environment list.
-	fresh, err := a.Admin.Environment(ctx, env.APIKey)
-	if err != nil {
-		return fmt.Errorf("environment settings: %w", err)
-	}
-	env = *fresh
-	_ = envMap
-	envs := []flagsmith.Environment{env}
-	var served map[string]bool
-	servedProof := ""
-	if len(cls) == 0 {
-		served, servedProof = a.classifyFromAdmin(ctx, env, cls, o.Fast)
-	}
-	settings, setFindings := mapper.SettingsAudit(envs, features, cls)
-	for i := range setFindings {
-		// The flag list was just read with the public client key: a sensitive
-		// flag in it is reproduced exposure, not only a setting.
-		if f := &setFindings[i]; f.Type == model.FFlagNotServerOnly && served[f.Subject] {
-			f.DetectedBy = appendMethod(f.DetectedBy, model.MethodProbe)
-			f.Evidence = append(f.Evidence, model.Evidence{Kind: "request", Request: servedProof,
-				Note: redact.String(fmt.Sprintf("The public client key received %q.", f.Subject))})
+func (a *App) inside(ctx context.Context, r *model.Report, o AuditOptions, cls map[string]model.Category, say Progress, tr *tracker) error {
+	var (
+		eng   *flagsmith.Engine
+		env   flagsmith.Environment
+		segs  []flagsmith.Segment
+		feats []flagsmith.Feature
+		reach []model.Reachable
+		opts  mapper.Options
+		sdk   *flagsmith.SDK
+		run   map[string]string
+		known bool
+		sett  []model.EnvSettings
+
+		idFindings []model.Finding
+	)
+	err := tr.stage("map", func() error {
+		proj, _, err := a.Project(ctx)
+		if err != nil {
+			return fmt.Errorf("inside view: %w", err)
 		}
-	}
-	r.Settings = settings
-	r.Findings = append(r.Findings, setFindings...)
+		env, err = a.Environment(ctx, o.Environment)
+		if err != nil {
+			return err
+		}
+		say("map", fmt.Sprintf("reading settings, features and segments of %s / %s", proj.Name, env.Name))
+		if feats, err = a.Admin.Features(ctx, proj.ID); err != nil {
+			return fmt.Errorf("features: %w", err)
+		}
+		if segs, err = a.Admin.Segments(ctx, proj.ID); err != nil {
+			return fmt.Errorf("segments: %w", err)
+		}
+		// Settings are security-relevant and change at runtime: always read them
+		// fresh instead of trusting the cached environment list.
+		fresh, err := a.Admin.Environment(ctx, env.APIKey)
+		if err != nil {
+			return fmt.Errorf("environment settings: %w", err)
+		}
+		env = *fresh
+		envs := []flagsmith.Environment{env}
+		var served map[string]bool
+		servedProof := ""
+		if len(cls) == 0 {
+			served, servedProof = a.classifyFromAdmin(ctx, env, cls, o.Fast)
+		}
+		settings, setFindings := mapper.SettingsAudit(envs, feats, cls)
+		for i := range setFindings {
+			// The flag list was just read with the public client key: a sensitive
+			// flag in it is reproduced exposure, not only a setting.
+			if f := &setFindings[i]; f.Type == model.FFlagNotServerOnly && served[f.Subject] {
+				f.DetectedBy = appendMethod(f.DetectedBy, model.MethodProbe)
+				f.Evidence = append(f.Evidence, model.Evidence{Kind: "request", Request: servedProof,
+					Note: redact.String(fmt.Sprintf("The public client key received %q.", f.Subject))})
+			}
+		}
+		sett = settings
+		r.Settings = settings
+		r.Findings = append(r.Findings, setFindings...)
 
-	say("map", "loading the environment document into Flagsmith's evaluation engine")
-	doc, err := a.envDocument(ctx, env)
-	if err != nil {
-		return fmt.Errorf("environment document: %w", err)
-	}
-	eng, err := flagsmith.NewEngine(doc)
+		say("map", "loading the environment document into Flagsmith's evaluation engine")
+		doc, err := a.envDocument(ctx, env)
+		if err != nil {
+			return fmt.Errorf("environment document: %w", err)
+		}
+		e, err := flagsmith.NewEngine(doc)
+		if err != nil {
+			return err
+		}
+		eng = e
+		opts = mapper.Options{Environment: env.Name, ServerOnlyTraits: a.Cfg.ServerOnlyTraits,
+			ClientSetsIdentifier: *a.Cfg.ClientSetsIdentifier, Classifications: cls}
+		reach = mapper.Map(eng, segs, feats, settings, opts)
+		say("map", fmt.Sprintf("engine found %d reachable flag states", len(reach)))
+
+		run, known = a.runningExperiments(ctx, env, feats)
+		sdk = flagsmith.NewSDK(a.HTTP, a.Cfg.Flagsmith.APIURL, env.APIKey)
+		idFindings = a.identityExposure(ctx, eng, env)
+		return nil
+	})
 	if err != nil {
 		return err
 	}
-	opts := mapper.Options{Environment: env.Name, ServerOnlyTraits: a.Cfg.ServerOnlyTraits,
-		ClientSetsIdentifier: *a.Cfg.ClientSetsIdentifier, Classifications: cls}
-	reach := mapper.Map(eng, segs, features, settings, opts)
-	say("map", fmt.Sprintf("engine found %d reachable flag states", len(reach)))
-
-	running, expKnown := a.runningExperiments(ctx, env, features)
-	if !expKnown {
+	if eng == nil {
+		// The budget stopped the map before the engine existed: nothing
+		// after it can run, and none of it may read as "checked".
+		tr.mark("verify")
+		if o.ParitySamples > 0 {
+			tr.mark("parity")
+		}
+		return nil
+	}
+	if !known && !tr.hit("map") {
 		r.Notes = append(r.Notes, "Experiment status unknown: the Experimentation API could not be read in this environment.")
 	}
-	sdk := flagsmith.NewSDK(a.HTTP, a.Cfg.Flagsmith.APIURL, env.APIKey)
 	say("verify", "cross-checking every engine result against the live Flags API (transient identities)")
-	verified := a.crossCheck(ctx, sdk, reach)
+	var verified map[string]liveResult
+	_ = tr.stage("verify", func() error {
+		verified = a.crossCheck(ctx, sdk, reach)
+		return nil
+	})
+	verifyCut := tr.hit("verify")
 	r.Reachability = reach
 	findings := mapper.ForgeableFindings(reach, opts)
 	findings = append(findings, variantFindings(eng, reach, env.Name)...)
-	serverOnly := serverOnlyFlags(settings, env.Name)
+	serverOnly := serverOnlyFlags(sett, env.Name)
 	for i := range findings {
 		engineStatus := findings[i].Status
 		if v, ok := verified[findingKey(findings[i])]; ok {
 			markLive(&findings[i], v)
+		} else if verifyCut {
+			// Not cross-checked: the engine says so, the live API was never asked.
+			findings[i].Notes = append(findings[i].Notes, budgetSkipNote)
+			refine(&findings[i], eng, run, known)
+			continue
 		}
-		refine(&findings[i], eng, running, expKnown)
+		refine(&findings[i], eng, run, known)
 		markHidden(&findings[i], engineStatus, serverOnly)
 	}
 	r.Findings = append(r.Findings, findings...)
-	r.Findings = append(r.Findings, a.identityExposure(ctx, eng, env)...)
+	r.Findings = append(r.Findings, idFindings...)
 
 	if o.ParitySamples > 0 {
 		say("parity", fmt.Sprintf("engine vs live parity over %d random identities", o.ParitySamples))
-		pr, err := parity.RunLive(ctx, eng, sdk, o.ParitySamples, segs, parity.LiveFor(env, features))
-		if err != nil && !errors.Is(err, context.Canceled) {
-			r.Notes = append(r.Notes, "parity: "+redact.String(err.Error()))
-		}
-		r.Stats.ParityChecked, r.Stats.ParityAgreed = pr.Checked, pr.Agreed
+		_ = tr.stage("parity", func() error {
+			pr, err := parity.RunLive(ctx, eng, sdk, o.ParitySamples, segs, parity.LiveFor(env, feats))
+			if err != nil && !errors.Is(err, context.Canceled) {
+				r.Notes = append(r.Notes, "parity: "+redact.String(err.Error()))
+			}
+			r.Stats.ParityChecked, r.Stats.ParityAgreed = pr.Checked, pr.Agreed
+			return nil
+		})
 	}
 	return nil
 }
@@ -496,6 +568,9 @@ func (a *App) crossCheck(ctx context.Context, sdk *flagsmith.SDK, reach []model.
 	wg.Wait()
 	return out
 }
+
+// budgetSkipNote marks a finding whose live check was never sent.
+const budgetSkipNote = "Not confirmed against the live API: the request budget was reached before it could be checked."
 
 const liveMismatchNote = "Live Flags API did not reproduce the engine result; treated as unconfirmed."
 

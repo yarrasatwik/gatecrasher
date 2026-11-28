@@ -82,7 +82,7 @@ $ gatecrasher audit
 - **Recon like an outsider.** Fetches your site, follows its scripts, extracts the Flagsmith client key and API host, and lists every flag a visitor receives.
 - **Attacks safely.** Forged traits (each confirmed twice, minimal trait sets only), identifier re-rolls, test-identity lookups, config leaks and experiment rigging — all with transient identities that Flagsmith never stores.
 - **Maps from the inside with Flagsmith's own engine.** Loads the environment document into the official SDK's evaluation engine, solves every segment rule (REGEX, PERCENTAGE_SPLIT, nested ALL/ANY/NONE, semver, modulo…) for the smallest forged input, and replays each answer against the live API.
-- **Fixes with a human in the loop.** Each plan shows what changes, why, and which lines of *your* code it will affect, with a PR draft. A person approves in the web UI or a real terminal by typing the environment name; Gatecrasher applies it through the Flagsmith CLI, waits until the live API stops reproducing the hole, re-attacks, and can roll back at any time.
+- **Fixes with a human in the loop.** Each plan shows what changes, why, and which lines of *your* code it will affect, with a PR draft that contains a real code change (a unified diff, checked to apply to your files; Gatecrasher never pushes it). A person approves in the web UI or a real terminal by typing the environment name; Gatecrasher applies it through the Flagsmith CLI, waits until the live API stops reproducing the hole, re-attacks, and can roll back at any time.
 - **Counts honestly.** One fixable root cause is one way in, however many findings it causes ("8 ways in · 17 findings"). A hole that a fix only hides from client SDKs is reported as `HIDDEN` and stays open; found − blocked = remaining is checked on every report.
 - **Watches continuously.** A signed Flagsmith webhook re-maps every flag or segment change and alerts within seconds.
 - **Fits your workflow.** CLI, web UI, GitHub Action with code-scanning alerts, Slack alerts, and a read-only MCP server so Claude Code or Cursor can ask *"is my Flagsmith setup safe?"*
@@ -149,7 +149,7 @@ Every endpoint was verified against a running Flagsmith before code relied on it
 | Whether a finding is real | **Deterministic code** — only a live probe or the engine can confirm it |
 | Severity | Deterministic rules; the AI only explains in plain English |
 | Any change to Flagsmith | **A human**, in the web UI or a real terminal, typing the environment name for Production |
-| Approving from a script, CI or a coding agent | **Refused.** A coding agent cannot approve: protected environments require a real terminal or the web UI, and Gatecrasher refuses inside agent and CI sessions. |
+| Approving from a script, CI or a coding agent | **Refused.** Gatecrasher refuses approvals from scripts, CI and agent sessions: a protected change needs a person at a real terminal or on the Gatecrasher page in a browser, typing the environment name and the last 4 characters of the plan hash. |
 | Changing a flag under a running experiment | **A human**, typing `contaminate-experiment` |
 | Moving `setTrait` calls or secrets to your server | **A human** reviews the PR draft Gatecrasher writes |
 
@@ -198,6 +198,19 @@ make audit
 
 Or open the recorded run: [`examples/acme-shop`](examples/acme-shop) — the HTML report, SARIF, the approval session and the before/after proof.
 
+## Install
+
+Prebuilt binaries for Linux, macOS and Windows (x64 and ARM) are attached to each [release](https://github.com/yarrasatwik/gatecrasher/releases) with a SHA-256 `checksums.txt`:
+
+```bash
+v=v1.2.0; os=linux; arch=amd64   # os: linux|darwin|windows, arch: amd64|arm64
+curl -fsSLO "https://github.com/yarrasatwik/gatecrasher/releases/download/$v/gatecrasher_${v}_${os}_${arch}"
+curl -fsSLO "https://github.com/yarrasatwik/gatecrasher/releases/download/$v/checksums.txt"
+grep " gatecrasher_${v}_${os}_${arch}$" checksums.txt | sha256sum -c -
+```
+
+Or with Go: `go install github.com/yarrasatwik/gatecrasher/cmd/gatecrasher@latest`. The GitHub Action downloads the release binary for the runner and verifies its checksum.
+
 ## Use it on your own Flagsmith
 
 Works with Flagsmith Cloud and self-hosted.
@@ -207,7 +220,9 @@ Works with Flagsmith Cloud and self-hosted.
    - **Outside view:** none — Gatecrasher finds your public client key itself.
    - **Inside view:** `GATECRASHER_ORG_API_KEY` — a dedicated organisation key; read-only is enough for audits and CI.
    - **AI:** Claude classifies values, proposes attack ideas, explains findings and drafts PRs. Use `ANTHROPIC_API_KEY`, or set `ai: claude-code` to run through a signed-in Claude Code CLI (no API key; every tool disabled).
+   - **Writes (optional, recommended):** `GATECRASHER_WRITE_API_KEY` is used only to apply and roll back, and only `gatecrasher serve` and a person at a real terminal load it. If it is unset, writes use the org key and `serve` says so.
 3. `gatecrasher audit` → `plan` → approve in `gatecrasher serve` (or `approve` in your own terminal) → `apply` → `verify`. `--confirm` works only for unprotected environments such as Development.
+4. Against Flagsmith Cloud, `gatecrasher audit --dry-run` shows the request estimate first; `--budget N` caps it (the `cloud` profile uses 200 parity and 100 re-roll samples).
 
 If no client key is found (mobile apps, server-rendered pages), set `GATECRASHER_CLIENT_KEYS=Production=<key>`.
 
@@ -222,7 +237,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: yarrasatwik/gatecrasher@main
+      - uses: yarrasatwik/gatecrasher@v1
         with:
           api-url: https://edge.api.flagsmith.com/api/v1/
           org-api-key: ${{ secrets.FLAGSMITH_ORG_API_KEY }}
@@ -263,9 +278,12 @@ From the recorded run in [`examples/acme-shop`](examples/acme-shop) against self
 
 Each of these is proven by a test that failed before the fix:
 
-- **Agents cannot approve.** Piped input, `--confirm` on Production and agent or CI sessions are refused; the web UI enforces a 3-second review.
+- **Scripts, CI and agents cannot approve.** Piped input, `--confirm` on Production, agent or CI sessions, and web requests without a browser origin (curl, scripts) are refused. Both the terminal and the web form require the environment name and the plan-hash suffix, and the web UI enforces a 3-second review.
+- **The write key stays out of agent processes.** Audits, `ci`, `watch` and the MCP server use a read key; only `gatecrasher serve` and a person at a real terminal load `GATECRASHER_WRITE_API_KEY`.
 - **No false CRITICALs** on public-by-design keys (Stripe publishable, Firebase web, Mapbox public, Sentry DSNs), commit hashes or UUIDs.
-- **Credentials in URLs are caught** (`postgres://user:password@…` and any other scheme) as CRITICAL.
+- **Credentials in URLs are caught** (`postgres://user:password@…` and any other scheme) as CRITICAL, and so are Slack and Discord webhooks and OpenAI, Anthropic, SendGrid, Google OAuth, npm and Twilio tokens.
+- **Recon finds real-world keys** in Next.js and Nuxt data blocks, preloaded and dynamically imported chunks, and minified bundles.
+- **Request budget:** `audit --dry-run` prints the estimated requests per stage; `--budget N` stops new probes and reports unfinished stages as incomplete, never as safe.
 - **Key headers never follow redirects.**
 - **Webhook replays are ignored**, and stale or future events are refused.
 - **Identifier-rule depth:** a segment on the identifier still unlocks `internal_tools` after client traits are turned off, and Gatecrasher says so.
