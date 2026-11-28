@@ -1,6 +1,6 @@
 {{define "sev"}}<span class="sev sev-{{.String}}"><span aria-hidden="true">{{sevGlyph .}}</span> {{upper .String}}</span>{{end}}
 
-{{define "status"}}<span class="chip status-{{lower (printf "%s" .)}}">{{if eq (printf "%s" .) "EXPLOITABLE"}}<span aria-hidden="true">✕</span> {{else if eq (printf "%s" .) "BLOCKED"}}<span aria-hidden="true">✓</span> {{else}}<span aria-hidden="true">?</span> {{end}}{{.}}</span>{{end}}
+{{define "status"}}<span class="chip status-{{lower (printf "%s" .)}}">{{if eq (printf "%s" .) "EXPLOITABLE"}}<span aria-hidden="true">✕</span> {{else if eq (printf "%s" .) "HIDDEN"}}<span aria-hidden="true">✕</span> {{else if eq (printf "%s" .) "BLOCKED"}}<span aria-hidden="true">✓</span> {{else}}<span aria-hidden="true">?</span> {{end}}{{.}}{{if eq (printf "%s" .) "HIDDEN"}} (still open){{end}}</span>{{end}}
 
 {{define "run-lines"}}{{if .Lines}}<ol class="log" aria-live="off" aria-label="Audit progress log">{{range .Lines}}<li><time>{{time .At}}</time> <strong>{{.Stage}}</strong> {{.Msg}}</li>{{end}}</ol>{{end}}{{end}}
 

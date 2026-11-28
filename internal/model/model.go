@@ -134,6 +134,11 @@ const (
 	StatusExploitable Status = "EXPLOITABLE"
 	StatusBlocked     Status = "BLOCKED"
 	StatusUnknown     Status = "UNKNOWN"
+	// StatusHidden means the flag is no longer reachable by client SDKs but
+	// the mechanism still exists on a server path (for example a percentage
+	// split on a flag that was only marked Server-side only). It is still
+	// open: it counts like EXPLOITABLE everywhere.
+	StatusHidden Status = "HIDDEN"
 )
 
 // Evidence is one redacted request/response pair or observation.
@@ -270,6 +275,9 @@ type VerifyRow struct {
 	Before    Status `json:"before"`
 	After     Status `json:"after"`
 	Proof     string `json:"proof"`
+	// PartiallyMitigated marks a finding the plan only hides and never
+	// claimed to close; its row never counts towards "the plan worked".
+	PartiallyMitigated bool `json:"partially_mitigated,omitempty"`
 }
 
 // Stats holds measured numbers for the README and report.
@@ -352,8 +360,12 @@ type Plan struct {
 	Operations        []Operation    `json:"operations"`
 	Impact            []ImpactItem   `json:"impact"`
 	FindingsAddressed []string       `json:"findings_addressed"`
-	ExperimentWarning string         `json:"experiment_warning,omitempty"`
-	Hash              string         `json:"hash"`
+	// PartiallyMitigated lists findings this plan makes harder to reach but
+	// does not close (a re-roll finding on a flag the plan only marks
+	// Server-side only). Verify reports them HIDDEN, never BLOCKED.
+	PartiallyMitigated []string `json:"partially_mitigated,omitempty"`
+	ExperimentWarning  string   `json:"experiment_warning,omitempty"`
+	Hash               string   `json:"hash"`
 }
 
 // ComputeHash returns the canonical SHA-256 of the plan without its Hash.

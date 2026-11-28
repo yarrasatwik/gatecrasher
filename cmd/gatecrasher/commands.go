@@ -203,9 +203,12 @@ func printSummary(r *model.Report, paths []string) {
 			}
 		}
 		status := ""
-		if f.Status == model.StatusBlocked {
+		switch f.Status {
+		case model.StatusBlocked:
 			status = green(" [BLOCKED]")
-		} else if f.Status == model.StatusUnknown {
+		case model.StatusHidden:
+			status = yellow(" [HIDDEN: not served to client SDKs, still open]")
+		case model.StatusUnknown:
 			status = yellow(" [unconfirmed]")
 		}
 		fmt.Printf("  %s %s %s%s%s\n", sevTag(f.Severity), dim(f.ID), safe(f.Title), proof, status)
@@ -313,6 +316,9 @@ func printPlan(rec *model.PlanRecord) {
 	fmt.Println()
 	fmt.Printf("  %s  %s  %s\n", bold(p.ID), envTag(p.Environment, p.Production), bold(safe(p.Title)))
 	fmt.Printf("    fixes %d finding(s): %s\n", len(p.FindingsAddressed), dim(strings.Join(p.FindingsAddressed, ", ")))
+	if len(p.PartiallyMitigated) > 0 {
+		fmt.Printf("    %s %d finding(s), does not close them: %s\n", yellow("partially mitigates"), len(p.PartiallyMitigated), dim(strings.Join(p.PartiallyMitigated, ", ")))
+	}
 	for _, op := range p.Operations {
 		mark := "  manual "
 		if op.Automatic {
@@ -432,11 +438,17 @@ func printVerify(rows []model.VerifyRow, asJSON bool) {
 	}
 	for _, r := range rows {
 		after := red(string(r.After))
-		if r.After == model.StatusBlocked {
+		switch r.After {
+		case model.StatusBlocked:
 			after = green(string(r.After))
+		case model.StatusHidden:
+			after = yellow(string(r.After) + " (still open)")
 		}
 		fmt.Printf("  %s  %s → %s  %s\n", dim(r.FindingID), r.Before, after, safe(r.Title))
 		fmt.Printf("      %s\n", dim(safe(r.Proof)))
+	}
+	if n := verify.StillOpen(rows); n > 0 {
+		fmt.Printf("  %s\n", yellow(fmt.Sprintf("%d finding(s) still open after this plan", n)))
 	}
 }
 

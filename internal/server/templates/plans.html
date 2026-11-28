@@ -45,6 +45,11 @@
   {{if .Findings}}<ul class="plain">{{range .Findings}}<li>{{if .ReportID}}<a href="/report/{{.ReportID}}#f-{{.ID}}">{{if .Title}}{{rd .Title}}{{else}}{{.ID}}{{end}}</a>{{else}}{{.ID}}{{end}} <span class="muted"><code>{{.ID}}</code></span></li>{{end}}</ul>{{else}}<p class="muted">No findings are linked to this plan.</p>{{end}}
   </section>
 
+  {{if .Partial}}<section aria-labelledby="part-{{$id}}"><h3 id="part-{{$id}}">Partially mitigated, not closed</h3>
+  <p class="muted">This plan hides the flag from client SDKs. It does not stop re-rolling, so these findings stay open (HIDDEN) until identifiers are assigned on the server or the rollout is removed.</p>
+  <ul class="plain">{{range .Partial}}<li>{{if .ReportID}}<a href="/report/{{.ReportID}}#f-{{.ID}}">{{if .Title}}{{rd .Title}}{{else}}{{.ID}}{{end}}</a>{{else}}{{.ID}}{{end}} <span class="muted"><code>{{.ID}}</code></span></li>{{end}}</ul>
+  </section>{{end}}
+
   <section aria-labelledby="brk-{{$id}}"><h3 id="brk-{{$id}}">What could break</h3>
   {{if $p.Impact}}<ul class="impact">{{range $p.Impact}}<li><code>{{rd .File}}:{{.Line}}</code> {{if .Breaks}}<span class="chip chip-warn"><span aria-hidden="true">⚠</span> Will break</span>{{else}}<span class="chip chip-quiet">Review</span>{{end}} {{rich .Message}}{{if .Snippet}}<pre class="code" tabindex="0"><code>{{rd .Snippet}}</code></pre>{{end}}</li>{{end}}</ul>{{else}}<p class="muted">No code that reads this setting was found in the scanned repository.</p>{{end}}
   </section>

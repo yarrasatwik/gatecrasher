@@ -83,6 +83,8 @@ func statusWord(s model.Status) string {
 		return "✓ BLOCKED"
 	case model.StatusExploitable:
 		return "✗ EXPLOITABLE"
+	case model.StatusHidden:
+		return "✗ HIDDEN (still open)"
 	default:
 		return "? " + string(s)
 	}

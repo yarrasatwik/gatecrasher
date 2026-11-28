@@ -28,12 +28,13 @@ type ReportSummary struct {
 	BySeverity  map[string]int `json:"by_severity,omitempty"`
 }
 
-// WaysIn counts the exploitable findings of a report (the "N ways in"
-// headline), ignoring controls that held.
+// WaysIn counts the open findings of a report (the "N ways in" headline),
+// ignoring controls that held. It matches every other surface: anything not
+// BLOCKED is open, including HIDDEN and UNKNOWN.
 func WaysIn(r *model.Report) int {
 	n := 0
 	for _, f := range r.Findings {
-		if f.Type != model.FControlOK && f.Status == model.StatusExploitable {
+		if f.Type != model.FControlOK && f.Status != model.StatusBlocked {
 			n++
 		}
 	}

@@ -313,11 +313,14 @@ func (a *App) inside(ctx context.Context, r *model.Report, o AuditOptions, cls m
 	r.Reachability = reach
 	findings := mapper.ForgeableFindings(reach, opts)
 	findings = append(findings, variantFindings(eng, reach, env.Name)...)
+	serverOnly := serverOnlyFlags(settings, env.Name)
 	for i := range findings {
+		engineStatus := findings[i].Status
 		if v, ok := verified[findingKey(findings[i])]; ok {
 			markLive(&findings[i], v)
 		}
 		refine(&findings[i], eng, running, expKnown)
+		markHidden(&findings[i], engineStatus, serverOnly)
 	}
 	r.Findings = append(r.Findings, findings...)
 	r.Findings = append(r.Findings, a.identityExposure(ctx, eng, env)...)
@@ -464,6 +467,8 @@ func (a *App) crossCheck(ctx context.Context, sdk *flagsmith.SDK, reach []model.
 	return out
 }
 
+const liveMismatchNote = "Live Flags API did not reproduce the engine result; treated as unconfirmed."
+
 func markLive(f *model.Finding, v liveResult) {
 	f.Evidence = append(f.Evidence, v.evidence)
 	f.Repro = v.repro
@@ -474,9 +479,44 @@ func markLive(f *model.Finding, v liveResult) {
 		}
 		return
 	}
-	f.Notes = append(f.Notes, "Live Flags API did not reproduce the engine result; treated as unconfirmed.")
+	f.Notes = append(f.Notes, liveMismatchNote)
 	f.Confirmed = false
 	f.Status = model.StatusUnknown
+}
+
+// serverOnlyFlags returns the flags marked "Server-side only" in env.
+func serverOnlyFlags(settings []model.EnvSettings, env string) map[string]bool {
+	out := map[string]bool{}
+	for _, s := range settings {
+		if strings.EqualFold(s.Environment, env) {
+			for _, n := range s.ServerOnlyFlags {
+				out[n] = true
+			}
+		}
+	}
+	return out
+}
+
+// markHidden reports an engine-proven mechanism on a Server-side only flag
+// as HIDDEN: client SDKs no longer receive the flag, so the live client
+// probe cannot reproduce it, but the segment or percentage split still
+// exists and a server evaluating the flag for browser-chosen input is still
+// steered. HIDDEN is open, exactly as verify reports it after such a fix.
+func markHidden(f *model.Finding, engineStatus model.Status, serverOnly map[string]bool) {
+	if len(f.Unlocked) == 0 || !serverOnly[f.Unlocked[0].Flag] || engineStatus != model.StatusExploitable {
+		return
+	}
+	if hasMethod(*f, model.MethodProbe) {
+		return // reproduced through the client SDK after all
+	}
+	f.Status = model.StatusHidden
+	kept := f.Notes[:0]
+	for _, n := range f.Notes {
+		if n != liveMismatchNote {
+			kept = append(kept, n)
+		}
+	}
+	f.Notes = append(kept, fmt.Sprintf("%q is Server-side only, so client SDKs no longer receive it, but the mechanism still exists in Flagsmith: a server that evaluates this flag for a browser-chosen identifier or client-written traits is still steered. Hidden is not fixed.", f.Unlocked[0].Flag))
 }
 
 // refine retypes identifier-only reachability as re-roll findings and

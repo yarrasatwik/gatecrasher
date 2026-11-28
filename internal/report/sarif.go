@@ -128,11 +128,22 @@ func sarifLevel(s model.Severity) string {
 	}
 }
 
+// resultLevel is the SARIF level of one finding. A HIDDEN finding is still
+// open, so it is always reported as a warning: never dropped like a BLOCKED
+// one and never passed.
+func resultLevel(f model.Finding) string {
+	if f.Status == model.StatusHidden {
+		return "warning"
+	}
+	return sarifLevel(f.Severity)
+}
+
 // WriteSARIF writes the report as SARIF 2.1.0 for GitHub code scanning.
 //
 // One rule exists per finding type. Results cover every finding that is a
 // vulnerability: CONTROL_OK findings are not problems and BLOCKED findings
 // are fixed, so both are omitted and the matching alerts close on upload.
+// HIDDEN findings are still open and stay in the results as warnings.
 // Each result has a logical location (the flag) and a physical location: the
 // repo file and line from an "impact: path:line" note when present, otherwise
 // the stable pseudo-file flagsmith/<environment>/<flag>.
@@ -231,7 +242,7 @@ func buildResult(p *model.Report, f model.Finding, ruleIndex int) sarifResult {
 	return sarifResult{
 		RuleID:              string(f.Type),
 		RuleIndex:           ruleIndex,
-		Level:               sarifLevel(f.Severity),
+		Level:               resultLevel(f),
 		Message:             sarifText{Text: oneLine(msg, 500)},
 		PartialFingerprints: map[string]string{fingerprintKey: f.ID},
 		Locations:           locationsFor(p, f),

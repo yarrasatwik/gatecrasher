@@ -41,6 +41,7 @@ type planView struct {
 	Rec              model.PlanRecord
 	Ops              []opView
 	Findings         []findingRef
+	Partial          []findingRef
 	Err              string
 	NeedsEnv         bool
 	NeedsContaminate bool
@@ -109,6 +110,11 @@ func addresses(p model.Plan, findingID string) bool {
 			return true
 		}
 	}
+	for _, id := range p.PartiallyMitigated {
+		if id == findingID {
+			return true
+		}
+	}
 	return false
 }
 
@@ -162,6 +168,13 @@ func newPlanView(rec model.PlanRecord, refs map[string]findingRef, errMsg string
 			ref = findingRef{ID: id}
 		}
 		v.Findings = append(v.Findings, ref)
+	}
+	for _, id := range p.PartiallyMitigated {
+		ref, ok := refs[id]
+		if !ok {
+			ref = findingRef{ID: id}
+		}
+		v.Partial = append(v.Partial, ref)
 	}
 	return v
 }

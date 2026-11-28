@@ -45,11 +45,12 @@ func Finalize(r *model.Report) {
 }
 
 // WaysIn returns the number of distinct ways an attacker can get in: findings
-// that are not CONTROL_OK and not already BLOCKED.
+// that are not CONTROL_OK and not already BLOCKED. HIDDEN findings are still
+// open and count.
 func WaysIn(r *model.Report) int {
 	n := 0
 	for _, f := range r.Findings {
-		if f.Type != model.FControlOK && f.Status != model.StatusBlocked {
+		if open(f) {
 			n++
 		}
 	}

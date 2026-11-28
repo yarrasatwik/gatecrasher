@@ -148,6 +148,7 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; overf
 .sev-low { background: var(--sev-low-bg); color: var(--sev-low); }
 .sev-info { background: var(--sev-info-bg); color: var(--sev-info); }
 .status-exploitable { background: var(--err-bg); color: var(--err); border-color: currentColor; }
+.status-hidden { background: var(--warn-bg); color: var(--warn); border-color: currentColor; }
 .status-blocked { background: var(--ok-bg); color: var(--ok); border-color: currentColor; }
 .status-unknown { background: var(--warn-bg); color: var(--warn); border-color: currentColor; }
 .state-chip { text-transform: capitalize; }

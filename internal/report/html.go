@@ -189,7 +189,7 @@ func statusClass(s model.Status) string {
 	switch s {
 	case model.StatusBlocked:
 		return "good"
-	case model.StatusExploitable:
+	case model.StatusExploitable, model.StatusHidden:
 		return "bad"
 	default:
 		return "unk"
