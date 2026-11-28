@@ -5,13 +5,23 @@
 target_url: http://localhost:3030
 
 # Scope lock: Gatecrasher refuses every request to a host not listed here.
-# Hostnames match any port; use "*.example.com" for subdomains. It cannot be disabled.
+# It cannot be disabled. Entries are "host:port" (that port only), "host"
+# (every port) or "*.example.com" (subdomains, every port).
+#
+# The lab is pinned to its two ports on purpose: the storefront on :3030 here
+# and Flagsmith on :8000 below. A bare "localhost" would put every other
+# service on this machine in scope (databases, admin consoles, dev servers,
+# Gatecrasher's own web UI on :8787 and webhook receiver on :8788), so a
+# script URL or redirect pointing at another local port could be fetched.
+# On a real site a bare hostname is fine when you own everything on it;
+# prefer host:port whenever the host is shared.
 allowed_domains:
-  - localhost
+  - localhost:3030
 
 flagsmith:
   api_url: http://localhost:8000/api/v1/
   # host[:port] entries the agent may call for the Flagsmith API.
+  # Keep the port: only the lab's Flagsmith on :8000 is in scope.
   allowed_api_hosts:
     - localhost:8000
   project: Acme Shop
