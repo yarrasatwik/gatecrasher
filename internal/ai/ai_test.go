@@ -353,7 +353,7 @@ func TestExplain(t *testing.T) {
 
 func TestTemplatesCoverEveryTypeWithinWordBudget(t *testing.T) {
 	for _, ft := range []model.FindingType{
-		model.FTraitForgery, model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging, model.FIdentityTraitLeak,
+		model.FTraitForgery, model.FIdentifierForgery, model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging, model.FIdentityTraitLeak,
 		model.FIdentityOverrideLeak, model.FSecretExposed, model.FInternalURL, model.FUnreleasedProduct, model.FPricingLeak,
 		model.FPIILeak, model.FSettingClientTraitsOn, model.FSettingSensitiveData, model.FFlagNotServerOnly, model.FSegmentForgeable,
 		model.FControlOK,

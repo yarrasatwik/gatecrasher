@@ -90,6 +90,12 @@ var explainTemplates = map[model.FindingType]explainTemplate{
 		"Paid or privileged features can be used without paying or being authorised.",
 		"Turn off client-side traits for this environment, or move the decision to your server.",
 	},
+	model.FIdentifierForgery: {
+		"Anyone can pick an identifier that matches the pattern a segment looks for, which unlocks %s.",
+		"The segment targets the identifier itself and the browser chooses its own identifier. No trait is involved, so turning off client-set traits does not close this.",
+		"Staff-only or privileged features can be reached by anyone who guesses the identifier pattern.",
+		"Assign identifiers on the server and stop targeting on identifier patterns.",
+	},
 	model.FPercentageReroll: {
 		"A visitor can keep choosing new identifiers until they land in the rollout group for %s.",
 		"Percentage rollouts are decided by the identifier, which the client controls.",

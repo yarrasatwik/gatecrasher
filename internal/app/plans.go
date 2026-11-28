@@ -156,7 +156,7 @@ func (a *App) waitLive(ctx context.Context, rec *model.PlanRecord) (time.Duratio
 // autoFixable reports whether an applied plan is expected to block f.
 func autoFixable(f model.Finding) bool {
 	switch f.Type {
-	case model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging:
+	case model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging, model.FIdentifierForgery:
 		return false
 	}
 	return true
@@ -289,7 +289,7 @@ func (a *App) Recheck(ctx context.Context, f model.Finding) (model.Status, strin
 		}
 		_, visible := flags[f.Subject]
 		return statusIf(visible, fmt.Sprintf("%s → %s visible to client key: %v", ev.Request, f.Subject, visible))
-	case model.FSegmentForgeable, model.FTraitForgery, model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging:
+	case model.FSegmentForgeable, model.FTraitForgery, model.FIdentifierForgery, model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging:
 		if len(f.Unlocked) == 0 {
 			return model.StatusUnknown, "", errors.New("finding has no flag change to re-check")
 		}

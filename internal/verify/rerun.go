@@ -46,8 +46,25 @@ func rerunOne(ctx context.Context, f model.Finding, recheck Recheck) model.Verif
 		row.After, row.Proof = model.StatusUnknown, "re-check failed: "+redact.String(err.Error())
 		return row
 	}
-	row.After, row.Proof = after, redact.String(proof)
+	row.After, row.Proof = after, redact.String(identifierProof(f, after, proof))
 	return row
+}
+
+// IdentifierStillOpen is appended to the proof of an identifier forgery that
+// still reproduces: the client-traits fix is not expected to close it.
+const IdentifierStillOpen = "Still exploitable: choosing an identifier is not affected by the client-traits setting. " +
+	"Assign identifiers on the server and stop targeting on identifier patterns."
+
+// identifierProof explains an identifier forgery that survives a re-check,
+// so a reader who just turned off client traits knows why it is still open.
+func identifierProof(f model.Finding, after model.Status, proof string) string {
+	if f.Type != model.FIdentifierForgery || after != model.StatusExploitable {
+		return proof
+	}
+	if proof == "" {
+		return IdentifierStillOpen
+	}
+	return proof + ". " + IdentifierStillOpen
 }
 
 // AllBlocked reports whether every row ended BLOCKED (and there is at least
