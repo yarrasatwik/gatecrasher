@@ -128,6 +128,9 @@ func (a *App) waitLive(ctx context.Context, rec *model.PlanRecord) (time.Duratio
 	}
 	fs := a.planFindings(rec)
 	deadline := time.Now().Add(a.Cfg.PropagationTimeout())
+	// Flagsmith's API workers each cache the environment, so one clean
+	// round can come from a refreshed worker while others are stale.
+	clean := 0
 	for {
 		pending := 0
 		for _, f := range fs {
@@ -139,18 +142,31 @@ func (a *App) waitLive(ctx context.Context, rec *model.PlanRecord) (time.Duratio
 			}
 		}
 		if pending == 0 {
+			clean++
+		} else {
+			clean = 0
+		}
+		if clean >= cleanRounds {
 			return time.Since(start), nil
 		}
 		if time.Now().After(deadline) {
 			return time.Since(start), fmt.Errorf("%d finding(s) still reproduce after %s; run verify later", pending, a.Cfg.PropagationTimeout())
 		}
+		wait := time.Second
+		if clean > 0 {
+			wait = 200 * time.Millisecond
+		}
 		select {
 		case <-ctx.Done():
 			return time.Since(start), ctx.Err()
-		case <-time.After(time.Second):
+		case <-time.After(wait):
 		}
 	}
 }
+
+// cleanRounds is how many consecutive rounds must reproduce nothing before an
+// applied plan counts as live.
+const cleanRounds = 4
 
 // autoFixable reports whether an applied plan is expected to block f.
 func autoFixable(f model.Finding) bool {

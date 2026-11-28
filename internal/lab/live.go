@@ -11,6 +11,8 @@ import (
 // premium_export. Flagsmith's SDK endpoints can serve a cached environment
 // for several seconds after a write; waiting here makes the very next audit
 // (and engine-vs-live parity) see exactly what the environment document says.
+// Flagsmith runs several API workers, each caching the environment on its
+// own, so the state must be served liveConfirmations times in a row.
 func WaitLive(ctx context.Context, st *State, apiURL string, timeout time.Duration) (time.Duration, error) {
 	a, err := newAPI(apiURL)
 	if err != nil {
@@ -20,6 +22,7 @@ func WaitLive(ctx context.Context, st *State, apiURL string, timeout time.Durati
 	deadline := start.Add(timeout)
 	body := map[string]any{"identifier": "gc-probe-lab-ready", "transient": true,
 		"traits": []map[string]any{{"trait_key": "plan", "trait_value": "gold", "transient": true}}}
+	streak := 0
 	for {
 		ready := true
 		for _, env := range st.Environments {
@@ -44,6 +47,11 @@ func WaitLive(ctx context.Context, st *State, apiURL string, timeout time.Durati
 			ready = ready && ok
 		}
 		if ready {
+			streak++
+		} else {
+			streak = 0
+		}
+		if streak >= liveConfirmations {
 			return time.Since(start), nil
 		}
 		if time.Now().After(deadline) {
@@ -52,7 +60,18 @@ func WaitLive(ctx context.Context, st *State, apiURL string, timeout time.Durati
 		select {
 		case <-ctx.Done():
 			return time.Since(start), ctx.Err()
-		case <-time.After(time.Second):
+		case <-time.After(livePoll(streak)):
 		}
 	}
+}
+
+// liveConfirmations is how many consecutive fresh answers prove that every
+// API worker serves the new state.
+const liveConfirmations = 8
+
+func livePoll(streak int) time.Duration {
+	if streak > 0 {
+		return 150 * time.Millisecond
+	}
+	return time.Second
 }
