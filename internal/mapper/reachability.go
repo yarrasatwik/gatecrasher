@@ -255,7 +255,27 @@ func (m *mapping) add(segment, flag string, f flagsmith.Flag, c Candidate) {
 	if c.IdentifierForged {
 		r.Identifier = c.Identifier
 	}
+	if c.IdentifierRule {
+		r.IdentifierExample = m.plainIdentifier(segment, flag, f, c)
+	}
 	m.out = append(m.out, r)
+}
+
+// plainIdentifier returns the identifier to show for a candidate whose
+// identifier is constrained by a segment rule: the candidate's identifier
+// without the transient probe prefix when the engine proves that plainer
+// form reaches the same state through the same segment, otherwise the
+// candidate's identifier unchanged.
+func (m *mapping) plainIdentifier(segment, flag string, f flagsmith.Flag, c Candidate) string {
+	plain := strings.TrimPrefix(c.Identifier, transientPrefix)
+	if plain == c.Identifier || plain == "" {
+		return c.Identifier
+	}
+	got, ok := m.eng.Evaluate(plain, c.Traits)[flag]
+	if ok && viaSegment(got, segment) && got.State() == f.State() {
+		return plain
+	}
+	return c.Identifier
 }
 
 // forgeability judges a whole candidate: every property it depends on must

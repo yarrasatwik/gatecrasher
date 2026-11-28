@@ -11,6 +11,10 @@ import (
 // probePrefix starts every identifier or trait value found by search.
 const probePrefix = "gc-probe-map-"
 
+// transientPrefix is the prefix Gatecrasher's live probes require of every
+// identifier they send, so a probe can never touch a real user's identity.
+const transientPrefix = "gc-probe-"
+
 // DefaultMaxSearch is how many identifiers a percentage-split search tries.
 const DefaultMaxSearch = 4000
 
@@ -23,7 +27,11 @@ type Candidate struct {
 	Traits           map[string]string
 	Identifier       string
 	IdentifierForged bool
-	Props            []string
+	// IdentifierRule says a segment rule constrains the identifier's own
+	// value (for example a REGEX on $.identity.identifier), as opposed to
+	// an identifier found by a percentage-split search.
+	IdentifierRule bool
+	Props          []string
 }
 
 // Cost is the number of forged inputs: traits plus a forged identifier.
@@ -86,7 +94,7 @@ func resolve(a assign, segID int, env string, maxSearch int) (Candidate, bool) {
 	c := Candidate{Traits: map[string]string{}}
 	for k, v := range a.vals {
 		if k == identifierProp {
-			c.Identifier, c.IdentifierForged = v, true
+			c.Identifier, c.IdentifierForged, c.IdentifierRule = v, true, true
 		} else {
 			c.Traits[k] = v
 		}

@@ -40,6 +40,11 @@ segments:
   - name: canary_10
     conditions:
       - {property: "$.identity.key", operator: PERCENTAGE_SPLIT, value: "10"}
+  # Targets the identifier itself, not a trait: turning off client traits
+  # does not close it, because the browser still chooses its own identifier.
+  - name: staff_by_identifier
+    conditions:
+      - {property: "$.identity.identifier", operator: REGEX, value: '.*@acmeshop\.dev$'}
 
 # Identities persisted with sample traits (identity-lookup vulnerability).
 identities:
@@ -69,6 +74,10 @@ features:
     description: 10 percent canary rollout (identifier re-roll).
     segment_overrides:
       - {segment: canary_10, enabled: true}
+  - name: internal_tools
+    description: Staff tooling gated on an identifier pattern (identifier forgery).
+    segment_overrides:
+      - {segment: staff_by_identifier, enabled: true}
   - name: pricing_page
     description: Multivariate price test (variant re-roll, experiment rigging).
     multivariate: true

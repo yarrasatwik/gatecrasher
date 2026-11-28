@@ -65,3 +65,54 @@ func TestRerunCancelled(t *testing.T) {
 		t.Fatalf("got %+v", rows[0])
 	}
 }
+
+// An identifier forgery re-checked after the client-traits fix still
+// reproduces, and the row must say why that fix did not close it.
+func TestRerunIdentifierForgeryStaysExploitableAfterClientTraitsOff(t *testing.T) {
+	allowClientTraits := false // the client-traits fix has been applied
+	findings := []model.Finding{
+		{ID: "GC-TRAIT", Type: model.FTraitForgery, Title: "Forging role=admin unlocks admin_panel", Status: model.StatusExploitable,
+			Traits: map[string]string{"role": "admin"}},
+		{ID: "GC-IDF", Type: model.FIdentifierForgery, Status: model.StatusExploitable, ProofID: "gc-probe-a@acmeshop.dev",
+			Title: "Choosing identifier a@acmeshop.dev unlocks internal_tools — this survives turning off client traits."},
+	}
+	rec := &model.PlanRecord{Plan: model.Plan{FindingsAddressed: []string{"GC-TRAIT", "GC-IDF"}}}
+	// Stub of the live API: traits are ignored once the setting is off, the
+	// identifier is still whatever the client sends.
+	recheck := func(_ context.Context, f model.Finding) (model.Status, string, error) {
+		if len(f.Traits) > 0 && !allowClientTraits {
+			return model.StatusBlocked, "POST identities/ -> admin_panel is off", nil
+		}
+		return model.StatusExploitable, "POST identities/ -> internal_tools is on (exploited state on)", nil
+	}
+	rows := Rerun(context.Background(), rec, findings, recheck)
+	if len(rows) != 2 {
+		t.Fatalf("rows = %+v", rows)
+	}
+	if rows[0].After != model.StatusBlocked || strings.Contains(rows[0].Proof, "identifier") {
+		t.Fatalf("trait forgery row = %+v", rows[0])
+	}
+	idf := rows[1]
+	if idf.Before != model.StatusExploitable || idf.After != model.StatusExploitable {
+		t.Fatalf("identifier forgery must stay EXPLOITABLE: %+v", idf)
+	}
+	if !strings.Contains(idf.Proof, "internal_tools is on") || !strings.Contains(idf.Proof, "not affected by the client-traits setting") || !strings.HasSuffix(idf.Proof, IdentifierStillOpen) {
+		t.Fatalf("proof must keep the evidence and explain why it is still open: %q", idf.Proof)
+	}
+	if AllBlocked(rows) {
+		t.Fatal("a surviving identifier forgery must keep the plan from counting as verified")
+	}
+}
+
+func TestIdentifierProofOnlyExplainsOpenIdentifierForgeries(t *testing.T) {
+	idf := model.Finding{Type: model.FIdentifierForgery}
+	if got := identifierProof(idf, model.StatusBlocked, "flag is off"); got != "flag is off" {
+		t.Errorf("blocked identifier forgery: %q", got)
+	}
+	if got := identifierProof(model.Finding{Type: model.FPercentageReroll}, model.StatusExploitable, "p"); got != "p" {
+		t.Errorf("other types must be untouched: %q", got)
+	}
+	if got := identifierProof(idf, model.StatusExploitable, ""); got != IdentifierStillOpen {
+		t.Errorf("empty proof: %q", got)
+	}
+}

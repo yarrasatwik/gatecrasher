@@ -121,3 +121,14 @@ func TestSort(t *testing.T) {
 		t.Fatalf("order = %s, want abcde", got)
 	}
 }
+
+func TestIdentifierForgeryRatedLikeTraitForgery(t *testing.T) {
+	staff := model.Finding{Type: model.FIdentifierForgery, Subject: "internal_tools"}
+	if got := Rate(staff, Context{}); got != model.SevCritical {
+		t.Errorf("staff-only flag: %s, want critical", got)
+	}
+	paid := model.Finding{Type: model.FIdentifierForgery, Subject: "premium_export"}
+	if got := Rate(paid, Context{}); got != model.SevHigh {
+		t.Errorf("paid feature: %s, want high", got)
+	}
+}

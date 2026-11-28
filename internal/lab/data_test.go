@@ -30,14 +30,27 @@ func TestShippedSeedDataMatchesSpec(t *testing.T) {
 	for _, f := range d.Features {
 		features[f.Name] = f
 	}
-	for _, name := range []string{"premium_export", "admin_panel", "staff_preview", "early_access_ai", "pricing_page",
+	for _, name := range []string{"premium_export", "admin_panel", "staff_preview", "early_access_ai", "internal_tools", "pricing_page",
 		"payment_config", "internal_api_url", "project_nightjar_launch_2026_12_15", "beta_dashboard", "maintenance_mode", "banner_text"} {
 		if _, ok := features[name]; !ok {
 			t.Errorf("feature %s missing", name)
 		}
 	}
-	if len(d.Features) != 11 {
-		t.Errorf("want 11 features, got %d", len(d.Features))
+	if len(d.Features) != 12 {
+		t.Errorf("want 12 features, got %d", len(d.Features))
+	}
+	if o := features["internal_tools"]; o.DefaultEnabled || len(o.SegmentOverrides) != 1 || o.SegmentOverrides[0].Segment != "staff_by_identifier" || !o.SegmentOverrides[0].Enabled {
+		t.Errorf("internal_tools = %+v", o)
+	}
+	var byID *SegmentData
+	for i := range d.Segments {
+		if d.Segments[i].Name == "staff_by_identifier" {
+			byID = &d.Segments[i]
+		}
+	}
+	want := ConditionData{Property: "$.identity.identifier", Operator: "REGEX", Value: `.*@acmeshop\.dev$`}
+	if byID == nil || len(byID.Conditions) != 1 || byID.Conditions[0] != want {
+		t.Errorf("staff_by_identifier = %+v, want one condition %+v", byID, want)
 	}
 	if !strings.Contains(features["payment_config"].Value, SecretPlaceholder) {
 		t.Error("payment_config must use the secret placeholder, never a literal secret")

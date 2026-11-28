@@ -9,6 +9,8 @@
 //	                                or admin-like (name contains admin, staff, internal,
 //	                                superuser or root, or tagged "admin"); otherwise High
 //	                                (a paid feature)
+//	IDENTIFIER_FORGERY              same rule as TRAIT_FORGERY (the input forged is the
+//	                                identifier instead of a trait)
 //	IDENTITY_TRAIT_LEAK             High
 //	PII_IN_CLIENT_VALUE             High
 //	EXPERIMENT_RIGGING              High on pricing/revenue flags (name contains price,
@@ -109,7 +111,7 @@ func Rate(f model.Finding, ctx Context) model.Severity {
 	switch f.Type {
 	case model.FSecretExposed:
 		return model.SevCritical
-	case model.FTraitForgery:
+	case model.FTraitForgery, model.FIdentifierForgery:
 		if isAdminLike(f) {
 			return model.SevCritical
 		}

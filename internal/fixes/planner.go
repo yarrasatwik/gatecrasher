@@ -88,6 +88,7 @@ const (
 	fixHideSensitive
 	fixServerOnly
 	fixReroll
+	fixIdentifier
 )
 
 func classify(t model.FindingType) fixKind {
@@ -101,6 +102,8 @@ func classify(t model.FindingType) fixKind {
 		return fixServerOnly
 	case model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging:
 		return fixReroll
+	case model.FIdentifierForgery:
+		return fixIdentifier
 	}
 	return fixNone
 }
@@ -124,6 +127,8 @@ func (p *Planner) Plan(ctx context.Context, findings []model.Finding) ([]model.P
 		var berr error
 		if strings.HasPrefix(g.target, "environment:") {
 			plan, berr = p.envPlan(ctx, g)
+		} else if strings.HasPrefix(g.target, identifierTarget) {
+			plan = p.identifierPlan(g)
 		} else {
 			plan, berr = p.featurePlan(ctx, g)
 		}
@@ -155,6 +160,9 @@ func (p *Planner) group(findings []model.Finding) ([]*group, error) {
 		target := "feature:" + f.Subject
 		if kind == fixClientTraits || kind == fixHideSensitive {
 			target = "environment:" + env.Name
+		}
+		if kind == fixIdentifier {
+			target = identifierTarget + f.Subject
 		}
 		key := env.Name + "\x00" + target
 		g := byKey[key]
@@ -508,6 +516,29 @@ func prPurpose(t model.FindingType) string {
 		return "assign Flagsmith identifiers on the server"
 	}
 	return "move this value to server-side config and read the flag on your server"
+}
+
+// identifierTarget prefixes the target of identifier-forgery plans. They get
+// a target of their own so they are never bundled with a Flagsmith write.
+const identifierTarget = "identifier-targeting:"
+
+// IdentifierFixSummary is the one fix for identifier forgery.
+const IdentifierFixSummary = "assign identifiers on the server and stop targeting on identifier patterns"
+
+// identifierPlan is the guidance-only plan for flags unlocked by choosing an
+// identifier that a segment rule accepts. No Flagsmith setting closes this
+// (it does not depend on client-set traits), so the plan never contains an
+// automatic operation: only a PR draft and a manual step.
+func (p *Planner) identifierPlan(g *group) *model.Plan {
+	flag := strings.TrimPrefix(g.target, identifierTarget)
+	plan := model.Plan{
+		Title: fmt.Sprintf("Guidance for `%s` on %s: %s", flag, g.env.Name, IdentifierFixSummary),
+		Operations: []model.Operation{
+			p.prDraft(g.findings[0], nil, IdentifierFixSummary),
+			manual(fmt.Sprintf("Replace the segment rule that matches on the identifier for `%s` with one keyed on data only your server can set (a server-set trait, or an identity override made by your backend). Turning off \"Allow client SDKs to set user traits\" does not close this: no trait is involved, and the client still chooses its identifier.", flag)),
+		},
+	}
+	return p.finish(g, plan)
 }
 
 func manual(desc string) model.Operation {

@@ -97,6 +97,7 @@ type FindingType string
 // Finding types (spec §8, docs/findings-catalog.md).
 const (
 	FTraitForgery          FindingType = "TRAIT_FORGERY"
+	FIdentifierForgery     FindingType = "IDENTIFIER_FORGERY"
 	FPercentageReroll      FindingType = "PERCENTAGE_REROLL"
 	FVariantReroll         FindingType = "VARIANT_REROLL"
 	FExperimentRigging     FindingType = "EXPERIMENT_RIGGING"
@@ -261,6 +262,12 @@ type Reachable struct {
 	Forgeable      string            `json:"forgeable"`            // yes|no|unknown
 	EngineVerified bool              `json:"engine_verified"`
 	LiveVerified   *bool             `json:"live_verified,omitempty"`
+
+	// IdentifierExample is set only when a segment rule tests the identifier
+	// itself (not a percentage split): the plainest identifier the engine
+	// proved to match. Identifier then holds the transient-prefixed form
+	// used for the live probe, when the rule accepts one.
+	IdentifierExample string `json:"identifier_example,omitempty"`
 }
 
 // VerifyRow is one before/after row produced by re-attacking.

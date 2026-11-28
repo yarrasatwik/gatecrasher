@@ -486,6 +486,11 @@ func refine(f *model.Finding, eng *flagsmith.Engine, running map[string]string, 
 		return
 	}
 	flag := f.Unlocked[0].Flag
+	if f.Type == model.FIdentifierForgery {
+		// The mapper keeps the segment as subject for the live cross-check;
+		// reports and fix plans are about the flag it unlocks.
+		f.Subject = flag
+	}
 	if f.Type == model.FSegmentForgeable && len(f.Traits) > 0 && f.Status == model.StatusExploitable {
 		f.Type = model.FTraitForgery
 		f.ID = model.MakeFindingID(f.Type, f.Environment, flag, traitString(f.Traits))

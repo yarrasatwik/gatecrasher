@@ -44,7 +44,7 @@ func TestSeedCreatesDeclaredState(t *testing.T) {
 	fx := newSeedFixture(t)
 	st := fx.seed()
 	f := fx.stub
-	if len(f.projects) != 1 || len(f.envs) != 2 || len(f.features) != 11 || len(f.segments) != 4 {
+	if len(f.projects) != 1 || len(f.envs) != 2 || len(f.features) != 12 || len(f.segments) != 5 {
 		t.Fatalf("projects=%d envs=%d features=%d segments=%d", len(f.projects), len(f.envs), len(f.features), len(f.segments))
 	}
 	if len(f.exps) != 2 {
@@ -55,8 +55,8 @@ func TestSeedCreatesDeclaredState(t *testing.T) {
 			t.Errorf("environment %v is not in the vulnerable state", e["name"])
 		}
 	}
-	if len(f.links) != 8 {
-		t.Errorf("want 4 segment overrides in each of 2 environments, got %d", len(f.links))
+	if len(f.links) != 10 {
+		t.Errorf("want 5 segment overrides in each of 2 environments, got %d", len(f.links))
 	}
 	if len(st.Changes) == 0 {
 		t.Error("first run must report changes")

@@ -134,7 +134,7 @@ func TestWriteMarkdown(t *testing.T) {
 	out := render(t, func(b *bytes.Buffer) error { return WriteMarkdown(b, r) })
 	for _, want := range []string{
 		"# Gatecrasher security report",
-		"**16 ways in**",
+		"**17 ways in**",
 		"## Findings",
 		"### [CRITICAL] A live payment key is public",
 		"curl -s -H 'X-Environment-Key: <CLIENT_KEY>'",
@@ -176,7 +176,7 @@ func TestWriteHTML(t *testing.T) {
 	for _, want := range []string{
 		"<!doctype html>", `<html lang="en">`, `name="viewport"`, "prefers-color-scheme: dark",
 		"<main", "<nav", "<header", "<footer", `class="skip"`, ":focus-visible",
-		`<span class="n">16</span>`, "ways in",
+		`<span class="n">17</span>`, "ways in",
 		"Findings, ranked by severity", "Environment security settings", "Reachability map",
 		"Before and after", "Method and scope",
 		"&lt;CLIENT_KEY&gt;", "<details>", "live-probe", "flagsmith-engine", "ai", "deterministic",
