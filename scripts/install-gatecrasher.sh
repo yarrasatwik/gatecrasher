@@ -37,8 +37,13 @@ version="${GC_VERSION:-}"
 if [ -z "$version" ] && [[ "${GC_ACTION_REF:-}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
   version="$GC_ACTION_REF"
 fi
+if [ -z "$version" ] && ! [[ "${GC_ACTION_REF:-}" =~ ^v[0-9]+$ ]]; then
+  # A branch, a commit or a local checkout (uses: ./): run exactly that code.
+  echo "action used at '${GC_ACTION_REF:-local checkout}', not a release tag; building from source" >&2
+  emit build true; exit 0
+fi
 if [ -z "$version" ]; then
-  # Moving ref (v1, branch, sha, local use): take the latest release.
+  # Major-version tag (v1): take the latest release.
   final="$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/$repo/releases/latest" || true)"
   version="${final##*/}"
   case "$version" in

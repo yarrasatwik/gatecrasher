@@ -50,8 +50,8 @@ decided and why.
   terminal) and a 3-second review delay enforced on the server with a signed render time bound to the plan.
 - **Browser requests only.** Protected approve, apply, rollback and "confirm finding" requests must carry a
   same-origin `Origin` or `Sec-Fetch-Site: same-origin`. Every browser sends one; curl and scripts do not, so
-  they are refused. A local program that deliberately forges these headers is not stopped by this check; a
-  passkey (WebAuthn) approval would close that and is the next step.
+  they are refused. A local program that forges these headers, or an agent that drives a real browser, is not stopped by
+  this check; a passkey (WebAuthn) approval would close that and is the next step.
 - **Keys are split.** Audits, `ci`, `watch`, `plan`, `report`, parity and the MCP server load only the read key.
   `GATECRASHER_WRITE_API_KEY` is loaded only by `serve` and by the terminal paths that already require a person.
   Self-hosted Flagsmith may not offer restricted organisation keys; the split still keeps the write key out of
