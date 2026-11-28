@@ -138,3 +138,37 @@ func TestRunStopsWhenCancelled(t *testing.T) {
 		t.Fatalf("cancelled run should stop early: %+v err=%v", res, err)
 	}
 }
+
+// A locked-down environment ignores client traits and hides server-side-only
+// flags; RunLive must model both instead of reporting them as mismatches.
+func TestRunLiveModelsLockedDownEnvironment(t *testing.T) {
+	d, segs := fixture()
+	eng, _ := flagsmith.NewEngine(d.JSON())
+	lockedDown := func(id string, flags flagsmith.Flags) {
+		for k := range flags {
+			delete(flags, k)
+		}
+		for k, v := range eng.Evaluate(id, nil) {
+			if k != "premium" {
+				flags[k] = v
+			}
+		}
+	}
+	naive, err := parity.Run(context.Background(), eng, stubSDK(t, eng, lockedDown), 100, segs)
+	if err != nil || naive.Agreed == 100 {
+		t.Fatalf("without the live rules the check must disagree: %+v err=%v", naive, err)
+	}
+	live := parity.Live{IgnoresClientTraits: true, ServerOnly: map[string]bool{"premium": true}}
+	res, err := parity.RunLive(context.Background(), eng, stubSDK(t, eng, lockedDown), 100, segs, live)
+	if err != nil || res.Checked != 100 || res.Agreed != 100 {
+		t.Fatalf("want 100/100 with the live rules, got %+v err=%v", res, err)
+	}
+}
+
+func TestLiveFor(t *testing.T) {
+	l := parity.LiveFor(flagsmith.Environment{AllowClientTraits: false},
+		[]flagsmith.Feature{{Name: "a", IsServerKeyOnly: true}, {Name: "b"}})
+	if !l.IgnoresClientTraits || !l.ServerOnly["a"] || l.ServerOnly["b"] {
+		t.Fatalf("%+v", l)
+	}
+}

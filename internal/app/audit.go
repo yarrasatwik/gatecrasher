@@ -324,7 +324,7 @@ func (a *App) inside(ctx context.Context, r *model.Report, o AuditOptions, cls m
 
 	if o.ParitySamples > 0 {
 		say("parity", fmt.Sprintf("engine vs live parity over %d random identities", o.ParitySamples))
-		pr, err := parity.Run(ctx, eng, sdk, o.ParitySamples, segs)
+		pr, err := parity.RunLive(ctx, eng, sdk, o.ParitySamples, segs, parity.LiveFor(env, features))
 		if err != nil && !errors.Is(err, context.Canceled) {
 			r.Notes = append(r.Notes, "parity: "+redact.String(err.Error()))
 		}

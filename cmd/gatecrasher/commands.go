@@ -626,8 +626,16 @@ func cmdParity(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	fresh, err := a.Admin.Environment(ctx, e.APIKey)
+	if err != nil {
+		return err
+	}
+	feats, err := a.Admin.Features(ctx, p.ID)
+	if err != nil {
+		return err
+	}
 	start := time.Now()
-	res, err := parity.Run(ctx, eng, flagsmith.NewSDK(a.HTTP, a.Cfg.Flagsmith.APIURL, e.APIKey), *n, segs)
+	res, err := parity.RunLive(ctx, eng, flagsmith.NewSDK(a.HTTP, a.Cfg.Flagsmith.APIURL, e.APIKey), *n, segs, parity.LiveFor(*fresh, feats))
 	if err != nil {
 		return err
 	}
