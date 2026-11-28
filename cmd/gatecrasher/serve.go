@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/yarrasatwik/gatecrasher/internal/app"
@@ -35,6 +36,21 @@ func cmdServe(ctx context.Context, args []string) error {
 		}
 		defer closeWatch(w)
 		opts.Webhook = w.Handler()
+		// Flagsmith delivers to watch.public_url, which points at watch.listen,
+		// so that address must be served too, not just the web UI's.
+		if l := a.Cfg.Watch.Listen; l != "" && l != *addr {
+			hs := webhookServer(l, w.Handler())
+			stop := shutdownOnDone(ctx, hs)
+			defer stop()
+			errc := make(chan error, 1)
+			go func() { errc <- hs.ListenAndServe() }()
+			select {
+			case err := <-errc:
+				return fmt.Errorf("watch listener %s: %w", l, err)
+			case <-time.After(150 * time.Millisecond):
+			}
+			fmt.Fprintf(os.Stderr, "%s     listening on %s for Flagsmith webhooks\n", green("watch"), l)
+		}
 		fmt.Fprintln(os.Stderr, green("watch")+"     Flagsmith webhook registered → "+a.Cfg.Watch.PublicURL)
 	}
 	srv, err := server.New(opts)
@@ -67,16 +83,9 @@ func cmdWatch(ctx context.Context, args []string) error {
 		return err
 	}
 	defer closeWatch(w)
-	mux := http.NewServeMux()
-	mux.Handle("/webhook", w.Handler())
-	mux.Handle(server.WebhookPath, w.Handler())
-	hs := &http.Server{Addr: *listen, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
-	go func() {
-		<-ctx.Done()
-		sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		_ = hs.Shutdown(sctx)
-	}()
+	hs := webhookServer(*listen, w.Handler())
+	stop := shutdownOnDone(ctx, hs)
+	defer stop()
 	ch, unsub := w.Receiver.Subscribe()
 	defer unsub()
 	go func() {
@@ -100,6 +109,31 @@ func cmdWatch(ctx context.Context, args []string) error {
 		return err
 	}
 	return nil
+}
+
+// webhookServer serves the watch receiver at /webhook and at the web UI's
+// webhook path, so either form of watch.public_url reaches it.
+func webhookServer(addr string, h http.Handler) *http.Server {
+	mux := http.NewServeMux()
+	mux.Handle("/webhook", h)
+	mux.Handle(server.WebhookPath, h)
+	return &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+}
+
+// shutdownOnDone shuts hs down when ctx ends; the returned func stops it too.
+func shutdownOnDone(ctx context.Context, hs *http.Server) func() {
+	done := make(chan struct{})
+	var once sync.Once
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-done:
+		}
+		sctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_ = hs.Shutdown(sctx)
+	}()
+	return func() { once.Do(func() { close(done) }) }
 }
 
 func closeWatch(w *app.Watcher) {
