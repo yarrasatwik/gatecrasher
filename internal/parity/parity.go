@@ -189,6 +189,9 @@ func generate(eng *flagsmith.Engine, segments []flagsmith.Segment, n int) []test
 		}
 	}
 	cases := make([]testCase, 0, n)
+	// Each identifier appears in one case only: the live API answers
+	// concurrent requests for the same transient identifier inconsistently.
+	used := map[string]bool{}
 	for i := 0; i < n; i++ {
 		tc := testCase{id: fmt.Sprintf("gc-probe-parity-%d", i), traits: map[string]string{}}
 		if len(cands) > 0 && rng.Intn(2) == 0 {
@@ -196,7 +199,7 @@ func generate(eng *flagsmith.Engine, segments []flagsmith.Segment, n int) []test
 			for k, v := range c.Traits {
 				tc.traits[k] = v
 			}
-			if c.IdentifierForged && strings.HasPrefix(c.Identifier, "gc-probe-") {
+			if c.IdentifierForged && strings.HasPrefix(c.Identifier, "gc-probe-") && !used[c.Identifier] {
 				tc.id = c.Identifier
 			}
 		}
@@ -211,6 +214,7 @@ func generate(eng *flagsmith.Engine, segments []flagsmith.Segment, n int) []test
 		if rng.Intn(3) == 0 {
 			tc.traits[fmt.Sprintf("noise_%d", rng.Intn(10))] = fmt.Sprint(rng.Intn(1000))
 		}
+		used[tc.id] = true
 		cases = append(cases, tc)
 	}
 	return cases
