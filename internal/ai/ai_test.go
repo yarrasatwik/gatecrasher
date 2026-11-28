@@ -356,7 +356,7 @@ func TestTemplatesCoverEveryTypeWithinWordBudget(t *testing.T) {
 		model.FTraitForgery, model.FPercentageReroll, model.FVariantReroll, model.FExperimentRigging, model.FIdentityTraitLeak,
 		model.FIdentityOverrideLeak, model.FSecretExposed, model.FInternalURL, model.FUnreleasedProduct, model.FPricingLeak,
 		model.FPIILeak, model.FSettingClientTraitsOn, model.FSettingSensitiveData, model.FFlagNotServerOnly, model.FSegmentForgeable,
-		model.FControlOK,
+		model.FControlOK, model.FPossibleSecret,
 	} {
 		e := templateExplanation(model.Finding{Type: ft, Subject: "x_flag", Traits: map[string]string{"a": "b"}})
 		words := 0
