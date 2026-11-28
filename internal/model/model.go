@@ -213,6 +213,31 @@ type Finding struct {
 	Evidence    []Evidence        `json:"evidence,omitempty"`
 	FixPlanID   string            `json:"fix_plan_id,omitempty"`
 	Notes       []string          `json:"notes,omitempty"`
+	// RootCause is the ID of the one root cause this finding belongs to.
+	RootCause string `json:"root_cause"`
+}
+
+// RootCause is one fixable thing ("payment_config is served to browsers and
+// contains a live secret", "Production lets clients set traits"). Every
+// finding links to exactly one. The headline "N ways in" counts the root
+// causes that are exploitable, so one problem is never counted several times.
+type RootCause struct {
+	ID         string   `json:"id"`
+	Title      string   `json:"title"`
+	Severity   Severity `json:"severity"`
+	FindingIDs []string `json:"finding_ids"`
+	// Exploitable is true when at least one of its findings is open and the
+	// cause is more than a hardening note (a setting nothing exploits).
+	Exploitable bool   `json:"exploitable"`
+	Mechanism   string `json:"mechanism,omitempty"`
+	Environment string `json:"environment,omitempty"`
+	Subject     string `json:"subject,omitempty"`
+}
+
+// MakeRootCauseID returns the stable ID of a root cause.
+func MakeRootCauseID(mechanism, env, subject string) string {
+	h := sha256.Sum256([]byte(mechanism + "\x00" + env + "\x00" + subject))
+	return "RC-" + strings.ToUpper(hex.EncodeToString(h[:])[:8])
 }
 
 // MakeFindingID returns a stable short ID derived from the finding identity,
@@ -316,15 +341,27 @@ type Stats struct {
 
 // Report is the canonical audit output; every other format derives from it.
 type Report struct {
-	SchemaVersion   string           `json:"schema_version"`
-	ID              string           `json:"id"`
-	Tool            string           `json:"tool"`
-	Version         string           `json:"version"`
-	CreatedAt       time.Time        `json:"created_at"`
-	Target          string           `json:"target,omitempty"`
-	Project         string           `json:"project,omitempty"`
-	Environment     string           `json:"environment,omitempty"`
-	AIMode          string           `json:"ai_mode"` // "on (model)" | "off (heuristics)"
+	SchemaVersion string    `json:"schema_version"`
+	ID            string    `json:"id"`
+	Tool          string    `json:"tool"`
+	Version       string    `json:"version"`
+	CreatedAt     time.Time `json:"created_at"`
+	Target        string    `json:"target,omitempty"`
+	Project       string    `json:"project,omitempty"`
+	Environment   string    `json:"environment,omitempty"`
+	AIMode        string    `json:"ai_mode"` // "on (model)" | "off (heuristics)"
+	// WaysIn is the number of exploitable root causes: the headline "N ways in".
+	WaysIn int `json:"ways_in"`
+	// FindingCount is the number of confirmed findings (controls that held
+	// and AI-only suggestions are not findings). FindingCount − BlockedCount
+	// = OpenCount, exactly.
+	FindingCount int `json:"finding_count"`
+	BlockedCount int `json:"blocked_count"`
+	OpenCount    int `json:"open_count"`
+	// ReviewCount is the number of NEEDS_REVIEW suggestions, counted nowhere else.
+	ReviewCount int `json:"needs_review_count"`
+	// RootCauses groups the findings, highest severity first.
+	RootCauses      []RootCause      `json:"root_causes"`
 	Scope           []string         `json:"scope"`
 	Inventory       *PublicInventory `json:"inventory,omitempty"`
 	Classifications []Classification `json:"classifications,omitempty"`

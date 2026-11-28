@@ -23,7 +23,7 @@
 </section>
 
 <section class="tiles" aria-label="Summary">
-  <div class="tile"><p class="tile-num">{{if .Latest}}{{.Latest.WaysIn}}{{else}}-{{end}}</p><p class="tile-label">ways in (latest report)</p></div>
+  <div class="tile"><p class="tile-num">{{if .Latest}}{{.Latest.WaysIn}}{{else}}-{{end}}</p><p class="tile-label">ways in (latest report{{if .Latest}}: {{.Latest.Headline}}{{end}})</p></div>
   <a class="tile tile-link" href="/plans"><p class="tile-num">{{.Pending}}</p><p class="tile-label">fix plans awaiting a decision</p></a>
   <a class="tile tile-link" href="/watch"><p class="tile-num">{{.Alerts}}</p><p class="tile-label">watch alerts</p></a>
 </section>
@@ -37,7 +37,7 @@
       <td><time>{{time .CreatedAt}}</time></td>
       <td>{{if .Target}}<code>{{rd .Target}}</code>{{else}}-{{end}}</td>
       <td>{{.Environment}}</td>
-      <td><strong>{{.WaysIn}} way{{if ne .WaysIn 1}}s{{end}} in</strong></td>
+      <td><strong>{{.Headline}}</strong></td>
       <td>{{.AIMode}}</td>
       <td><a href="/report/{{.ID}}">Open <span class="sr-only">report {{.ID}}</span></a></td>
     </tr>{{end}}</tbody>

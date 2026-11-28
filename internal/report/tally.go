@@ -54,6 +54,15 @@ func Count(r *model.Report) Tally {
 // shown as BLOCKED).
 func CheckTally(r *model.Report) error {
 	t := Count(r)
+	if r.FindingCount != 0 || r.OpenCount != 0 || r.BlockedCount != 0 {
+		if r.FindingCount != t.Found || r.BlockedCount != t.Blocked || r.OpenCount != t.Remaining {
+			return fmt.Errorf("report %s: stored counts %d − %d = %d do not match its findings (%d − %d = %d)",
+				r.ID, r.FindingCount, r.BlockedCount, r.OpenCount, t.Found, t.Blocked, t.Remaining)
+		}
+		if s := Summarize(r); r.WaysIn != s.WaysIn {
+			return fmt.Errorf("report %s: ways_in is %d but %d root causes are exploitable", r.ID, r.WaysIn, s.WaysIn)
+		}
+	}
 	if t.Found-t.Blocked != t.Remaining {
 		return fmt.Errorf("report %s: found %d − blocked %d = %d, but %d findings are open", r.ID, t.Found, t.Blocked, t.Found-t.Blocked, t.Remaining)
 	}

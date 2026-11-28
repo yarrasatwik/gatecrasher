@@ -28,7 +28,7 @@ func WriteMarkdown(w io.Writer, r *model.Report) error {
 
 func mdHeader(b *strings.Builder, p *model.Report) {
 	fmt.Fprintf(b, "# Gatecrasher security report\n\n")
-	fmt.Fprintf(b, "**%d ways in** · report `%s` · %s\n\n", WaysIn(p), p.ID, p.CreatedAt.UTC().Format("2006-01-02 15:04 UTC"))
+	fmt.Fprintf(b, "**%s** · report `%s` · %s\n\n", HeadlineOf(p.WaysIn, p.FindingCount), p.ID, p.CreatedAt.UTC().Format("2006-01-02 15:04 UTC"))
 	var chips []string
 	for _, s := range severityOrder() {
 		chips = append(chips, fmt.Sprintf("%s %d", s, p.Stats.BySeverity[s.String()]))
@@ -38,32 +38,47 @@ func mdHeader(b *strings.Builder, p *model.Report) {
 }
 
 func mdFindings(b *strings.Builder, p *model.Report) {
-	b.WriteString("## Findings\n\n")
-	if len(p.Findings) == 0 {
+	b.WriteString("## Findings by root cause\n\n")
+	groups := GroupByRootCause(p)
+	if len(groups) == 0 {
 		b.WriteString("No findings.\n\n")
 		return
 	}
-	for _, f := range p.Findings {
-		if f.Status == model.StatusNeedsReview {
-			continue
+	b.WriteString("A root cause is one thing to fix. A way in is a root cause that is exploitable now.\n\n")
+	for _, g := range groups {
+		fmt.Fprintf(b, "### Root cause: %s\n\n", mdInline(g.Cause.Title))
+		fmt.Fprintf(b, "`%s` · %s · %s · %s\n\n", g.Cause.ID, strings.ToUpper(g.Cause.Severity.String()), g.Kind, plural(len(g.Findings), "finding"))
+		for _, f := range g.Findings {
+			mdFinding(b, f)
 		}
-		fmt.Fprintf(b, "### [%s] %s\n\n", strings.ToUpper(f.Severity.String()), mdInline(headline(f)))
-		fmt.Fprintf(b, "`%s` · `%s` · subject `%s` · %s · detected by %s\n\n", f.ID, f.Type, f.Subject, statusWord(f.Status), methods(f))
-		mdExplanation(b, f)
-		if f.Repro != "" {
-			b.WriteString("**Reproduce**\n\n")
-			b.WriteString(fence(f.Repro, "sh"))
+	}
+}
+
+func plural(n int, word string) string {
+	if n == 1 {
+		return fmt.Sprintf("1 %s", word)
+	}
+	return fmt.Sprintf("%d %ss", n, word)
+}
+
+// mdFinding writes one finding under its root cause.
+func mdFinding(b *strings.Builder, f model.Finding) {
+	fmt.Fprintf(b, "#### [%s] %s\n\n", strings.ToUpper(f.Severity.String()), mdInline(headline(f)))
+	fmt.Fprintf(b, "`%s` · `%s` · subject `%s` · %s · detected by %s\n\n", f.ID, f.Type, f.Subject, statusWord(f.Status), methods(f))
+	mdExplanation(b, f)
+	if f.Repro != "" {
+		b.WriteString("**Reproduce**\n\n")
+		b.WriteString(fence(f.Repro, "sh"))
+	}
+	for _, e := range f.Evidence {
+		mdEvidence(b, e)
+	}
+	if fx := fixText(f); fx != "" {
+		fmt.Fprintf(b, "**Fix:** %s", mdInline(fx))
+		if f.FixPlanID != "" {
+			fmt.Fprintf(b, " (plan `%s`)", f.FixPlanID)
 		}
-		for _, e := range f.Evidence {
-			mdEvidence(b, e)
-		}
-		if fx := fixText(f); fx != "" {
-			fmt.Fprintf(b, "**Fix:** %s", mdInline(fx))
-			if f.FixPlanID != "" {
-				fmt.Fprintf(b, " (plan `%s`)", f.FixPlanID)
-			}
-			b.WriteString("\n\n")
-		}
+		b.WriteString("\n\n")
 	}
 }
 

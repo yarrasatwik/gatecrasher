@@ -178,60 +178,73 @@ func openAtOrAbove(r *model.Report, min model.Severity) int {
 }
 
 func printSummary(r *model.Report, paths []string) {
-	n := report.WaysIn(r)
-	fmt.Println()
-	head := fmt.Sprintf("  %d ways in  ", n)
-	if n == 0 {
-		fmt.Println(bgGreen(head) + "  no exploitable findings")
+	fmt.Print(summaryText(r, paths))
+}
+
+// summaryText renders the audit summary: the headline "N ways in · M
+// findings" (N = exploitable root causes, M = confirmed findings), then every
+// finding under its root cause, highest severity first.
+func summaryText(r *model.Report, paths []string) string {
+	var b strings.Builder
+	sum := report.Summarize(r)
+	fmt.Fprintln(&b)
+	head := "  " + report.HeadlineOf(sum.WaysIn, sum.Findings) + "  "
+	if sum.WaysIn == 0 {
+		fmt.Fprintln(&b, bgGreen(head)+"  no exploitable root cause")
 	} else {
-		fmt.Println(bgRed(head) + "  " + sevLine(r))
+		fmt.Fprintln(&b, bgRed(head)+"  "+sevLine(r))
 	}
-	fmt.Println(dim(fmt.Sprintf("  target %s · env %s · AI %s · %d requests · %.1fs",
+	fmt.Fprintln(&b, dim(fmt.Sprintf("  target %s · env %s · AI %s · %d requests · %.1fs",
 		nonEmpty(r.Target, "—"), nonEmpty(r.Environment, "—"), r.AIMode, r.Stats.ProbesSent, float64(r.Stats.DurationMS)/1000)))
 	if r.Stats.ParityChecked > 0 {
-		fmt.Println(dim(fmt.Sprintf("  engine vs live parity: %d/%d agree", r.Stats.ParityAgreed, r.Stats.ParityChecked)))
+		fmt.Fprintln(&b, dim(fmt.Sprintf("  engine vs live parity: %d/%d agree", r.Stats.ParityAgreed, r.Stats.ParityChecked)))
 	}
-	fmt.Println()
+	for _, g := range report.GroupByRootCause(r) {
+		if g.Kind == "control held" {
+			continue
+		}
+		fmt.Fprintln(&b)
+		fmt.Fprintf(&b, "  %s %s %s\n", sevTag(g.Cause.Severity), bold(safe(g.Cause.Title)), dim("("+g.Kind+" · "+g.Cause.ID+")"))
+		for _, f := range g.Findings {
+			proof := ""
+			for _, m := range f.DetectedBy {
+				if m == model.MethodProbe {
+					proof = green(" ✓ reproduced live")
+				}
+			}
+			status := ""
+			switch f.Status {
+			case model.StatusBlocked:
+				status = green(" [BLOCKED]")
+			case model.StatusHidden:
+				status = yellow(" [HIDDEN: not served to client SDKs, still open]")
+			case model.StatusUnknown:
+				status = yellow(" [unconfirmed]")
+			}
+			fmt.Fprintf(&b, "     %s %s %s%s%s\n", sevTag(f.Severity), dim(f.ID), safe(f.Title), proof, status)
+		}
+	}
 	var review []model.Finding
 	for _, f := range r.Findings {
-		if f.Type == model.FControlOK {
-			continue
-		}
 		if f.Status == model.StatusNeedsReview {
 			review = append(review, f)
-			continue
 		}
-		proof := ""
-		for _, m := range f.DetectedBy {
-			if m == model.MethodProbe {
-				proof = green(" ✓ reproduced live")
-			}
-		}
-		status := ""
-		switch f.Status {
-		case model.StatusBlocked:
-			status = green(" [BLOCKED]")
-		case model.StatusHidden:
-			status = yellow(" [HIDDEN: not served to client SDKs, still open]")
-		case model.StatusUnknown:
-			status = yellow(" [unconfirmed]")
-		}
-		fmt.Printf("  %s %s %s%s%s\n", sevTag(f.Severity), dim(f.ID), safe(f.Title), proof, status)
 	}
 	if len(review) > 0 {
-		fmt.Println()
-		fmt.Println(dim(fmt.Sprintf("  Claude suggests reviewing (%d) — not counted; confirm in the web UI if real", len(review))))
+		fmt.Fprintln(&b)
+		fmt.Fprintln(&b, dim(fmt.Sprintf("  Claude suggests reviewing (%d) — not counted; confirm in the web UI if real", len(review))))
 		for _, f := range review {
-			fmt.Printf("   %s  %s %s\n", yellow("?"), dim(f.ID), safe(f.Title))
+			fmt.Fprintf(&b, "   %s  %s %s\n", yellow("?"), dim(f.ID), safe(f.Title))
 		}
 	}
-	fmt.Println()
+	fmt.Fprintln(&b)
 	for _, p := range paths {
 		if strings.Contains(filepath.Base(p), "latest") {
-			fmt.Println(dim("  wrote " + p))
+			fmt.Fprintln(&b, dim("  wrote "+p))
 		}
 	}
-	fmt.Println(dim("  next: gatecrasher plan   (builds fix plans; nothing changes until a human approves)"))
+	fmt.Fprintln(&b, dim("  next: gatecrasher plan   (builds fix plans; nothing changes until a human approves)"))
+	return b.String()
 }
 
 func sevLine(r *model.Report) string {

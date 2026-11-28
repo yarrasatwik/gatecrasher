@@ -288,6 +288,7 @@ func (a *App) ConfirmFinding(_ context.Context, reportID, findingID, by string) 
 		return nil, err
 	}
 	severity.AssignAll(r.Findings)
+	AssignRootCauses(r)
 	report.Finalize(r)
 	if _, err := a.SaveReport(r); err != nil {
 		return r, err

@@ -33,6 +33,12 @@ type findingView struct {
 	Locations   []string
 }
 
+// groupView is one root cause with its finding cards.
+type groupView struct {
+	ID, Title, SevName, SevClass, Kind, Count string
+	Findings                                  []findingView
+}
+
 // reviewView is one AI-only suggestion.
 type reviewView struct {
 	ID, Title, Type, Subject, Reason string
@@ -54,6 +60,8 @@ type changeView struct {
 type htmlView struct {
 	R              *model.Report
 	WaysIn         int
+	FindingCount   int
+	Groups         []groupView
 	Chips          []chipView
 	Findings       []findingView
 	Review         []reviewView
@@ -83,7 +91,8 @@ func WriteHTML(w io.Writer, r *model.Report) error {
 func buildHTMLView(p *model.Report) htmlView {
 	v := htmlView{
 		R:              p,
-		WaysIn:         WaysIn(p),
+		WaysIn:         p.WaysIn,
+		FindingCount:   p.FindingCount,
 		Duration:       humanDuration(p.Stats.DurationMS),
 		EngineVersion:  engineVersion(),
 		Generated:      p.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
@@ -100,6 +109,14 @@ func buildHTMLView(p *model.Report) htmlView {
 		v.Findings = append(v.Findings, buildFindingView(f))
 	}
 	v.ReviewNote = reviewNote
+	for _, g := range GroupByRootCause(p) {
+		gv := groupView{ID: g.Cause.ID, Title: g.Cause.Title, SevName: titleCase(g.Cause.Severity.String()),
+			SevClass: g.Cause.Severity.String(), Kind: g.Kind, Count: plural(len(g.Findings), "finding")}
+		for _, f := range g.Findings {
+			gv.Findings = append(gv.Findings, buildFindingView(f))
+		}
+		v.Groups = append(v.Groups, gv)
+	}
 	for _, s := range p.Settings {
 		v.Settings = append(v.Settings, buildSettingView(s))
 	}

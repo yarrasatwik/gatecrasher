@@ -108,8 +108,16 @@ func TestRecordedReportTally(t *testing.T) {
 
 func TestHiddenIsShownAndStaysOpenInEveryFormat(t *testing.T) {
 	r, rollID := hiddenReport()
-	if got, want := WaysIn(r), Count(r).Remaining; got != want {
-		t.Fatalf("WaysIn = %d, want every open finding (%d)", got, want)
+	Finalize(r)
+	if r.OpenCount != Count(r).Remaining || r.OpenCount != r.FindingCount-1 {
+		t.Fatalf("open = %d of %d, want everything but the one BLOCKED finding", r.OpenCount, r.FindingCount)
+	}
+	for _, c := range r.RootCauses {
+		for _, id := range c.FindingIDs {
+			if id == rollID && !c.Exploitable {
+				t.Fatal("a HIDDEN finding must keep its root cause a way in")
+			}
+		}
 	}
 
 	md := render(t, func(b *bytes.Buffer) error { return WriteMarkdown(b, r) })

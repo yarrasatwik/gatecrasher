@@ -98,7 +98,7 @@ func TestToolCalls(t *testing.T) {
 		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"gatecrasher_findings","arguments":{"min_severity":"high"}}}`,
 		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"gatecrasher_explain","arguments":{"finding_id":"gc-1"}}}`,
 		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"gatecrasher_explain","arguments":{"finding_id":"GC-9"}}}`)
-	if b.audits != 1 || !strings.HasPrefix(text(res[0]), "1 ways in") {
+	if b.audits != 1 || !strings.HasPrefix(text(res[0]), "1 way in · 2 findings") {
 		t.Fatalf("audit: %q", text(res[0]))
 	}
 	if strings.Contains(text(res[1]), "GC-2") || !strings.Contains(text(res[1]), "GC-1") {

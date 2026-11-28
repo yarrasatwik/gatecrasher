@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/yarrasatwik/gatecrasher/internal/model"
+	"github.com/yarrasatwik/gatecrasher/internal/report"
 	"github.com/yarrasatwik/gatecrasher/internal/watch"
 )
 
@@ -25,27 +26,23 @@ type ReportSummary struct {
 	Environment string         `json:"environment,omitempty"`
 	AIMode      string         `json:"ai_mode,omitempty"`
 	WaysIn      int            `json:"ways_in"`
+	Findings    int            `json:"finding_count"`
+	Headline    string         `json:"headline"`
 	BySeverity  map[string]int `json:"by_severity,omitempty"`
 }
 
-// WaysIn counts the open findings of a report (the "N ways in" headline),
-// ignoring controls that held and suggestions only the AI made. It matches
-// every other surface: anything not BLOCKED is open, including HIDDEN and
-// UNKNOWN.
+// WaysIn is the "N ways in" of a report: its exploitable root causes, the
+// same number every other surface shows (report.Summarize).
 func WaysIn(r *model.Report) int {
-	n := 0
-	for _, f := range r.Findings {
-		if f.Open() {
-			n++
-		}
-	}
-	return n
+	return report.WaysIn(r)
 }
 
 // SummarizeReport builds the ReportSummary of a full report.
 func SummarizeReport(r *model.Report) ReportSummary {
+	s := report.Summarize(r)
 	return ReportSummary{ID: r.ID, CreatedAt: r.CreatedAt, Target: r.Target, Environment: r.Environment,
-		AIMode: r.AIMode, WaysIn: WaysIn(r), BySeverity: r.Stats.BySeverity}
+		AIMode: r.AIMode, WaysIn: s.WaysIn, Findings: s.Findings, Headline: report.HeadlineOf(s.WaysIn, s.Findings),
+		BySeverity: r.Stats.BySeverity}
 }
 
 // AuditRow is one entry of the hash-chained audit log, as displayed.

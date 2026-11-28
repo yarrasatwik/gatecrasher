@@ -29,6 +29,7 @@ type sarifRun struct {
 	Tool        sarifTool         `json:"tool"`
 	Results     []sarifResult     `json:"results"`
 	Invocations []sarifInvocation `json:"invocations,omitempty"`
+	Properties  map[string]any    `json:"properties,omitempty"`
 }
 
 type sarifInvocation struct {
@@ -171,6 +172,12 @@ func WriteSARIF(w io.Writer, r *model.Report) error {
 			}},
 			Results:     results,
 			Invocations: []sarifInvocation{{ExecutionSuccessful: true, EndTimeUTC: p.CreatedAt.UTC().Format("2006-01-02T15:04:05Z")}},
+			Properties: map[string]any{
+				"headline":      HeadlineOf(p.WaysIn, p.FindingCount),
+				"ways_in":       p.WaysIn,
+				"finding_count": p.FindingCount,
+				"root_causes":   p.RootCauses,
+			},
 		}},
 	}
 	enc := json.NewEncoder(w)
@@ -254,6 +261,7 @@ func buildResult(p *model.Report, f model.Finding, ruleIndex int) sarifResult {
 		Properties: map[string]any{
 			"security-severity": securityScore(f.Severity),
 			"status":            string(f.Status),
+			"root_cause":        f.RootCause,
 			"confirmed":         f.Confirmed,
 		},
 	}

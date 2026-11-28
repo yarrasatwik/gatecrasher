@@ -29,6 +29,16 @@ type compactFinding struct {
 	Status  string `json:"status"`
 	Title   string `json:"title"`
 	Fix     string `json:"fix,omitempty"`
+	Cause   string `json:"root_cause"`
+}
+
+// compactCause is one root cause of the compact summary.
+type compactCause struct {
+	ID          string   `json:"id"`
+	Title       string   `json:"title"`
+	Severity    string   `json:"severity"`
+	FindingIDs  []string `json:"finding_ids"`
+	Exploitable bool     `json:"exploitable"`
 }
 
 // compactChange is one before/after row of the compact summary.
@@ -46,7 +56,9 @@ type compactReport struct {
 	Env      string           `json:"env,omitempty"`
 	AI       string           `json:"ai"`
 	WaysIn   int              `json:"ways_in"`
+	Found    int              `json:"finding_count"`
 	Review   int              `json:"needs_review"`
+	Causes   []compactCause   `json:"root_causes"`
 	Counts   map[string]int   `json:"counts"`
 	Findings []compactFinding `json:"findings"`
 	Verified []compactChange  `json:"verified,omitempty"`
@@ -63,8 +75,10 @@ func WriteCompactJSON(w io.Writer, r *model.Report) error {
 		ID:       p.ID,
 		Env:      p.Environment,
 		AI:       p.AIMode,
-		WaysIn:   WaysIn(p),
-		Review:   Count(p).Review,
+		WaysIn:   p.WaysIn,
+		Found:    p.FindingCount,
+		Review:   p.ReviewCount,
+		Causes:   make([]compactCause, 0, len(p.RootCauses)),
 		Counts:   p.Stats.BySeverity,
 		Findings: make([]compactFinding, 0, len(p.Findings)),
 	}
@@ -77,8 +91,12 @@ func WriteCompactJSON(w io.Writer, r *model.Report) error {
 			Status:  string(f.Status),
 			Title:   oneLine(headline(f), 120),
 			Fix:     f.FixPlanID,
+			Cause:   f.RootCause,
 		}
 		out.Findings = append(out.Findings, cf)
+	}
+	for _, c := range p.RootCauses {
+		out.Causes = append(out.Causes, compactCause{ID: c.ID, Title: oneLine(c.Title, 120), Severity: c.Severity.String(), FindingIDs: c.FindingIDs, Exploitable: c.Exploitable})
 	}
 	for _, v := range p.BeforeAfter {
 		out.Verified = append(out.Verified, compactChange{ID: v.FindingID, Before: string(v.Before), After: string(v.After)})

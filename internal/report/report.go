@@ -22,7 +22,9 @@ const ToolName = "Gatecrasher"
 // Finalize makes r ready to publish: it stamps the schema version and tool
 // name, sorts findings (worst first) and recomputes Stats.BySeverity with a
 // count for every severity level. AI-only suggestions (NEEDS_REVIEW) are in
-// no severity total. It is idempotent.
+// no severity total. It then recomputes the root causes and the headline
+// counts (ways_in, finding_count, blocked_count, open_count) from the
+// findings' current statuses. It is idempotent.
 func Finalize(r *model.Report) {
 	r.SchemaVersion = model.SchemaVersion
 	if r.Tool == "" {
@@ -45,19 +47,25 @@ func Finalize(r *model.Report) {
 		}
 	}
 	r.Stats.BySeverity = counts
-}
-
-// WaysIn returns the number of distinct ways an attacker can get in: findings
-// that are not CONTROL_OK and not already BLOCKED. HIDDEN findings are still
-// open and count; AI-only suggestions (NEEDS_REVIEW) never do.
-func WaysIn(r *model.Report) int {
-	n := 0
-	for _, f := range r.Findings {
-		if f.Open() {
-			n++
+	for i := range r.Findings {
+		if r.Findings[i].RootCause == "" {
+			r.Findings[i].RootCause = fallbackCauseID(r.Findings[i])
 		}
 	}
-	return n
+	s := Summarize(r)
+	r.RootCauses = s.RootCauses
+	if r.RootCauses == nil {
+		r.RootCauses = []model.RootCause{}
+	}
+	r.WaysIn, r.FindingCount, r.BlockedCount, r.OpenCount, r.ReviewCount = s.WaysIn, s.Findings, s.Blocked, s.Open, s.Review
+}
+
+// WaysIn returns the number of distinct ways an attacker can get in: the
+// exploitable root causes (see Summarize). Several findings with one root
+// cause are one way in. HIDDEN findings keep their root cause open; AI-only
+// suggestions (NEEDS_REVIEW) and hardening notes never count.
+func WaysIn(r *model.Report) int {
+	return Summarize(r).WaysIn
 }
 
 // prepare returns a finalized, redacted deep copy of r for rendering.

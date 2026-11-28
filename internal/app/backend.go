@@ -56,6 +56,7 @@ func (b *Backend) Reports() []server.ReportSummary {
 		}
 		var r model.Report
 		if json.Unmarshal(raw, &r) == nil {
+			upgradeReport(&r)
 			out = append(out, server.SummarizeReport(&r))
 		}
 		return nil

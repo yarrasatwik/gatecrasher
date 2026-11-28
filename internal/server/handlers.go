@@ -11,6 +11,7 @@ import (
 
 	"github.com/yarrasatwik/gatecrasher/internal/model"
 	"github.com/yarrasatwik/gatecrasher/internal/redact"
+	"github.com/yarrasatwik/gatecrasher/internal/report"
 	"github.com/yarrasatwik/gatecrasher/internal/watch"
 )
 
@@ -53,9 +54,17 @@ type sevGroup struct {
 	Findings []model.Finding
 }
 
+// causeGroup is one root cause with its findings, as shown in the report.
+type causeGroup struct {
+	report.Group
+	Anchor string
+}
+
 type reportView struct {
 	Report   *model.Report
 	WaysIn   int
+	Headline string
+	Causes   []causeGroup
 	Groups   []sevGroup
 	Controls []model.Finding
 	// Review holds what only the AI suggested. These are not findings: they
@@ -89,7 +98,14 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request) {
 }
 
 func buildReportView(rep *model.Report) reportView {
-	v := reportView{Report: rep, WaysIn: WaysIn(rep)}
+	sum := report.Summarize(rep)
+	v := reportView{Report: rep, WaysIn: sum.WaysIn, Headline: report.HeadlineOf(sum.WaysIn, sum.Findings)}
+	for _, g := range report.GroupByRootCause(rep) {
+		if g.Kind == "control held" {
+			continue // listed under "Controls that held"
+		}
+		v.Causes = append(v.Causes, causeGroup{Group: g, Anchor: "rc-" + g.Cause.ID})
+	}
 	bySev := map[model.Severity][]model.Finding{}
 	for _, f := range rep.Findings {
 		if f.Type == model.FControlOK {

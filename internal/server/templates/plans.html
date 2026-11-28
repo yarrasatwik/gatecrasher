@@ -8,7 +8,7 @@
   <form method="post" action="/plans/make" class="inline-form">
     <input type="hidden" name="csrf_token" value="{{$.CSRF}}">
     <label for="report_id">Report</label>
-    <select id="report_id" name="report_id">{{range .Reports}}<option value="{{.ID}}">{{.ID}} - {{.WaysIn}} way{{if ne .WaysIn 1}}s{{end}} in ({{time .CreatedAt}})</option>{{end}}</select>
+    <select id="report_id" name="report_id">{{range .Reports}}<option value="{{.ID}}">{{.ID}} - {{.Headline}} ({{time .CreatedAt}})</option>{{end}}</select>
     <button class="btn" type="submit">Build fix plans</button>
   </form>
   {{else}}<p class="empty">No reports yet. Run an audit from the <a href="/">dashboard</a> first.</p>{{end}}

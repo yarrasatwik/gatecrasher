@@ -124,7 +124,7 @@ func (a *App) Audit(ctx context.Context, o AuditOptions) (*model.Report, error) 
 	r.Stats.ProbesSent = a.HTTP.Sent() - sentBefore
 	r.Stats.DurationMS = time.Since(start).Milliseconds()
 	report.Finalize(r)
-	say("done", fmt.Sprintf("%d ways in", report.WaysIn(r)))
+	say("done", report.Headline(r))
 	return r, nil
 }
 
@@ -289,10 +289,21 @@ func (a *App) inside(ctx context.Context, r *model.Report, o AuditOptions, cls m
 	env = *fresh
 	_ = envMap
 	envs := []flagsmith.Environment{env}
+	var served map[string]bool
+	servedProof := ""
 	if len(cls) == 0 {
-		a.classifyFromAdmin(ctx, env, cls, o.Fast)
+		served, servedProof = a.classifyFromAdmin(ctx, env, cls, o.Fast)
 	}
 	settings, setFindings := mapper.SettingsAudit(envs, features, cls)
+	for i := range setFindings {
+		// The flag list was just read with the public client key: a sensitive
+		// flag in it is reproduced exposure, not only a setting.
+		if f := &setFindings[i]; f.Type == model.FFlagNotServerOnly && served[f.Subject] {
+			f.DetectedBy = appendMethod(f.DetectedBy, model.MethodProbe)
+			f.Evidence = append(f.Evidence, model.Evidence{Kind: "request", Request: servedProof,
+				Note: redact.String(fmt.Sprintf("The public client key received %q.", f.Subject))})
+		}
+	}
 	r.Settings = settings
 	r.Findings = append(r.Findings, setFindings...)
 
@@ -355,12 +366,17 @@ func (a *App) envDocument(ctx context.Context, env flagsmith.Environment) (json.
 }
 
 // classifyFromAdmin classifies flag values from the environment's own
-// /flags/ response when the audit has no outside stage (CI mode).
-func (a *App) classifyFromAdmin(ctx context.Context, env flagsmith.Environment, cls map[string]model.Category, fast bool) {
+// /flags/ response when the audit has no outside stage (CI mode). It returns
+// the flags the public client key received and the request that showed it.
+func (a *App) classifyFromAdmin(ctx context.Context, env flagsmith.Environment, cls map[string]model.Category, fast bool) (served map[string]bool, request string) {
 	sdk := flagsmith.NewSDK(a.HTTP, a.Cfg.Flagsmith.APIURL, env.APIKey)
-	flags, _, err := sdk.EnvironmentFlags(ctx)
+	flags, ev, err := sdk.EnvironmentFlags(ctx)
 	if err != nil {
-		return
+		return nil, ""
+	}
+	served, request = map[string]bool{}, ev.Request
+	for n := range flags {
+		served[n] = true
 	}
 	inv := &model.PublicInventory{APIURL: a.Cfg.Flagsmith.APIURL}
 	for _, n := range flags.Names() {
@@ -376,12 +392,13 @@ func (a *App) classifyFromAdmin(ctx context.Context, env flagsmith.Environment, 
 		for flag, cat := range trustedCategories(adjudicate(det, inv, env.Name, time.Now().UTC(), nil)) {
 			cls[flag] = cat
 		}
-		return
+		return served, request
 	}
 	classes, _ := a.AI.Classify(ctx, inv)
 	for flag, cat := range trustedCategories(adjudicate(classes, inv, env.Name, time.Now().UTC(), a.confirmedFindings())) {
 		cls[flag] = cat
 	}
+	return served, request
 }
 
 // runningExperiments maps flag name → running experiment. known=false when
@@ -712,5 +729,18 @@ func (a *App) LoadReport(id string) (*model.Report, error) {
 	if err := json.Unmarshal(b, &r); err != nil {
 		return nil, fmt.Errorf("report %s: %w", id, err)
 	}
+	upgradeReport(&r)
 	return &r, nil
+}
+
+// upgradeReport gives a report written before root causes existed the same
+// grouping and counts a new audit gets, so every surface shows one headline.
+func upgradeReport(r *model.Report) {
+	for _, f := range r.Findings {
+		if f.RootCause == "" {
+			AssignRootCauses(r)
+			break
+		}
+	}
+	report.Finalize(r)
 }

@@ -15,6 +15,7 @@ import (
 
 	"github.com/yarrasatwik/gatecrasher/internal/model"
 	"github.com/yarrasatwik/gatecrasher/internal/redact"
+	"github.com/yarrasatwik/gatecrasher/internal/report"
 )
 
 // ProtocolVersion is the MCP revision this server implements.
@@ -191,13 +192,7 @@ func (s *Server) call(ctx context.Context, name string, args map[string]any) (st
 // Summary renders a token-efficient text summary of a report.
 func Summary(r *model.Report, min model.Severity) string {
 	var b strings.Builder
-	open := 0
-	for _, f := range r.Findings {
-		if f.Open() {
-			open++
-		}
-	}
-	fmt.Fprintf(&b, "%d ways in · %s · env %s · AI %s\n", open, r.Target, r.Environment, r.AIMode)
+	fmt.Fprintf(&b, "%s · %s · env %s · AI %s\n", report.Headline(r), r.Target, r.Environment, r.AIMode)
 	for _, f := range r.Findings {
 		if f.Severity < min || f.Type == model.FControlOK {
 			continue

@@ -67,9 +67,37 @@ func TestFinalize(t *testing.T) {
 
 func TestWaysIn(t *testing.T) {
 	r := reporttest.SampleReport()
-	want := len(r.Findings) - 1 // CONTROL_OK is not a way in
-	if got := WaysIn(r); got != want {
-		t.Fatalf("WaysIn = %d, want %d", got, want)
+	// The sample has no root-cause links, so each finding is its own root
+	// cause: 17 findings, minus the control that held, minus the three
+	// settings findings nothing reproduced (hardening, not ways in).
+	if got := WaysIn(r); got != 13 {
+		t.Fatalf("WaysIn = %d, want 13", got)
+	}
+	if got := Headline(r); got != "13 ways in · 16 findings" {
+		t.Fatalf("Headline = %q", got)
+	}
+	// Findings that share a root cause are one way in.
+	for i := range r.Findings {
+		if r.Findings[i].Type == model.FTraitForgery || r.Findings[i].Type == model.FSettingClientTraitsOn {
+			r.Findings[i].RootCause = "RC-TRAITS"
+		}
+	}
+	r.RootCauses = []model.RootCause{{ID: "RC-TRAITS", Title: "Production lets clients set traits"}}
+	if got := Headline(r); got != "12 ways in · 16 findings" {
+		t.Fatalf("grouped Headline = %q", got)
+	}
+	Finalize(r)
+	if r.WaysIn != 12 || r.FindingCount != 16 || r.FindingCount-r.BlockedCount != r.OpenCount {
+		t.Fatalf("stored counts: %d ways in, %d − %d = %d", r.WaysIn, r.FindingCount, r.BlockedCount, r.OpenCount)
+	}
+	var traits *model.RootCause
+	for i := range r.RootCauses {
+		if r.RootCauses[i].ID == "RC-TRAITS" {
+			traits = &r.RootCauses[i]
+		}
+	}
+	if traits == nil || len(traits.FindingIDs) != 3 || !traits.Exploitable || traits.Severity != model.SevCritical {
+		t.Fatalf("grouped root cause = %+v", traits)
 	}
 }
 
@@ -95,7 +123,7 @@ func TestWriteCompactJSON(t *testing.T) {
 	r := reporttest.SampleReport()
 	full := render(t, func(b *bytes.Buffer) error { return WriteJSON(b, r) })
 	out := render(t, func(b *bytes.Buffer) error { return WriteCompactJSON(b, r) })
-	if len(out)*4 > len(full) {
+	if len(out)*3 > len(full) {
 		t.Errorf("compact output %d bytes is not much smaller than full %d", len(out), len(full))
 	}
 	for _, banned := range []string{"evidence", "repro", "curl", "what_happened"} {
@@ -134,9 +162,12 @@ func TestWriteMarkdown(t *testing.T) {
 	out := render(t, func(b *bytes.Buffer) error { return WriteMarkdown(b, r) })
 	for _, want := range []string{
 		"# Gatecrasher security report",
-		"**16 ways in**",
-		"## Findings",
-		"### [CRITICAL] A live payment key is public",
+		"**13 ways in · 16 findings**",
+		"## Findings by root cause",
+		"### Root cause: ",
+		"way in · 1 finding",
+		"hardening · 1 finding",
+		"#### [CRITICAL] A live payment key is public",
 		"curl -s -H 'X-Environment-Key: <CLIENT_KEY>'",
 		"<details><summary>Evidence: request</summary>",
 		"## Environment security settings",
@@ -176,8 +207,8 @@ func TestWriteHTML(t *testing.T) {
 	for _, want := range []string{
 		"<!doctype html>", `<html lang="en">`, `name="viewport"`, "prefers-color-scheme: dark",
 		"<main", "<nav", "<header", "<footer", `class="skip"`, ":focus-visible",
-		`<span class="n">16</span>`, "ways in",
-		"Findings, ranked by severity", "Environment security settings", "Reachability map",
+		`<span class="n">13</span>`, "ways in &middot; 16 findings",
+		"Findings by root cause, highest severity first", `class="cause"`, "Root cause <code>RC-", "Environment security settings", "Reachability map",
 		"Before and after", "Method and scope",
 		"&lt;CLIENT_KEY&gt;", "<details>", "live-probe", "flagsmith-engine", "ai", "deterministic",
 		`href="/plans#plan-0001"`, "✗ Allowed", "✓ Blocked", "12/12 probes agree",
@@ -404,8 +435,24 @@ func TestSARIFOmitsBlockedAndHandlesUnknownType(t *testing.T) {
 	r.Findings[0].Status = model.StatusBlocked
 	r.Findings = append(r.Findings, model.Finding{ID: "GC-NEW", Type: "BRAND_NEW", Subject: "x y", Severity: model.SevLow, Status: model.StatusExploitable, Title: "new"})
 	out := render(t, func(b *bytes.Buffer) error { return WriteSARIF(b, r) })
-	if strings.Contains(out, r.Findings[0].ID) {
+	if strings.Contains(out, `"`+fingerprintKey+`": "`+r.Findings[0].ID+`"`) {
 		t.Error("blocked finding must not be a SARIF result")
+	}
+	var log sarifLog
+	if err := json.Unmarshal([]byte(out), &log); err != nil {
+		t.Fatal(err)
+	}
+	props := log.Runs[0].Properties
+	if props["ways_in"] != float64(13) || props["finding_count"] != float64(17) || props["headline"] != "13 ways in · 17 findings" {
+		t.Errorf("run.properties = ways_in %v finding_count %v headline %v", props["ways_in"], props["finding_count"], props["headline"])
+	}
+	if causes, ok := props["root_causes"].([]any); !ok || len(causes) == 0 {
+		t.Error("run.properties lacks root_causes")
+	}
+	for _, res := range log.Runs[0].Results {
+		if res.Properties["root_cause"] == nil || res.Properties["root_cause"] == "" {
+			t.Fatalf("result %s lacks a root_cause property", res.PartialFingerprints[fingerprintKey])
+		}
 	}
 	if !strings.Contains(out, `"ruleId": "BRAND_NEW"`) || !strings.Contains(out, "flagsmith/Production/x%20y") {
 		t.Error("unknown type not rendered with rule and escaped fallback uri")
