@@ -56,9 +56,7 @@ type stubFlagsmith struct {
 	doc         map[string]any
 	eng         *flagsmith.Engine
 	experiments bool // serve the recorded experiments
-	versioning  bool // env uses v2 feature versioning
 	writes      []string
-	published   int
 	failAdmin   bool // every admin call answers 500
 }
 

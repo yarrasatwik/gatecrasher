@@ -55,7 +55,7 @@ func (a *App) StartWatch(ctx context.Context, publicURL, baseURL string) (*Watch
 	}
 	if n := report.IncompleteNote(base); n != "" {
 		rcv.Close()
-		return nil, fmt.Errorf("baseline map %s Raise probes.max_requests so the baseline can finish.", n)
+		return nil, fmt.Errorf("baseline map %s; raise probes.max_requests so the baseline can finish", n)
 	}
 	rcv.Seed(findingIDs(base))
 	reg, err := watch.Register(ctx, a.Admin, p.Organisation, publicURL, secret)
