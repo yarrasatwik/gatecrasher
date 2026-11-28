@@ -34,6 +34,19 @@ jobs:
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - name: unit tests (race detector)
         run: go test -race -count=1 ./...
+      - name: coverage gates (flagsmith >= 75%, app >= 70%)
+        run: |
+          check() {
+            pkg=$1; min=$2; out=$(mktemp)
+            go test -count=1 -coverprofile="$out" "./internal/$pkg"
+            pct=$(go tool cover -func="$out" | awk '/^total:/ {sub("%", "", $3); print $3}')
+            echo "internal/$pkg statement coverage: ${pct}% (minimum ${min}%)"
+            awk -v p="$pct" -v m="$min" 'BEGIN { exit !(p + 0 >= m + 0) }' || { echo "::error::internal/$pkg coverage ${pct}% is below ${min}%"; return 1; }
+          }
+          status=0
+          check flagsmith 75 || status=1
+          check app 70 || status=1
+          exit $status
       - name: build
         run: go build -trimpath -o bin/gatecrasher ./cmd/gatecrasher
       - name: pre-commit hook blocks secrets
@@ -45,6 +58,38 @@ jobs:
           git add -f .env
           if git commit -q -m "should be blocked"; then echo "hook did not block .env"; exit 1; fi
           git reset -q .env && rm -f .env
+
+  install-download:
+    name: Action download path (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download and checksum-verify a pinned release
+        id: install
+        shell: bash
+        env:
+          GC_VERSION: v1.1.0
+          GC_INSTALL_DIR: ${{ runner.temp }}/gc-bin
+        run: bash scripts/install-gatecrasher.sh
+      - name: Installed binary is the pinned release
+        shell: bash
+        env:
+          GC_BIN: ${{ steps.install.outputs.bin }}
+          GC_BUILD: ${{ steps.install.outputs.build }}
+        run: |
+          test "$GC_BUILD" = false
+          "$GC_BIN" version | tee v.txt
+          grep -q "v1.1.0" v.txt
+      - name: A release without assets falls back to a source build
+        shell: bash
+        run: |
+          GC_VERSION=v0.0.0-nonexistent GC_INSTALL_DIR="$RUNNER_TEMP/gc-none" bash scripts/install-gatecrasher.sh | tee out.txt
+          grep -q "build=true" out.txt
 
   lab:
     name: End-to-end against self-hosted Flagsmith

@@ -23,6 +23,14 @@ var rules = []rule{
 	{regexp.MustCompile(`(?i)((?:x-environment-key|x-api-key|authorization)["']?\s*[:=]\s*["']?)([A-Za-z0-9._\-]{8,})`), "KEY", 2},
 	{regexp.MustCompile(`\b[A-Za-z0-9]{8}\.[A-Za-z0-9]{32}\b`), "ORG_API_KEY", 0},
 	{regexp.MustCompile(`sk-ant-[A-Za-z0-9_\-]{10,}`), "ANTHROPIC_KEY", 0},
+	{regexp.MustCompile(`(?i)https://hooks\.slack\.com/(?:services|triggers|workflows)/[A-Za-z0-9_/\-]{20,}`), "SLACK_WEBHOOK", 0},
+	{regexp.MustCompile(`(?i)https://(?:(?:ptb|canary)\.)?discord(?:app)?\.com/api/(?:v\d+/)?webhooks/\d{15,22}/[A-Za-z0-9_\-]{40,}`), "DISCORD_WEBHOOK", 0},
+	{regexp.MustCompile(`\bsk-(?:(?:proj|svcacct|admin)-[A-Za-z0-9_\-]{20,}|[A-Za-z0-9]{32,})`), "OPENAI_KEY", 0},
+	{regexp.MustCompile(`\bSG\.[A-Za-z0-9_\-]{22}\.[A-Za-z0-9_\-]{43}`), "SENDGRID_KEY", 0},
+	{regexp.MustCompile(`\bGOCSPX-[A-Za-z0-9_\-]{28}`), "GOOGLE_OAUTH_SECRET", 0},
+	{regexp.MustCompile(`\bnpm_[A-Za-z0-9]{36}\b`), "NPM_TOKEN", 0},
+	// Twilio auth token / API key secret following an AC or SK SID.
+	{regexp.MustCompile(`\b(?:AC|SK)[0-9a-f]{32}\b[^\n]{0,120}?\b([0-9a-f]{32})\b`), "TWILIO_SECRET", 1},
 	{regexp.MustCompile(`acme_live_[0-9a-fA-F]{8,}`), "SECRET", 0},
 	// pk_ (publishable) keys are public by design and internal/secrets does
 	// not classify them as secrets; they are still never printed in full.

@@ -1,6 +1,7 @@
 package recon
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -12,7 +13,10 @@ import (
 )
 
 var (
-	envIDRe     = regexp.MustCompile(`(?i)environment(?:ID|Id)["']?\s*[:=]\s*["']([A-Za-z0-9]{16,40})["']`)
+	envIDRe     = regexp.MustCompile(`(?i)environment_?id["']?\s*[:=]\s*["']([A-Za-z0-9]{16,40})["']`)
+	envIdentRe  = regexp.MustCompile(`(?i)environment_?id["']?\s*[:=]\s*([A-Za-z_$][\w$]*)`)
+	flagsEnvRe  = regexp.MustCompile(`(?i)(FLAGSMITH_(?:ENVIRONMENT|ENV)_?ID)["']?\s*[:=]\s*["']([A-Za-z0-9]{16,40})["']`)
+	flagsAPIRe  = regexp.MustCompile(`(?i)FLAGSMITH_API(?:_URL)?["']?\s*[:=]\s*["']((?:https?://|/)[^"']+)["']`)
 	envHeaderRe = regexp.MustCompile(`(?i)x-environment-key["']?\s*[:,=]\s*["']([A-Za-z0-9]{16,40})["']`)
 	quoted22Re  = regexp.MustCompile(`["']([A-Za-z0-9]{22})["']`)
 	serverKeyRe = regexp.MustCompile(`ser\.[A-Za-z0-9_-]{8,}`)
@@ -80,8 +84,12 @@ func extract(srcs []source) extraction {
 }
 
 func (e *extractor) scan(s source) {
-	e.addKeys(s, envIDRe, "environmentID", 0)
-	e.addKeys(s, envHeaderRe, "X-Environment-Key", 1)
+	if !(s.json && e.addJSON(s)) {
+		e.addKeys(s, envIDRe, "environmentID", 0)
+		e.addFlagsmithEnv(s)
+		e.addIdentifierKeys(s)
+		e.addKeys(s, envHeaderRe, "X-Environment-Key", 1)
+	}
 	e.addNearby(s)
 	e.addServerKeys(s)
 	e.addAPIURLs(s)
@@ -90,8 +98,123 @@ func (e *extractor) scan(s source) {
 
 func (e *extractor) addKeys(s source, re *regexp.Regexp, what string, rank int) {
 	for _, m := range re.FindAllStringSubmatchIndex(s.text, -1) {
+		if what == "environmentID" && m[0] > 0 && s.text[m[0]-1] == '_' {
+			continue // FLAGSMITH_ENVIRONMENT_ID and friends have their own pass
+		}
 		e.addCandidate(s, s.text[m[2]:m[3]], m[2], what, rank)
 	}
+}
+
+// addFlagsmithEnv finds FLAGSMITH_ENVIRONMENT_ID style config keys.
+func (e *extractor) addFlagsmithEnv(s source) {
+	for _, m := range flagsEnvRe.FindAllStringSubmatchIndex(s.text, -1) {
+		e.addCandidate(s, s.text[m[4]:m[5]], m[4], s.text[m[2]:m[3]], 0)
+	}
+}
+
+// addIdentifierKeys handles environmentID passed as a bare identifier, as in
+// minified bundles: it looks for the identifier's string assignment anywhere
+// in the file (K="...", const K="...", {K:"..."}). A match is strong evidence.
+func (e *extractor) addIdentifierKeys(s source) {
+	done := map[string]bool{}
+	for _, m := range envIdentRe.FindAllStringSubmatchIndex(s.text, -1) {
+		ident := s.text[m[2]:m[3]]
+		if m[1] < len(s.text) && strings.ContainsRune(".([", rune(s.text[m[1]])) {
+			continue // a property access or call, not a bare identifier
+		}
+		switch ident {
+		case "true", "false", "null", "undefined", "void", "window", "process":
+			continue
+		}
+		if done[ident] {
+			continue
+		}
+		done[ident] = true
+		re := regexp.MustCompile(`(?:^|[^\w$.])` + regexp.QuoteMeta(ident) + `\s*[:=]\s*["']([A-Za-z0-9]{16,40})["']`)
+		for _, a := range re.FindAllStringSubmatchIndex(s.text, 5) {
+			e.addCandidate(s, s.text[a[2]:a[3]], a[2], "environmentID via "+ident, 0)
+		}
+	}
+}
+
+// addJSON scans a JSON data block (__NEXT_DATA__, __NUXT_DATA__, ...) for
+// environment keys and API URLs. It returns false when the block is not valid
+// JSON so the caller can fall back to plain text scanning.
+func (e *extractor) addJSON(s source) bool {
+	var doc any
+	if err := json.Unmarshal([]byte(s.text), &doc); err != nil {
+		return false
+	}
+	e.walkJSON(s, doc)
+	return true
+}
+
+var jsonKeyRe = regexp.MustCompile(`^[A-Za-z0-9]{16,40}$`)
+
+func normKey(k string) string {
+	return strings.ToLower(strings.NewReplacer("_", "", "-", "").Replace(k))
+}
+
+func isEnvKeyName(k string) bool {
+	n := normKey(k)
+	if strings.Contains(n, "environmentid") {
+		return true
+	}
+	return strings.HasPrefix(n, "flagsmith") && (strings.HasSuffix(n, "envid") || strings.HasSuffix(n, "envkey") || strings.HasSuffix(n, "environmentkey"))
+}
+
+func isAPIKeyName(k string, hasEnv bool) bool {
+	n := normKey(k)
+	if strings.HasPrefix(n, "flagsmith") && strings.Contains(n, "api") {
+		return true
+	}
+	return hasEnv && (n == "api" || n == "apiurl" || n == "baseurl" || n == "apihost")
+}
+
+func (e *extractor) walkJSON(s source, node any) {
+	switch v := node.(type) {
+	case []any:
+		for _, x := range v {
+			e.walkJSON(s, x)
+		}
+	case map[string]any:
+		keys := make([]string, 0, len(v))
+		hasEnv := false
+		for k, x := range v {
+			keys = append(keys, k)
+			if str, ok := x.(string); ok && isEnvKeyName(k) && jsonKeyRe.MatchString(str) {
+				hasEnv = true
+			}
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			switch x := v[k].(type) {
+			case string:
+				switch {
+				case isEnvKeyName(k) && jsonKeyRe.MatchString(x):
+					e.addCandidate(s, x, jsonOffset(s.text, x), k, 0)
+				case isAPIKeyName(k, hasEnv) && (strings.HasPrefix(x, "http://") || strings.HasPrefix(x, "https://") || strings.HasPrefix(x, "/")):
+					if !e.apiSet[x] {
+						e.apiSet[x] = true
+						e.out.apiURLs = append(e.out.apiURLs, x)
+					}
+				}
+			default:
+				e.walkJSON(s, x)
+			}
+		}
+	}
+}
+
+// jsonOffset finds the byte offset of a string value in the raw JSON text.
+func jsonOffset(text, val string) int {
+	if i := strings.Index(text, `"`+val+`"`); i >= 0 {
+		return i + 1
+	}
+	if i := strings.Index(text, val); i >= 0 {
+		return i
+	}
+	return 0
 }
 
 func (e *extractor) addNearby(s source) {
@@ -138,6 +261,12 @@ func (e *extractor) addServerKeys(s source) {
 }
 
 func (e *extractor) addAPIURLs(s source) {
+	for _, m := range flagsAPIRe.FindAllStringSubmatch(s.text, -1) {
+		if !e.apiSet[m[1]] {
+			e.apiSet[m[1]] = true
+			e.out.apiURLs = append(e.out.apiURLs, m[1])
+		}
+	}
 	for _, m := range apiOptionRe.FindAllStringSubmatchIndex(s.text, -1) {
 		lo, hi := max(0, m[0]-nearbyWindow*3/2), min(len(s.text), m[1]+nearbyWindow*3/2)
 		if !flagsmithHint.MatchString(s.text[lo:hi]) {

@@ -1,0 +1,37 @@
+version: 2
+
+project_name: gatecrasher
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: gatecrasher
+    main: ./cmd/gatecrasher
+    binary: gatecrasher
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/yarrasatwik/gatecrasher/internal/app.Version={{.Tag}}
+
+# Archive-less: each platform binary is uploaded as-is, named
+# gatecrasher_<tag>_<os>_<arch>[.exe], so the GitHub Action can download it.
+archives:
+  - id: raw
+    formats: [binary]
+    name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  disable: true
+
+release:
+  draft: false

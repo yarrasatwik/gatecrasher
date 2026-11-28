@@ -33,6 +33,11 @@ flagsmith:
 # one needs the web UI (gatecrasher serve) or a real terminal, where you type
 # the environment name and the last 4 characters of the plan hash. Gatecrasher
 # refuses inside coding-agent and CI sessions, and --confirm is not accepted.
+# The web UI asks for both too, and only accepts a protected approval, apply,
+# rollback or "confirm finding" that a browser sent from its own page (an Origin
+# or Sec-Fetch-Site: same-origin header); curl and scripts are refused.
+# Writes (apply, rollback) can use a separate GATECRASHER_WRITE_API_KEY that
+# only `serve` and a person at a real terminal load; see .env.example.
 # An environment named Production is always protected; this list can add more.
 # (flagsmith.production_environments is the older name and still works.)
 protected_environments: [Production]
@@ -55,9 +60,19 @@ app_repo: lab/shop
 # Claude Code CLI (no API key, every tool disabled); "off" uses the built-in
 # heuristics. Empty = "api" when a key is set, otherwise off.
 # ai: claude-code
+# To also set how many AI calls run in parallel (default 4, max 32):
+# ai:
+#   provider: claude-code
+#   concurrency: 4
+
+# Profile: "lab" (local or private API host: parity 1000, re-roll 200) or
+# "cloud" (any other host: parity 200, re-roll 100). Empty = chosen from the
+# API host; --profile overrides it. probes.reroll_samples / parity_samples win.
+# profile: lab
 
 probes:
   reroll_samples: 200
+  # max_requests: 0   # stop sending new requests after N (0 = no cap); stages cut off read "incomplete (budget)"
   rate_per_sec: 60
   max_hypotheses: 40
   max_combos: 24
@@ -67,5 +82,6 @@ approval_ttl_minutes: 30
 
 watch:
   listen: 127.0.0.1:8788
+  # max_requests_per_hour: 500   # re-checks stop (and say so) once this many requests were sent in the last hour
   # URL Flagsmith calls; host.docker.internal reaches your machine from the lab containers.
   public_url: http://host.docker.internal:8788/webhook

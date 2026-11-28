@@ -67,6 +67,28 @@ type Client struct {
 	// cli, when set, is the path of a signed-in Claude Code binary used
 	// instead of the Messages API (claude -p, every tool disabled).
 	cli string
+	// concurrency bounds parallel calls in Classify and ExplainAll
+	// (0 = DefaultConcurrency).
+	concurrency int
+}
+
+// DefaultConcurrency is how many AI calls run at once unless configured.
+const DefaultConcurrency = 4
+
+// SetConcurrency sets how many AI calls may run at once. Values below 1 keep
+// the default. Call it before the client is shared between goroutines.
+func (c *Client) SetConcurrency(n int) {
+	if c != nil && n > 0 {
+		c.concurrency = n
+	}
+}
+
+// Concurrency returns the maximum number of parallel AI calls.
+func (c *Client) Concurrency() int {
+	if c == nil || c.concurrency < 1 {
+		return DefaultConcurrency
+	}
+	return c.concurrency
 }
 
 // New builds a Client. An empty apiKey yields AI-off mode; an empty model
@@ -158,6 +180,7 @@ func (c *Client) send(ctx context.Context, system, user string) (string, error) 
 	if c.cli != "" {
 		return c.sendCLI(ctx, system, user)
 	}
+	ctx = httpx.WithBudget(ctx, nil) // model calls are not Flagsmith probes
 	body := messageRequest{Model: c.model, MaxTokens: maxOutputTokens, System: system, Messages: []message{{Role: "user", Content: user}}}
 	var resp messageResponse
 	_, err := c.http.JSON(ctx, httpx.Request{

@@ -49,11 +49,44 @@ func New(sdk *flagsmith.SDK, opts Options) *Runner {
 		}
 		opts.RunningExperiments = copyMap
 	}
+	opts = normalize(opts)
+	return &Runner{sdk: sdk, opts: opts}
+}
+
+// normalize applies the default and maximum limits.
+func normalize(opts Options) Options {
 	opts.MaxHypotheses = bound(opts.MaxHypotheses, 40, 40)
 	opts.MaxCombos = bound(opts.MaxCombos, 24, 24)
 	opts.RerollSamples = bound(opts.RerollSamples, 200, 500)
-	return &Runner{sdk: sdk, opts: opts}
+	return opts
 }
+
+// Estimate is the number of requests Run sends when no trait set changes a
+// flag (each set costs one control and one probe request).
+type Estimate struct {
+	// Sets is the number of single and paired trait sets probed.
+	Sets int
+	// Pairs is the requests for those sets, Reroll the identifier re-roll
+	// samples and Lookups the test identity lookups.
+	Pairs, Reroll, Lookups int
+}
+
+// Total is every request counted.
+func (e Estimate) Total() int { return e.Pairs + e.Reroll + e.Lookups }
+
+// EstimateRequests returns the requests Run would send for hypotheses under
+// opts, before any retries and before the second pair a confirmed trait
+// forgery costs (2 requests per forging set).
+func EstimateRequests(opts Options, hypotheses []ai.Hypothesis) Estimate {
+	opts = normalize(opts)
+	sets := planSets(dedupeHypotheses(hypotheses, opts.MaxHypotheses), opts.MaxCombos)
+	e := Estimate{Sets: len(sets), Pairs: 2 * len(sets), Lookups: len(opts.TestIdentities)}
+	if opts.ClientSetsIdentifier {
+		e.Reroll = opts.RerollSamples
+	}
+	return e
+}
+
 func bound(n, def, max int) int {
 	if n == 0 {
 		return def
@@ -102,6 +135,47 @@ func evidence(res *flagsmith.IdentityResult) model.Evidence {
 	return model.Evidence{Kind: "request", Request: res.Evidence.Request, Note: "Transient SDK evaluation; raw response omitted to protect trait and flag values."}
 }
 
+// dedupeHypotheses keeps the usable, unique hypotheses, at most max of them.
+func dedupeHypotheses(hypotheses []ai.Hypothesis, max int) []ai.Hypothesis {
+	hs := []ai.Hypothesis{}
+	if max == 0 {
+		return hs
+	}
+	seen := map[string]bool{}
+	for _, h := range hypotheses {
+		k := h.TraitKey + "\x00" + h.TraitValue
+		if h.TraitKey == "" || h.TraitValue == "" || len(h.TraitKey) > 64 || len(h.TraitValue) > 128 || seen[k] {
+			continue
+		}
+		seen[k] = true
+		hs = append(hs, h)
+		if len(hs) >= max {
+			break
+		}
+	}
+	return hs
+}
+
+// planSets turns hypotheses into the trait sets to probe: each one alone,
+// then up to maxCombos pairs with different trait keys.
+func planSets(hs []ai.Hypothesis, maxCombos int) []map[string]string {
+	sets := []map[string]string{}
+	for _, h := range hs {
+		sets = append(sets, map[string]string{h.TraitKey: h.TraitValue})
+	}
+	combos := 0
+	for i := 0; i < len(hs); i++ {
+		for j := i + 1; j < len(hs) && combos < maxCombos; j++ {
+			if hs[i].TraitKey == hs[j].TraitKey {
+				continue
+			}
+			sets = append(sets, map[string]string{hs[i].TraitKey: hs[i].TraitValue, hs[j].TraitKey: hs[j].TraitValue})
+			combos++
+		}
+	}
+	return sets
+}
+
 // Run consumes the baseline and ranked hypotheses from ai.Hypothesize.
 // Errors return partial confirmed findings and must be surfaced by the caller.
 func (r *Runner) Run(ctx context.Context, baseline flagsmith.Flags, hypotheses []ai.Hypothesis) ([]model.Finding, error) {
@@ -111,36 +185,8 @@ func (r *Runner) Run(ctx context.Context, baseline flagsmith.Flags, hypotheses [
 	if err := ctx.Err(); err != nil {
 		return out, err
 	}
-	hs := []ai.Hypothesis{}
-	seen := map[string]bool{}
-	for _, h := range hypotheses {
-		k := h.TraitKey + "\x00" + h.TraitValue
-		if h.TraitKey == "" || h.TraitValue == "" || len(h.TraitKey) > 64 || len(h.TraitValue) > 128 || seen[k] {
-			continue
-		}
-		seen[k] = true
-		hs = append(hs, h)
-		if len(hs) >= r.opts.MaxHypotheses {
-			break
-		}
-	}
-	if r.opts.MaxHypotheses == 0 {
-		hs = nil
-	}
-	sets := []map[string]string{}
-	for _, h := range hs {
-		sets = append(sets, map[string]string{h.TraitKey: h.TraitValue})
-	}
-	combos := 0
-	for i := 0; i < len(hs); i++ {
-		for j := i + 1; j < len(hs) && combos < r.opts.MaxCombos; j++ {
-			if hs[i].TraitKey == hs[j].TraitKey {
-				continue
-			}
-			sets = append(sets, map[string]string{hs[i].TraitKey: hs[i].TraitValue, hs[j].TraitKey: hs[j].TraitValue})
-			combos++
-		}
-	}
+	hs := dedupeHypotheses(hypotheses, r.opts.MaxHypotheses)
+	sets := planSets(hs, r.opts.MaxCombos)
 	for _, traits := range sets {
 		first, control, err := r.pair(ctx, traits)
 		if err != nil {

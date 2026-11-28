@@ -59,6 +59,14 @@ func heuristicHypotheses(traitKeys []string, domain string) []Hypothesis {
 	return out
 }
 
+// HeuristicHypotheses returns the deterministic guesses used when the AI is
+// off: bundle trait keys first, then the built-in dictionary and e-mail
+// guesses on domain. It sends nothing and costs nothing, which makes it the
+// basis of request-count estimates.
+func HeuristicHypotheses(traitKeys []string, domain string) []Hypothesis {
+	return heuristicHypotheses(traitKeys, domain)
+}
+
 func bundleValues(key string) []string {
 	for _, d := range dictionary {
 		if d.key == key {

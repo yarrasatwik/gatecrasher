@@ -134,6 +134,43 @@ func Headline(r *model.Report) string {
 	return HeadlineOf(s.WaysIn, s.Findings)
 }
 
+// IncompleteNote is the sentence every surface shows when the request budget
+// stopped a stage; empty for a complete run.
+func IncompleteNote(r *model.Report) string {
+	if len(r.Stats.Incomplete) == 0 {
+		return ""
+	}
+	return "incomplete (budget): " + strings.Join(r.Stats.Incomplete, ", ") +
+		". These stages did not finish, so what they could not check is unknown and not reported as safe."
+}
+
+// RequestsLine renders the requests actually used, with the budget if one applied.
+func RequestsLine(r *model.Report) string {
+	if r.Stats.Budget > 0 {
+		return fmt.Sprintf("%d of %d used", r.Stats.ProbesSent, r.Stats.Budget)
+	}
+	return fmt.Sprintf("%d", r.Stats.ProbesSent)
+}
+
+func stageRequestLines(r *model.Report) []string {
+	keys := make([]string, 0, len(r.Stats.StageRequests))
+	for k := range r.Stats.StageRequests {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]string, 0, len(keys))
+	for _, k := range keys {
+		line := fmt.Sprintf("%s: %d requests", k, r.Stats.StageRequests[k])
+		for _, inc := range r.Stats.Incomplete {
+			if inc == k {
+				line += " (incomplete (budget))"
+			}
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
 // HeadlineOf formats the headline from the two numbers.
 func HeadlineOf(waysIn, findings int) string {
 	w, f := "ways in", "findings"

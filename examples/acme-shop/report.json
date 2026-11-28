@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0",
-  "id": "r-20261128-144300-6fbe77",
+  "id": "r-20261128-164821-dd149c",
   "tool": "Gatecrasher",
   "version": "dev",
-  "created_at": "2026-11-28T14:43:00.6041667Z",
+  "created_at": "2026-11-28T16:48:21.6229471Z",
   "target": "http://localhost:3030",
   "project": "Acme Shop",
   "environment": "Production",
@@ -127,7 +127,7 @@
     "api_url": "http://localhost:8000/api/v1/",
     "key_fingerprint": "[CLIENT_KEY len=22 prefix=Snjz…]",
     "key_sources": [
-      "app.js:4 key-shaped string near flagsmith"
+      "app.js:4 environmentID via FLAGSMITH_ENV_KEY"
     ],
     "trait_keys_in_bundle": [
       "plan"
@@ -242,7 +242,7 @@
         "size": 0
       }
     ],
-    "fetched_at": "2026-11-28T14:43:00.6239663Z"
+    "fetched_at": "2026-11-28T16:48:21.6511752Z"
   },
   "classifications": [
     {
@@ -368,11 +368,11 @@
       ],
       "proof_identifier": "gc-probe-a@acmeshop.dev",
       "explanation": {
-        "title": "Anyone can unlock internal tools by picking a staff-style email",
-        "what_happened": "The internal_tools flag turns on for any identifier matching the staff rule, such as a@acmeshop.dev. An outsider using the public client key can send that identifier and receive the feature. No account trait is involved.",
-        "why_it_matters": "The app trusts a self-declared identifier, which anyone can choose. Turning off trait-based checks does not close this gap.",
-        "business_impact": "Unauthorized people could reach internal tooling in Production, risking exposure of internal data and functions.",
-        "fix_summary": "Stop matching staff access on a client-supplied identifier. Decide staff status on the server and serve the flag from verified data.",
+        "title": "Anyone can switch on internal tools by typing a staff-style email",
+        "what_happened": "The production flag service decides who gets internal_tools based on the identifier a visitor supplies. Any identifier matching the staff pattern, such as a@acmeshop.dev, flips internal_tools from off to on. The client key is enough to try it, and no trait or login is involved.",
+        "why_it_matters": "The identifier is chosen by the caller and never verified, so turning off client traits does not close this gap.",
+        "business_impact": "Outsiders could reach staff-only tools and whatever data or actions they expose, in production.",
+        "fix_summary": "Stop granting access from a caller-supplied identifier. Decide staff access on the server after real authentication, or use a verified signed value, then retest.",
         "source": "ai"
       },
       "repro": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-a@acmeshop.dev\",\"traits\":[],\"transient\":true}'",
@@ -387,7 +387,7 @@
           "response": "HTTP 200 {\"identifier\":\"gc-probe-a@acmeshop.dev\",\"traits\":[],\"flags\":[{\"id\":2,\"feature\":{\"id\":1,\"name\":\"premium_export\",\"created_date\":\"2026-11-27T20:39:02.996158Z\",\"description\":\"Paid feature gated on the plan trait (trait forgery).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":4,\"feature\":{\"id\":2,\"name\":\"admin_panel\",\"created_date\":\"2026-11-27T20:39:03.247648Z\",\"description\":\"Admin UI gated on the role trait (privilege escalation).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":6,\"feature\":{\"id\":3,\"name\":\"staff_preview\",\"created_date\":\"2026-11-27T20:39:03.496434Z\",\"description\":\"Staff-only preview gated on an email regex.\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":8,\"feature\":{\"id\":4,\"name\":\"early_access_ai\",\"created_date\":\"2026-11-27T20:39:03.731596Z\",\"description\":\"10 percent canary rollout (identifier re-roll).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":3…"
         }
       ],
-      "fix_plan_id": "plan-73c4ff88",
+      "fix_plan_id": "plan-6995c9d7",
       "notes": [
         "Segment \"staff_by_identifier\" targets the identifier itself; the browser chooses its own identifier.",
         "Choosing an identifier is not affected by the \"Allow client SDKs to set user traits\" setting: the segment tests the identifier itself, and the client still picks its own identifier after that setting is turned off.",
@@ -410,10 +410,10 @@
       "status": "BLOCKED",
       "explanation": {
         "title": "Payment secret exposed in a public feature flag",
-        "what_happened": "Using only the public client key, anyone can fetch the payment_config flag in Production. Its value includes a live payment provider API secret (acmepay) and a webhook address.",
-        "why_it_matters": "Client keys are meant to be visible in apps and browsers. Secrets stored in flag values are therefore readable by anyone.",
-        "business_impact": "Attackers could use the key to act on your payment account, causing fraud, financial loss, and customer data exposure.",
-        "fix_summary": "Revoke and replace the exposed secret now, move it to a server-side secrets store, and keep only non-sensitive settings in client-visible flags.",
+        "what_happened": "Anyone holding the client-side environment key can request the flag list and read the payment_config flag in Production. It contains what looks like a live payment provider API secret, plus a webhook address.",
+        "why_it_matters": "Client keys are meant to be visible in apps and browsers, so they are not private. Secrets stored in flag values are effectively public.",
+        "business_impact": "Attackers could use the key to act as your payment account, causing fraud, financial loss, customer data exposure, and emergency cleanup costs.",
+        "fix_summary": "Revoke and replace the exposed payment secret now, remove it from the flag, and store it in a server-side secrets manager.",
         "source": "ai"
       },
       "repro": "curl -s 'http://localhost:8000/api/v1/flags/' -H 'X-Environment-Key: <CLIENT_KEY>'",
@@ -425,7 +425,7 @@
           "note": "secret detected in value at $.api_secret (acme_live_key)"
         }
       ],
-      "fix_plan_id": "plan-1a43203e",
+      "fix_plan_id": "plan-a651a081",
       "root_cause": "RC-C11B4554"
     },
     {
@@ -452,16 +452,16 @@
           "after": "on"
         }
       ],
-      "proof_identifier": "gc-probe-a28381e83aee44394d0d370e3dcfb250",
+      "proof_identifier": "gc-probe-65b9a852a40e53b758ec355867a51b31",
       "explanation": {
-        "title": "Anyone can switch on the admin panel by claiming to be an admin",
-        "what_happened": "The system decides who is an admin based on a \"role\" value that the caller supplies themselves. A test request using only the public client key and role=admin flipped the admin_panel flag from off to on in Production.",
-        "why_it_matters": "The role is self-declared and never verified, so any outsider can claim it. A security control is relying on information the user can fake.",
-        "business_impact": "Unauthorized people could be shown admin features, risking exposure of sensitive data or actions, and loss of customer trust.",
-        "fix_summary": "Stop deciding admin access from caller-supplied values. Enforce admin rights on the server using verified identity, and treat the flag as display-only.",
+        "title": "Anyone can unlock the admin panel by claiming to be an admin",
+        "what_happened": "The system decides who gets the admin panel based on a \"role\" value the user's own app sends. Our test sent role=admin from outside, and the production flag admin_panel switched from off to on. No password or login was needed.",
+        "why_it_matters": "The app trusts a claim the user can make up themselves, so the admin check protects nothing.",
+        "business_impact": "Any customer or attacker could reach admin features, risking data exposure, unauthorized changes, and compliance or reputational damage.",
+        "fix_summary": "Stop deciding admin access from user-supplied values. Base it on server-verified identity, and enforce admin permissions on the server too.",
         "source": "ai"
       },
-      "repro": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-80e4da44-ec21-4a43-8021-442804e76d8d\",\"traits\":[{\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"transient\":true}'",
+      "repro": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-a7609204-0087-4c7f-b0a2-6476e1a9d6d2\",\"traits\":[{\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"transient\":true}'",
       "evidence": [
         {
           "kind": "engine",
@@ -469,21 +469,21 @@
         },
         {
           "kind": "request",
-          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-80e4da44-ec21-4a43-8021-442804e76d8d\",\"traits\":[{\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"transient\":true}'",
-          "response": "HTTP 200 {\"identifier\":\"gc-probe-80e4da44-ec21-4a43-8021-442804e76d8d\",\"traits\":[{\"id\":null,\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"flags\":[{\"id\":2,\"feature\":{\"id\":1,\"name\":\"premium_export\",\"created_date\":\"2026-11-27T20:39:02.996158Z\",\"description\":\"Paid feature gated on the plan trait (trait forgery).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":30,\"feature\":{\"id\":2,\"name\":\"admin_panel\",\"created_date\":\"2026-11-27T20:39:03.247648Z\",\"description\":\"Admin UI gated on the role trait (privilege escalation).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":7,\"enabled\":true,\"reason\":\"TARGETING_MATCH; segment=admins\",\"variant\":null},{\"id\":6,\"feature\":{\"id\":3,\"name\":\"staff_preview\",\"created_date\":\"2026-11-27T20:39:03.496434Z\",\"description\":\"Staff-only preview gated on an email regex.\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":8,\"feature\":{\"id\":4,\"name\":\"early_access_ai\",\"created_date\":\"2026-11-27T20:39:03.731596Z\",\"description\":\"10 percent canary rollout (identifier re-roll).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"…"
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-a7609204-0087-4c7f-b0a2-6476e1a9d6d2\",\"traits\":[{\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"transient\":true}'",
+          "response": "HTTP 200 {\"identifier\":\"gc-probe-a7609204-0087-4c7f-b0a2-6476e1a9d6d2\",\"traits\":[{\"id\":null,\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"flags\":[{\"id\":2,\"feature\":{\"id\":1,\"name\":\"premium_export\",\"created_date\":\"2026-11-27T20:39:02.996158Z\",\"description\":\"Paid feature gated on the plan trait (trait forgery).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":30,\"feature\":{\"id\":2,\"name\":\"admin_panel\",\"created_date\":\"2026-11-27T20:39:03.247648Z\",\"description\":\"Admin UI gated on the role trait (privilege escalation).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":7,\"enabled\":true,\"reason\":\"TARGETING_MATCH; segment=admins\",\"variant\":null},{\"id\":6,\"feature\":{\"id\":3,\"name\":\"staff_preview\",\"created_date\":\"2026-11-27T20:39:03.496434Z\",\"description\":\"Staff-only preview gated on an email regex.\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":8,\"feature\":{\"id\":4,\"name\":\"early_access_ai\",\"created_date\":\"2026-11-27T20:39:03.731596Z\",\"description\":\"10 percent canary rollout (identifier re-roll).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"…"
         },
         {
           "kind": "request",
-          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-a28381e83aee44394d0d370e3dcfb250\",\"traits\":[{\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"transient\":true}'",
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-65b9a852a40e53b758ec355867a51b31\",\"traits\":[{\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"transient\":true}'",
           "note": "Transient SDK evaluation; raw response omitted to protect trait and flag values."
         },
         {
           "kind": "request",
-          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-354e8c4831f43e9f3ee89a095b09b3ca\",\"traits\":[{\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"transient\":true}'",
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-08aa2021dc661f0c39e857cbd3dd58e7\",\"traits\":[{\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"transient\":true}'",
           "note": "Transient SDK evaluation; raw response omitted to protect trait and flag values."
         }
       ],
-      "fix_plan_id": "plan-3dd892cd",
+      "fix_plan_id": "plan-8f239e2c",
       "notes": [
         "experiment status unknown",
         "1 larger trait combinations also unlock it; only the minimal input is reported."
@@ -516,13 +516,13 @@
       ],
       "explanation": {
         "title": "Anyone can unlock staff-only features by typing a staff email",
-        "what_happened": "An outsider can claim to have the email a@acmeshop.dev when requesting flags. The system believes it and switches on the staff_preview feature, which is normally off. The test used only the public client key.",
-        "why_it_matters": "The system trusts a self-reported email without verifying it, so the staff segment can be impersonated by anyone.",
-        "business_impact": "Unreleased or internal features in Production could be seen or used by the public, leaking plans and exposing unfinished functionality.",
-        "fix_summary": "Stop using client-supplied traits like email to grant staff access. Decide staff targeting on the server from verified identity, or use signed identities.",
+        "what_happened": "The app trusts an email address supplied by the visitor's own device. An outsider sent the staff email a@acmeshop.dev with no verification, and the system switched the staff_preview feature from off to on in Production.",
+        "why_it_matters": "The staff segment is decided by unverified, user-supplied data, so anyone can claim to be staff.",
+        "business_impact": "Unreleased staff-only features could be exposed to the public, leaking product plans and possibly bypassing intended access controls.",
+        "fix_summary": "Decide staff membership on your server from verified identity, not client-sent traits. Remove email-based staff targeting from client-visible rules.",
         "source": "ai"
       },
-      "repro": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-2a9ed5dd-281f-40c2-bed7-0ebb53e448b9\",\"traits\":[{\"trait_key\":\"email\",\"trait_value\":\"a@acmeshop.dev\",\"transient\":true}],\"transient\":true}'",
+      "repro": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-10d2b266-c5fc-4a8b-a3a3-948be3308780\",\"traits\":[{\"trait_key\":\"email\",\"trait_value\":\"a@acmeshop.dev\",\"transient\":true}],\"transient\":true}'",
       "evidence": [
         {
           "kind": "engine",
@@ -530,11 +530,11 @@
         },
         {
           "kind": "request",
-          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-2a9ed5dd-281f-40c2-bed7-0ebb53e448b9\",\"traits\":[{\"trait_key\":\"email\",\"trait_value\":\"a@acmeshop.dev\",\"transient\":true}],\"transient\":true}'",
-          "response": "HTTP 200 {\"identifier\":\"gc-probe-2a9ed5dd-281f-40c2-bed7-0ebb53e448b9\",\"traits\":[{\"id\":null,\"trait_key\":\"email\",\"trait_value\":\"a@acmeshop.dev\",\"transient\":true}],\"flags\":[{\"id\":2,\"feature\":{\"id\":1,\"name\":\"premium_export\",\"created_date\":\"2026-11-27T20:39:02.996158Z\",\"description\":\"Paid feature gated on the plan trait (trait forgery).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":4,\"feature\":{\"id\":2,\"name\":\"admin_panel\",\"created_date\":\"2026-11-27T20:39:03.247648Z\",\"description\":\"Admin UI gated on the role trait (privilege escalation).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":31,\"feature\":{\"id\":3,\"name\":\"staff_preview\",\"created_date\":\"2026-11-27T20:39:03.496434Z\",\"description\":\"Staff-only preview gated on an email regex.\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":8,\"enabled\":true,\"reason\":\"TARGETING_MATCH; segment=staff\",\"variant\":null},{\"id\":8,\"feature\":{\"id\":4,\"name\":\"early_access_ai\",\"created_date\":\"2026-11-27T20:39:03.731596Z\",\"description\":\"10 percent canary rollout (identifier re-roll).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_valu…"
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-10d2b266-c5fc-4a8b-a3a3-948be3308780\",\"traits\":[{\"trait_key\":\"email\",\"trait_value\":\"a@acmeshop.dev\",\"transient\":true}],\"transient\":true}'",
+          "response": "HTTP 200 {\"identifier\":\"gc-probe-10d2b266-c5fc-4a8b-a3a3-948be3308780\",\"traits\":[{\"id\":null,\"trait_key\":\"email\",\"trait_value\":\"a@acmeshop.dev\",\"transient\":true}],\"flags\":[{\"id\":2,\"feature\":{\"id\":1,\"name\":\"premium_export\",\"created_date\":\"2026-11-27T20:39:02.996158Z\",\"description\":\"Paid feature gated on the plan trait (trait forgery).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":4,\"feature\":{\"id\":2,\"name\":\"admin_panel\",\"created_date\":\"2026-11-27T20:39:03.247648Z\",\"description\":\"Admin UI gated on the role trait (privilege escalation).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":31,\"feature\":{\"id\":3,\"name\":\"staff_preview\",\"created_date\":\"2026-11-27T20:39:03.496434Z\",\"description\":\"Staff-only preview gated on an email regex.\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":8,\"enabled\":true,\"reason\":\"TARGETING_MATCH; segment=staff\",\"variant\":null},{\"id\":8,\"feature\":{\"id\":4,\"name\":\"early_access_ai\",\"created_date\":\"2026-11-27T20:39:03.731596Z\",\"description\":\"10 percent canary rollout (identifier re-roll).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_valu…"
         }
       ],
-      "fix_plan_id": "plan-3dd892cd",
+      "fix_plan_id": "plan-8f239e2c",
       "root_cause": "RC-D41DCAF8"
     },
     {
@@ -558,8 +558,8 @@
           "after": "on: price_low"
         }
       ],
-      "hit_rate": 0.51,
-      "expected_attempts": 1.9607843137254901,
+      "hit_rate": 0.505,
+      "expected_attempts": 1.9801980198019802,
       "proof_identifier": "gc-probe-map-0",
       "variant_counts": {
         "price_high": 489,
@@ -567,10 +567,10 @@
       },
       "explanation": {
         "title": "Visitors can choose their own price in the pricing test",
-        "what_happened": "Anyone using the public client key can request the pricing page flag with any identifier they like. By trying different identifiers, they can keep going until they land in the cheaper \"price_low\" group instead of \"price_high\". About half of attempts succeed.",
-        "why_it_matters": "The experiment assumes users are assigned randomly. Self-selection breaks that, so results become unreliable.",
-        "business_impact": "Customers can get lower prices than intended, reducing revenue, and the test may lead to a wrong pricing decision.",
-        "fix_summary": "Assign experiment groups on the server using a trusted user ID, not an identifier the visitor supplies, and don't expose assignment control to clients.",
+        "what_happened": "Anyone with the public client key can send any identifier they like and see which price variant it receives. By trying identifiers until they land in the low-price group, they can switch from price_high to price_low. Roughly half of the identifiers tried (50.5%) landed in the low-price group.",
+        "why_it_matters": "The experiment assumes users are assigned randomly. Letting people pick their group breaks that and corrupts the test results.",
+        "business_impact": "Price-savvy visitors can get the cheaper price, reducing revenue, and the test data can no longer be trusted for pricing decisions.",
+        "fix_summary": "Assign experiment groups on the server from trusted user IDs, not client-supplied identifiers, and enforce the price on the server when charging.",
         "source": "ai"
       },
       "repro": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-map-0\",\"traits\":[],\"transient\":true}'",
@@ -586,11 +586,11 @@
         },
         {
           "kind": "request",
-          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-bc844f6ca5a945bc8b447de60e4cc2fe\",\"traits\":[],\"transient\":true}'",
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-5dedc56a56718a08e6a7b577a238f9df\",\"traits\":[],\"transient\":true}'",
           "note": "Transient SDK evaluation; raw response omitted to protect trait and flag values."
         }
       ],
-      "fix_plan_id": "plan-9406347d",
+      "fix_plan_id": "plan-44408bad",
       "notes": [
         "identifier gc-probe-map-0 receives \"price_low\"",
         "Business impact: any user can choose the variant they prefer (for example the cheaper price).",
@@ -613,11 +613,11 @@
       "confirmed": true,
       "status": "BLOCKED",
       "explanation": {
-        "title": "Secret payment flag is exposed to apps and browsers",
-        "what_happened": "The production flag \"payment_config\" is classified as secret, but its \"Server-side only\" setting is off. Because of that, client SDKs receive it, so anyone using the app or SDK key could potentially read it.",
-        "why_it_matters": "Secret settings should only reach your servers. Sending this one to client-side code puts it where outsiders can view it.",
-        "business_impact": "Payment configuration details could leak, helping attackers target your checkout, enabling fraud, or creating compliance concerns.",
-        "fix_summary": "Turn on \"Server-side only\" for payment_config in the production dashboard. Then review whether its contents were exposed and rotate anything sensitive.",
+        "title": "Secret payment setting is exposed to apps and browsers",
+        "what_happened": "The production flag \"payment_config\" is classified as secret, but its \"Server-side only\" setting is off. Because of that, client SDKs, which run in users' browsers and apps, receive it.",
+        "why_it_matters": "Anyone who uses the app can potentially read the flag's contents. Secret values should only ever be delivered to your own servers.",
+        "business_impact": "If the flag holds payment details or keys, outsiders could view or misuse them, risking fraud, compliance trouble, and customer trust. The evidence does not show what the value contains.",
+        "fix_summary": "Turn on \"Server-side only\" for payment_config in the production dashboard. Then check what it contains and rotate any real secrets it held.",
         "source": "ai"
       },
       "evidence": [
@@ -626,7 +626,7 @@
           "note": "Feature \"payment_config\" is classified SECRET but the dashboard setting \"Server-side only\" is off, so client SDKs receive it."
         }
       ],
-      "fix_plan_id": "plan-1a43203e",
+      "fix_plan_id": "plan-a651a081",
       "root_cause": "RC-C11B4554"
     },
     {
@@ -645,11 +645,11 @@
       "status": "BLOCKED",
       "proof_identifier": "test-d62e47cee81d10ca16d59dfc69fa2fcaa5e555a12e64888b7b0da80a1f8970f2",
       "explanation": {
-        "title": "Customer traits readable with the public client key",
-        "what_happened": "Anyone holding the public client key, which ships inside the app, can request a customer's stored traits by supplying their identifier. In production, one test identity returned 3 traits. Gatecrasher did not read the values.",
-        "why_it_matters": "The \"Hide sensitive data\" setting is off, so the traits are served to anyone who asks. They are classed as personal information, and the client key is not a secret.",
-        "business_impact": "Customer personal data could be harvested, creating privacy-law exposure, breach-notification duties, and loss of customer trust.",
-        "fix_summary": "Turn on \"Hide sensitive data\" for the production environment so traits are no longer returned. Remove personal data from traits that don't need to be there.",
+        "title": "Customer traits readable with public client key",
+        "what_happened": "Anyone holding the public client key can request a customer's stored traits by email address. The test showed 3 traits returned for one production identity; values were masked in the evidence.",
+        "why_it_matters": "The public key is embedded in apps, so it is not secret. The \"Hide sensitive data\" setting is off, so personal data is served to outsiders.",
+        "business_impact": "Customer personal data could be harvested, risking privacy-law penalties, loss of customer trust, and breach notification costs.",
+        "fix_summary": "Turn on \"Hide sensitive data\" for the production environment, and review which traits are stored on identities.",
         "source": "ai"
       },
       "repro": "curl -s 'http://localhost:8000/api/v1/identities/?identifier=<TEST_IDENTITY>' -H 'X-Environment-Key: <CLIENT_KEY>'",
@@ -664,7 +664,7 @@
           "note": "Identity stores 3 trait(s); \"Hide sensitive data\" is off, so GET identities/?identifier= returns them. Trait values are not read by Gatecrasher."
         }
       ],
-      "fix_plan_id": "plan-3dd892cd",
+      "fix_plan_id": "plan-8f239e2c",
       "root_cause": "RC-0D1B0E5B"
     },
     {
@@ -683,10 +683,10 @@
       "proof_identifier": "test-ca5bd843a3bb22f230c429bf4b36b348dd8f89bd77fca048f880c7b4393aae39",
       "explanation": {
         "title": "User profile data readable with a public key",
-        "what_happened": "Anyone holding the public client key, which ships inside the app, can request a user's stored profile traits from the production service. The test showed one trait returned for a QA account. Its value was masked in the evidence.",
-        "why_it_matters": "The public key is meant to be visible to everyone, so it should not unlock personal data. Anyone could look up users by identifier.",
-        "business_impact": "Customer personal data could be exposed, risking privacy complaints, regulatory penalties, and lost customer trust.",
-        "fix_summary": "Stop returning identity traits to public client keys, or require a server-side secret key. Then review which traits are stored.",
+        "what_happened": "Anyone holding the public client key, which ships inside the app, can look up a user's stored profile traits by their identifier. We confirmed this in production for one test account; one trait was returned.",
+        "why_it_matters": "The public key is meant to be visible, so it should never unlock personal data. Anyone could look up users.",
+        "business_impact": "Customer personal information could be harvested, creating privacy-law exposure, notification duties, and loss of customer trust.",
+        "fix_summary": "Stop returning identity traits to public client keys, or require server-side authentication. Then review which traits are stored.",
         "source": "ai"
       },
       "repro": "curl -s 'http://localhost:8000/api/v1/identities/?identifier=<TEST_IDENTITY>' -H 'X-Environment-Key: <CLIENT_KEY>'",
@@ -697,7 +697,7 @@
           "response": "1 traits exposed; all values [MASKED]"
         }
       ],
-      "fix_plan_id": "plan-3dd892cd",
+      "fix_plan_id": "plan-8f239e2c",
       "root_cause": "RC-0D1B0E5B"
     },
     {
@@ -725,14 +725,14 @@
         }
       ],
       "explanation": {
-        "title": "Anyone can self-grant the gold plan and unlock premium export",
-        "what_happened": "Using only the public client key, an outsider sent a request claiming their plan was \"gold\". The system accepted it and switched the premium_export feature on, with no proof of payment or account.",
-        "why_it_matters": "The plan level is taken from what the caller says about themselves, so it can't be trusted to gate a paid feature.",
-        "business_impact": "Non-paying users can get premium features free, which means lost subscription revenue and weaker incentive to upgrade.",
-        "fix_summary": "Decide plan-based access on the server from verified billing data, not client-supplied traits. Don't let client keys set traits used by segments.",
+        "title": "Anyone can unlock the paid export feature by claiming to be on the gold plan",
+        "what_happened": "Using only the public client key, an outsider sent a request stating their plan was \"gold\". The system accepted this and switched the premium_export feature from off to on. No login or payment check was involved.",
+        "why_it_matters": "The plan level is taken from information the user supplies, so it can't be trusted. Anyone can claim any plan.",
+        "business_impact": "Free or lower-tier users can use a paid feature without paying, which means lost upgrade revenue and weaker value for paying customers.",
+        "fix_summary": "Decide access to premium_export on the server using verified billing data, not user-supplied traits. Remove or restrict the gold_plan segment's reliance on client-provided values.",
         "source": "ai"
       },
-      "repro": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-82a65258-c768-4f26-b93d-989867184be5\",\"traits\":[{\"trait_key\":\"plan\",\"trait_value\":\"gold\",\"transient\":true}],\"transient\":true}'",
+      "repro": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-3b0f91a3-30a3-43c4-9838-d8d4fe6cdefa\",\"traits\":[{\"trait_key\":\"plan\",\"trait_value\":\"gold\",\"transient\":true}],\"transient\":true}'",
       "evidence": [
         {
           "kind": "engine",
@@ -740,11 +740,11 @@
         },
         {
           "kind": "request",
-          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-82a65258-c768-4f26-b93d-989867184be5\",\"traits\":[{\"trait_key\":\"plan\",\"trait_value\":\"gold\",\"transient\":true}],\"transient\":true}'",
-          "response": "HTTP 200 {\"identifier\":\"gc-probe-82a65258-c768-4f26-b93d-989867184be5\",\"traits\":[{\"id\":null,\"trait_key\":\"plan\",\"trait_value\":\"gold\",\"transient\":true}],\"flags\":[{\"id\":29,\"feature\":{\"id\":1,\"name\":\"premium_export\",\"created_date\":\"2026-11-27T20:39:02.996158Z\",\"description\":\"Paid feature gated on the plan trait (trait forgery).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":6,\"enabled\":true,\"reason\":\"TARGETING_MATCH; segment=gold_plan\",\"variant\":null},{\"id\":4,\"feature\":{\"id\":2,\"name\":\"admin_panel\",\"created_date\":\"2026-11-27T20:39:03.247648Z\",\"description\":\"Admin UI gated on the role trait (privilege escalation).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":6,\"feature\":{\"id\":3,\"name\":\"staff_preview\",\"created_date\":\"2026-11-27T20:39:03.496434Z\",\"description\":\"Staff-only preview gated on an email regex.\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":8,\"feature\":{\"id\":4,\"name\":\"early_access_ai\",\"created_date\":\"2026-11-27T20:39:03.731596Z\",\"description\":\"10 percent canary rollout (identifier re-roll).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null…"
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-3b0f91a3-30a3-43c4-9838-d8d4fe6cdefa\",\"traits\":[{\"trait_key\":\"plan\",\"trait_value\":\"gold\",\"transient\":true}],\"transient\":true}'",
+          "response": "HTTP 200 {\"identifier\":\"gc-probe-3b0f91a3-30a3-43c4-9838-d8d4fe6cdefa\",\"traits\":[{\"id\":null,\"trait_key\":\"plan\",\"trait_value\":\"gold\",\"transient\":true}],\"flags\":[{\"id\":29,\"feature\":{\"id\":1,\"name\":\"premium_export\",\"created_date\":\"2026-11-27T20:39:02.996158Z\",\"description\":\"Paid feature gated on the plan trait (trait forgery).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":6,\"enabled\":true,\"reason\":\"TARGETING_MATCH; segment=gold_plan\",\"variant\":null},{\"id\":4,\"feature\":{\"id\":2,\"name\":\"admin_panel\",\"created_date\":\"2026-11-27T20:39:03.247648Z\",\"description\":\"Admin UI gated on the role trait (privilege escalation).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":6,\"feature\":{\"id\":3,\"name\":\"staff_preview\",\"created_date\":\"2026-11-27T20:39:03.496434Z\",\"description\":\"Staff-only preview gated on an email regex.\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null,\"environment\":2,\"identity\":null,\"feature_segment\":null,\"enabled\":false,\"reason\":\"DEFAULT\",\"variant\":null},{\"id\":8,\"feature\":{\"id\":4,\"name\":\"early_access_ai\",\"created_date\":\"2026-11-27T20:39:03.731596Z\",\"description\":\"10 percent canary rollout (identifier re-roll).\",\"initial_value\":null,\"default_enabled\":false,\"type\":\"STANDARD\"},\"feature_state_value\":null…"
         }
       ],
-      "fix_plan_id": "plan-3dd892cd",
+      "fix_plan_id": "plan-8f239e2c",
       "root_cause": "RC-D41DCAF8"
     },
     {
@@ -771,11 +771,11 @@
       ],
       "proof_identifier": "test-d62e47cee81d10ca16d59dfc69fa2fcaa5e555a12e64888b7b0da80a1f8970f2",
       "explanation": {
-        "title": "Beta dashboard override readable by anyone with the identifier",
-        "what_happened": "Anyone who knows a user's identifier and the public client key can request that user's settings and see that a custom override turns beta_dashboard on instead of off.",
-        "why_it_matters": "The \"Hide sensitive data\" setting is off in Production, so per-user override data is exposed to outsiders.",
-        "business_impact": "Unreleased features and the users chosen for them can be discovered early. Evidence shows only a low-risk feature flag, so impact is limited.",
-        "fix_summary": "Turn on \"Hide sensitive data\" for the Production environment so identity overrides are no longer returned to clients.",
+        "title": "Per-user beta setting can be read by anyone with the user ID",
+        "what_happened": "Someone who knows a user's identifier and the public client key can request that user's settings and see that their beta_dashboard flag differs from the default. The actual values are masked in the evidence.",
+        "why_it_matters": "The 'Hide sensitive data' setting is off, so individual overrides are exposed rather than kept private.",
+        "business_impact": "Unreleased features and user targeting could be revealed to outsiders or competitors. Risk is modest, since it requires a known identifier.",
+        "fix_summary": "Turn on 'Hide sensitive data' for the Production environment so identity overrides are no longer served to clients.",
         "source": "ai"
       },
       "repro": "curl -s 'http://localhost:8000/api/v1/identities/?identifier=<TEST_IDENTITY>' -H 'X-Environment-Key: <CLIENT_KEY>'",
@@ -790,7 +790,7 @@
           "response": "Identity override differs from baseline; values [MASKED]"
         }
       ],
-      "fix_plan_id": "plan-3dd892cd",
+      "fix_plan_id": "plan-8f239e2c",
       "root_cause": "RC-0D1B0E5B"
     },
     {
@@ -807,11 +807,11 @@
       "confirmed": true,
       "status": "BLOCKED",
       "explanation": {
-        "title": "Internal admin address exposed to every browser",
-        "what_happened": "Anyone holding the public client key can request the flag list and see a flag named internal_api_url. Its value points to a private network address for an admin interface.",
-        "why_it_matters": "The value is meant for internal use only, yet it is sent to every visitor. It reveals how the internal network is laid out and where an admin service lives.",
-        "business_impact": "Attackers gain a map for targeting your admin systems, making later attacks easier. It also signals weak separation between public and private configuration, which can worry customers and auditors.",
-        "fix_summary": "Remove this flag from the client-facing environment and keep internal addresses in server-side configuration only. Then review other flags for similar internal values.",
+        "title": "Internal admin address exposed in public feature flags",
+        "what_happened": "Anyone holding the client key shipped to browsers can request the flag list and read a flag named internal_api_url. Its value points to a private network address for an admin endpoint.",
+        "why_it_matters": "It reveals where internal systems live and that an admin interface exists. That gives an attacker a map for further probing. The evidence does not show the address is reachable from outside.",
+        "business_impact": "Easier targeting of internal infrastructure, and a possible step toward a larger breach if other weaknesses exist. Production is affected.",
+        "fix_summary": "Remove internal_api_url from flags served to client keys and keep it in server-side configuration. Consider rotating or reviewing anything that relied on that address staying hidden.",
         "source": "ai"
       },
       "repro": "curl -s 'http://localhost:8000/api/v1/flags/' -H 'X-Environment-Key: <CLIENT_KEY>'",
@@ -823,7 +823,7 @@
           "note": "internal url detected in value at $ (private_ip)"
         }
       ],
-      "fix_plan_id": "plan-600c3dc6",
+      "fix_plan_id": "plan-e7a06dac",
       "root_cause": "RC-E570099E"
     },
     {
@@ -850,15 +850,15 @@
       "expected_attempts": 10.869565217391305,
       "proof_identifier": "gc-probe-map-5",
       "variant_counts": {
-        "off": 184,
-        "on": 16
+        "off": 177,
+        "on": 23
       },
       "explanation": {
-        "title": "Anyone can unlock the early AI feature by changing their ID",
-        "what_happened": "The early_access_ai flag is meant for a 10% canary group. Because users choose their own identifier, an outsider can try new IDs until one lands in the group. About 9% succeed, so roughly 11 tries are enough, and the flag turns on.",
-        "why_it_matters": "The percentage rollout trusts an identifier the caller controls, so it is not a real access control.",
-        "business_impact": "Unreleased AI functionality could be seen or used by people who weren't chosen, undermining staged rollouts, risking unfinished features, and skewing canary results.",
-        "fix_summary": "Don't rely on client-chosen identifiers to gate unreleased features. Use server-assigned or authenticated IDs, and keep sensitive flags off the client-side key.",
+        "title": "Anyone can retry identifiers until they unlock the early-access AI feature",
+        "what_happened": "The early_access_ai flag is meant for a small test group (about 9% of users). Anyone with the public client key can send made-up user identifiers and see which ones get the feature switched on. After roughly 11 tries, one succeeds.",
+        "why_it_matters": "Access is decided by a user ID the caller chooses, so the test-group limit is not enforced against outsiders.",
+        "business_impact": "Unreleased AI functionality can be seen or used by people who were never invited, risking leaks, unsupported usage, and a spoiled staged rollout.",
+        "fix_summary": "Don't rely on client-chosen identifiers for gated access. Check eligibility on the server using trusted account data, and keep unreleased features off the client-facing environment.",
         "source": "ai"
       },
       "repro": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-map-5\",\"traits\":[],\"transient\":true}'",
@@ -874,11 +874,11 @@
         },
         {
           "kind": "request",
-          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-a8071bd628589b4a17a9e59a7554c044\",\"traits\":[],\"transient\":true}'",
+          "request": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-85063dafe146214097000f496552304d\",\"traits\":[],\"transient\":true}'",
           "note": "Transient SDK evaluation; raw response omitted to protect trait and flag values."
         }
       ],
-      "fix_plan_id": "plan-a3e4bb3e",
+      "fix_plan_id": "plan-780d3357",
       "notes": [
         "Percentage-split segment \"canary_10\"; the browser chooses its own identifier.",
         "experiment status unknown"
@@ -898,11 +898,11 @@
       "confirmed": true,
       "status": "BLOCKED",
       "explanation": {
-        "title": "Visitors can fake their own user traits in Production",
-        "what_happened": "In Production, the setting that lets client SDKs set user traits is ON. Anyone with the public client key can assign themselves any traits they like.",
-        "why_it_matters": "Segments that decide who gets a feature based on a trait can be forged, so access rules can't be trusted.",
-        "business_impact": "Outsiders could unlock features, beta access, or paid tiers they shouldn't have. That risks lost revenue and exposure of restricted functionality.",
-        "fix_summary": "Turn off \"Allow client SDKs to set user traits\" in every environment that uses segments for access control. Set traits from your trusted server instead.",
+        "title": "Anyone can forge user traits in Production",
+        "what_happened": "The Production environment lets client apps set their own user traits. Anyone with the public client key, which is visible in the app, can claim any trait they like.",
+        "why_it_matters": "Segments that decide who gets access by trait can be tricked. An outsider could label themselves as an admin or paying customer and be placed in that segment.",
+        "business_impact": "People could unlock gated or paid features, beta programs, or internal tools without authorization, causing lost revenue and possible exposure of restricted functionality.",
+        "fix_summary": "Turn off \"Allow client SDKs to set user traits\" in Production, and any other environment using trait-based segments for access control. Set traits from your trusted server instead.",
         "source": "ai"
       },
       "evidence": [
@@ -911,7 +911,7 @@
           "note": "Environment \"Production\": dashboard setting \"Allow client SDKs to set user traits\" is ON (allow_client_traits). Anyone holding the public client key can set their own traits, so any segment keyed on a trait can be forged. Turn this setting off for every environment that uses segments for access control."
         }
       ],
-      "fix_plan_id": "plan-3dd892cd",
+      "fix_plan_id": "plan-8f239e2c",
       "root_cause": "RC-D41DCAF8"
     },
     {
@@ -928,10 +928,10 @@
       "status": "BLOCKED",
       "explanation": {
         "title": "Production feature flag data is not hidden",
-        "what_happened": "The 'Hide sensitive data' setting is turned off in the Production environment. This means sensitive values tied to your feature flags are not masked. The evidence shows only the setting state, not whether anyone has actually viewed or taken data.",
-        "why_it_matters": "With masking off, anyone who can reach the flag data in Production may see values that should stay private, such as keys or user details. It removes a safety layer.",
-        "business_impact": "Sensitive customer or system information could be exposed, risking privacy complaints, loss of customer trust, and possible compliance problems.",
-        "fix_summary": "Turn on 'Hide sensitive data' for the Production environment in the dashboard settings, then confirm the setting is saved.",
+        "what_happened": "The \"Hide sensitive data\" setting is turned off in the Production environment. This means sensitive information tied to your feature flags is not masked in that environment.",
+        "why_it_matters": "Without masking, flag-related data that should stay private may be visible to anyone who can reach it. The evidence confirms the setting is off, but does not show that anyone has actually viewed or taken data.",
+        "business_impact": "Customer or internal details could be exposed, raising privacy, compliance, and trust concerns if that data is seen by people who should not have it.",
+        "fix_summary": "Turn on \"Hide sensitive data\" in the Production environment's dashboard settings, then confirm it stays enabled.",
         "source": "ai"
       },
       "evidence": [
@@ -940,7 +940,7 @@
           "note": "Environment \"Production\": dashboard setting \"Hide sensitive data\" is OFF (hide_sensitive_data). Sensitive data is not hidden in this environment. Turn this setting on."
         }
       ],
-      "fix_plan_id": "plan-3dd892cd",
+      "fix_plan_id": "plan-8f239e2c",
       "root_cause": "RC-0D1B0E5B"
     },
     {
@@ -957,11 +957,11 @@
       "confirmed": true,
       "status": "BLOCKED",
       "explanation": {
-        "title": "Secret product launch name visible in public flag list",
-        "what_happened": "Anyone holding the client key, which ships inside the app, can request the flag list and see a flag named project_nightjar_launch_2026_12_15. The name reveals a codename and a planned launch date of December 15, 2026. Only the name is exposed; its value was empty.",
-        "why_it_matters": "Flag names are readable by outsiders, so internal plans placed in them become public before the announcement.",
-        "business_impact": "Competitors, press, or investors could learn about the unreleased product and its timing, weakening launch surprise and giving rivals time to respond.",
-        "fix_summary": "Rename the flag to a neutral name with no codename or date, and keep a private mapping internally. Establish a naming rule for future flags.",
+        "title": "Secret product launch name exposed in public flag list",
+        "what_happened": "Anyone holding the client key used by your app can request the production flag list and see a flag named 'project_nightjar_launch_2026_12_15'. The name reveals an internal codename and a planned launch date of December 15, 2026. The flag's value was empty.",
+        "why_it_matters": "Flag names are sent to every client, so unreleased plans are visible to anyone who looks. Only the name leaked, not product details.",
+        "business_impact": "Competitors, press, or investors could learn about the launch and its timing before you announce it, weakening your marketing plans and competitive position.",
+        "fix_summary": "Rename the flag to a neutral name with no codename or date, and keep launch-related flags out of client-visible environments until release.",
         "source": "ai"
       },
       "repro": "curl -s 'http://localhost:8000/api/v1/flags/' -H 'X-Environment-Key: <CLIENT_KEY>'",
@@ -973,7 +973,7 @@
           "note": "unreleased product detected in flag name (codename_launch)"
         }
       ],
-      "fix_plan_id": "plan-83421890",
+      "fix_plan_id": "plan-ab69ce83",
       "root_cause": "RC-F2DE0CCF"
     },
     {
@@ -990,11 +990,11 @@
       "confirmed": true,
       "status": "BLOCKED",
       "explanation": {
-        "title": "Internal API address exposed to client apps",
-        "what_happened": "The production flag \"internal_api_url\" is not marked \"Server-side only\", so client SDKs receive it. Anyone using the app or SDK can potentially see this internal address.",
-        "why_it_matters": "Internal URLs are meant to stay private. Revealing one tells outsiders where internal systems live, which helps them plan attacks. The evidence doesn't show the address itself is reachable from outside.",
-        "business_impact": "Low severity, but it leaks infrastructure details and could make targeted probing of internal services easier.",
-        "fix_summary": "Turn on \"Server-side only\" for this flag in the production dashboard so client SDKs stop receiving it. Consider whether the address needs to be changed if it was sensitive.",
+        "title": "Internal API address is exposed to client apps",
+        "what_happened": "The flag \"internal_api_url\" in Production is not set to \"Server-side only\", so client SDKs receive it. Anyone using the public app or SDK key could potentially read this value.",
+        "why_it_matters": "The flag holds an internal URL that should stay private. Exposing it shows outsiders how your internal systems are named and laid out.",
+        "business_impact": "Attackers could use the address to probe internal services, making targeted attacks easier. The evidence shows exposure, not an actual breach.",
+        "fix_summary": "Turn on \"Server-side only\" for this flag in the Production dashboard so client SDKs no longer receive it. Then check other internal-URL flags.",
         "source": "ai"
       },
       "evidence": [
@@ -1003,7 +1003,7 @@
           "note": "Feature \"internal_api_url\" is classified INTERNAL_URL but the dashboard setting \"Server-side only\" is off, so client SDKs receive it."
         }
       ],
-      "fix_plan_id": "plan-600c3dc6",
+      "fix_plan_id": "plan-e7a06dac",
       "root_cause": "RC-E570099E"
     },
     {
@@ -1020,11 +1020,11 @@
       "confirmed": true,
       "status": "BLOCKED",
       "explanation": {
-        "title": "Unreleased product flag is visible to client apps",
-        "what_happened": "The flag named for an unreleased product launch is not set to \"Server-side only\" in Production, so client SDKs receive it. Anyone inspecting the app's flag data could see the flag's name.",
-        "why_it_matters": "The flag name reveals a project codename and a planned launch date. Sensitive flags should stay on servers, out of public reach.",
-        "business_impact": "Competitors or press could learn about the confidential launch plans early, weakening the announcement and the company's competitive timing.",
-        "fix_summary": "Turn on \"Server-side only\" for this flag in Production. Consider renaming it to something neutral that doesn't reveal the project or date.",
+        "title": "Secret launch flag is visible to client apps",
+        "what_happened": "A flag named for an unreleased product is not set to \"Server-side only\" in Production, so client SDKs receive it. Anyone inspecting the app's flag data could see its name.",
+        "why_it_matters": "The flag name reveals an internal project name and a planned launch date. The evidence shows exposure of the name, not other values.",
+        "business_impact": "Competitors or press could learn about the unannounced product and its timing before you announce it.",
+        "fix_summary": "Turn on \"Server-side only\" for this flag in Production. Consider renaming it to something non-descriptive.",
         "source": "ai"
       },
       "evidence": [
@@ -1033,7 +1033,7 @@
           "note": "Feature \"project_nightjar_launch_2026_12_15\" is classified UNRELEASED_PRODUCT but the dashboard setting \"Server-side only\" is off, so client SDKs receive it."
         }
       ],
-      "fix_plan_id": "plan-83421890",
+      "fix_plan_id": "plan-ab69ce83",
       "root_cause": "RC-F2DE0CCF"
     }
   ],
@@ -1180,7 +1180,7 @@
       "title": "Forging role=admin unlocks admin_panel (segment \"admins\")",
       "before": "EXPLOITABLE",
       "after": "BLOCKED",
-      "proof": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-a28381e83aee44394d0d370e3dcfb250\",\"traits\":[{\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"transient\":true}' → admin_panel is off (exploited state on)"
+      "proof": "curl -s -X POST 'http://localhost:8000/api/v1/identities/' -H 'X-Environment-Key: <CLIENT_KEY>' -H 'Content-Type: application/json' -d '{\"identifier\":\"gc-probe-65b9a852a40e53b758ec355867a51b31\",\"traits\":[{\"trait_key\":\"role\",\"trait_value\":\"admin\",\"transient\":true}],\"transient\":true}' → admin_panel is off (exploited state on)"
     },
     {
       "finding_id": "GC-914405C1",
@@ -1247,12 +1247,12 @@
     }
   ],
   "stats": {
-    "probes_sent": 669,
-    "duration_ms": 151719,
+    "probes_sent": 1421,
+    "duration_ms": 203540,
     "stage_ms": {
-      "explain": 66338,
-      "map": 7864,
-      "recon": 77515
+      "explain": 57793,
+      "map": 51336,
+      "recon": 94410
     },
     "by_severity": {
       "critical": 4,
@@ -1261,9 +1261,16 @@
       "low": 2,
       "medium": 6
     },
-    "parity_checked": 200,
-    "parity_agreed": 200,
-    "ai_heuristic_agreement": 0.9166666666666666
+    "parity_checked": 1000,
+    "parity_agreed": 1000,
+    "ai_heuristic_agreement": 0.9166666666666666,
+    "stage_requests": {
+      "attack": 403,
+      "map": 9,
+      "parity": 1000,
+      "recon": 3,
+      "verify": 6
+    }
   },
   "notes": [
     "skipped out-of-scope script cdn.jsdelivr.net/npm/flagsmith@10.0.0/index.js: host not in allowed_domains",

@@ -460,7 +460,7 @@
           "ruleIndex": 1,
           "level": "error",
           "message": {
-            "text": "Anyone can unlock internal tools by picking a staff-style email: The internal_tools flag turns on for any identifier matching the staff rule, such as a@acmeshop.dev. An outsider using the public client key can send that identifier and receive the feature. No account trait is involved."
+            "text": "Anyone can switch on internal tools by typing a staff-style email: The production flag service decides who gets internal_tools based on the identifier a visitor supplies. Any identifier matching the staff pattern, such as a@acmeshop.dev, flips internal_tools from off to on. The client key is enough to try it, and no trait or login is involved."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-32B2A0B1"
@@ -496,7 +496,7 @@
           "ruleIndex": 4,
           "level": "error",
           "message": {
-            "text": "Visitors can choose their own price in the pricing test: Anyone using the public client key can request the pricing page flag with any identifier they like. By trying different identifiers, they can keep going until they land in the cheaper \"price_low\" group instead of \"price_high\". About half of attempts succeed."
+            "text": "Visitors can choose their own price in the pricing test: Anyone with the public client key can send any identifier they like and see which price variant it receives. By trying identifiers until they land in the low-price group, they can switch from price_high to price_low. Roughly half of the identifiers tried (50.5%) landed in the low-price group."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-DED120AC"
@@ -532,7 +532,7 @@
           "ruleIndex": 2,
           "level": "warning",
           "message": {
-            "text": "Anyone can unlock the early AI feature by changing their ID: The early_access_ai flag is meant for a 10% canary group. Because users choose their own identifier, an outsider can try new IDs until one lands in the group. About 9% succeed, so roughly 11 tries are enough, and the flag turns on."
+            "text": "Anyone can retry identifiers until they unlock the early-access AI feature: The early_access_ai flag is meant for a small test group (about 9% of users). Anyone with the public client key can send made-up user identifiers and see which ones get the feature switched on. After roughly 11 tries, one succeeds."
           },
           "partialFingerprints": {
             "gatecrasherFindingId/v1": "GC-B626FA94"
@@ -567,7 +567,7 @@
       "invocations": [
         {
           "executionSuccessful": true,
-          "endTimeUtc": "2026-11-28T14:43:00Z"
+          "endTimeUtc": "2026-11-28T16:48:21Z"
         }
       ],
       "properties": {

@@ -1,19 +1,29 @@
+  estimated requests · profile lab · parity 1000 · re-roll 200 · no budget
+    recon          3
+    attack       293
+    map            9
+    verify         6
+    parity      1000
+    total       1311
+  counts from report r-20261128-164821-dd149c; the rest assumed
+  assumes: attack counts the built-in trait guesses; the AI may propose others (capped at 40)
+  AI calls (classification, explanations) go to the model provider and are not counted.
 recon     fetching http://localhost:3030 and its scripts
-recon     client key found at app.js:4 key-shaped string near flagsmith; 9 flags visible
+recon     client key found at app.js:4 environmentID via FLAGSMITH_ENV_KEY; 9 flags visible
 classify  classifying flag names and values · AI on (claude-sonnet-5-5 via Claude Code)
 attack    testing 40 trait hypotheses and configured test identities
 map       reading settings, features and segments of Acme Shop / Production
 map       loading the environment document into Flagsmith's evaluation engine
 map       engine found 6 reachable flag states
 verify    cross-checking every engine result against the live Flags API (transient identities)
-parity    engine vs live parity over 200 random identities
+parity    engine vs live parity over 1000 random identities
 severity  applying deterministic severity rules
 explain   explaining 3 findings · AI on (claude-sonnet-5-5 via Claude Code)
 done      3 ways in · 3 findings
 
   3 ways in · 3 findings    1 critical · 1 high · 1 medium
-  target http://localhost:3030 · env Production · AI on (claude-sonnet-5-5 via Claude Code) · 615 requests · 62.8s
-  engine vs live parity: 200/200 agree
+  target http://localhost:3030 · env Production · AI on (claude-sonnet-5-5 via Claude Code) · 1473 requests · 99.0s
+  engine vs live parity: 1000/1000 agree
 
    CRIT  Browsers choose the identifier that unlocks internal_tools (way in · RC-A2E6FEBF)
       CRIT  GC-32B2A0B1 Choosing identifier a@acmeshop.dev unlocks internal_tools — this survives turning off client traits. ✓ reproduced live

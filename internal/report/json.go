@@ -62,6 +62,10 @@ type compactReport struct {
 	Counts   map[string]int   `json:"counts"`
 	Findings []compactFinding `json:"findings"`
 	Verified []compactChange  `json:"verified,omitempty"`
+	// Requests is the number of requests sent; Incomplete lists the stages
+	// the request budget stopped ("incomplete (budget)").
+	Requests   int64    `json:"requests"`
+	Incomplete []string `json:"incomplete_stages,omitempty"`
 }
 
 // WriteCompactJSON writes the minimal machine-readable summary used by every
@@ -81,6 +85,7 @@ func WriteCompactJSON(w io.Writer, r *model.Report) error {
 		Causes:   make([]compactCause, 0, len(p.RootCauses)),
 		Counts:   p.Stats.BySeverity,
 		Findings: make([]compactFinding, 0, len(p.Findings)),
+		Requests: p.Stats.ProbesSent, Incomplete: p.Stats.Incomplete,
 	}
 	for _, f := range p.Findings {
 		cf := compactFinding{

@@ -46,6 +46,16 @@ var secretPatterns = []pattern{
 	{"acme_live_key", regexp.MustCompile(`\bacme_live_[0-9A-Za-z]{8,}`)},
 	{"live_api_key", regexp.MustCompile(`\b(?:sk|rk)_live_[A-Za-z0-9]{8,}`)},
 	{"anthropic_key", regexp.MustCompile(`sk-ant-[A-Za-z0-9_-]{10,}`)},
+	// The URL itself is the credential for incoming webhooks: whoever holds
+	// it can post to the channel. The whole URL is the secret material.
+	{"slack_webhook", regexp.MustCompile(`(?i)https://hooks\.slack\.com/(?:services|triggers|workflows)/[A-Za-z0-9_/-]{20,}`)},
+	{"discord_webhook", regexp.MustCompile(`(?i)https://(?:(?:ptb|canary)\.)?discord(?:app)?\.com/api/(?:v\d+/)?webhooks/\d{15,22}/[A-Za-z0-9_-]{40,}`)},
+	// OpenAI: sk-proj-/sk-svcacct-/sk-admin- keys and legacy sk-<48 alnum>.
+	// Hyphenated words (CSS classes, slugs) and short values never match.
+	{"openai_key", regexp.MustCompile(`\bsk-(?:(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}|[A-Za-z0-9]{32,})`)},
+	{"sendgrid_key", regexp.MustCompile(`\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}`)},
+	{"google_oauth_client_secret", regexp.MustCompile(`\bGOCSPX-[A-Za-z0-9_-]{28}`)},
+	{"npm_token", regexp.MustCompile(`\bnpm_[A-Za-z0-9]{36}\b`)},
 	{"flagsmith_server_key", regexp.MustCompile(`\bser\.[A-Za-z0-9_-]{8,}`)},
 	{"mapbox_secret_token", regexp.MustCompile(`\bsk\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}`)},
 }
@@ -69,6 +79,13 @@ var publicPatterns = []publicPattern{
 	{"public_sentry_dsn", regexp.MustCompile(`(?i)\bhttps?://[0-9a-z]{8,}@[a-z0-9.-]*sentry[a-z0-9.-]*(?::\d+)?/\d+`),
 		"Sentry DSN: public by design"},
 }
+
+var (
+	twilioSIDRe = regexp.MustCompile(`\b(?:AC|SK)[0-9a-f]{32}\b`)
+	// A standalone 32-hex token; hex glued to an AC/SK prefix has no word
+	// boundary before it, so SIDs are never matched.
+	twilioSecretRe = regexp.MustCompile(`\b[0-9a-f]{32}\b`)
+)
 
 // recaptchaKeyRe matches reCAPTCHA keys. Site keys and secret keys share the
 // format, so it only counts as public when the JSON key is not secret-named.
@@ -125,7 +142,60 @@ var (
 func Scan(name string, value any) []Signal {
 	out := scanName(name, value)
 	out = append(out, walk(value, "$", "")...)
+	out = append(out, scanTwilio(value)...)
 	return dedupe(out)
+}
+
+type leaf struct{ path, s string }
+
+// leaves collects every string in v, recursing into JSON strings.
+func leaves(v any, path string) []leaf {
+	switch t := v.(type) {
+	case map[string]any:
+		var out []leaf
+		for k, e := range t {
+			out = append(out, leaves(e, path+"."+k)...)
+		}
+		return out
+	case []any:
+		var out []leaf
+		for i, e := range t {
+			out = append(out, leaves(e, fmt.Sprintf("%s[%d]", path, i))...)
+		}
+		return out
+	case string:
+		if p := parseJSONContainer(t); p != nil {
+			return leaves(p, path)
+		}
+		return []leaf{{path, t}}
+	}
+	return nil
+}
+
+// scanTwilio finds a Twilio auth token or API key secret: 32 hex characters
+// that sit beside an account SID (AC...) or API key SID (SK...) anywhere in
+// the same flag value, in the same string or in a sibling JSON field. The SID
+// alone is only an identifier, and a bare 32-hex value stays an ordinary
+// digest.
+func scanTwilio(value any) []Signal {
+	ls := leaves(value, "$")
+	hasSID := false
+	for _, l := range ls {
+		if twilioSIDRe.MatchString(l.s) {
+			hasSID = true
+			break
+		}
+	}
+	if !hasSID {
+		return nil
+	}
+	var out []Signal
+	for _, l := range ls {
+		if m := twilioSecretRe.FindString(l.s); m != "" {
+			out = append(out, Signal{Kind: "twilio_auth_token", Category: model.CatSecret, Path: l.path, Confidence: 0.9, Secret: m})
+		}
+	}
+	return out
 }
 
 func scanName(name string, value any) []Signal {

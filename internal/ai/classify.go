@@ -66,10 +66,39 @@ func (c *Client) Classify(ctx context.Context, inv *model.PublicInventory) ([]mo
 	return merge(det, ai), c.Mode()
 }
 
+// classifyBatch is how many flags one classification call carries. A larger
+// inventory is split into batches that run in parallel.
+const classifyBatch = 25
+
 func (c *Client) classifyAI(ctx context.Context, inv *model.PublicInventory) (map[string]model.Classification, error) {
-	in := classifyInput{Flags: make([]flagInput, len(inv.Flags))}
+	var batches [][]model.FlagView
+	for i := 0; i < len(inv.Flags); i += classifyBatch {
+		batches = append(batches, inv.Flags[i:min(i+classifyBatch, len(inv.Flags))])
+	}
+	if len(batches) == 0 {
+		batches = [][]model.FlagView{nil}
+	}
+	results := make([]map[string]model.Classification, len(batches))
+	errs := make([]error, len(batches))
+	forEach(len(batches), c.Concurrency(), func(i int) {
+		results[i], errs[i] = c.classifyBatchAI(ctx, batches[i])
+	})
+	out := map[string]model.Classification{}
+	for i := range batches { // batch order, not completion order
+		if errs[i] != nil {
+			return nil, errs[i]
+		}
+		for k, v := range results[i] {
+			out[k] = v
+		}
+	}
+	return out, nil
+}
+
+func (c *Client) classifyBatchAI(ctx context.Context, flags []model.FlagView) (map[string]model.Classification, error) {
+	in := classifyInput{Flags: make([]flagInput, len(flags))}
 	known := map[string]bool{}
-	for i, f := range inv.Flags {
+	for i, f := range flags {
 		known[f.Name] = true
 		in.Flags[i] = flagInput{Name: redact.String(f.Name), Enabled: f.Enabled, ValueType: f.ValueType, Size: f.Size, Value: scrub(f.Name, f.RawValue)}
 	}

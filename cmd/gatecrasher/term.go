@@ -29,14 +29,15 @@ func sgr(code, s string) string {
 	return "\x1b[" + code + "m" + s + "\x1b[0m"
 }
 
-func bold(s string) string    { return sgr("1", s) }
-func dim(s string) string     { return sgr("2", s) }
-func red(s string) string     { return sgr("31", s) }
-func green(s string) string   { return sgr("32", s) }
-func yellow(s string) string  { return sgr("33", s) }
-func cyan(s string) string    { return sgr("36", s) }
-func bgRed(s string) string   { return sgr("1;37;41", s) }
-func bgGreen(s string) string { return sgr("1;30;42", s) }
+func bold(s string) string     { return sgr("1", s) }
+func dim(s string) string      { return sgr("2", s) }
+func red(s string) string      { return sgr("31", s) }
+func green(s string) string    { return sgr("32", s) }
+func yellow(s string) string   { return sgr("33", s) }
+func cyan(s string) string     { return sgr("36", s) }
+func bgRed(s string) string    { return sgr("1;37;41", s) }
+func bgGreen(s string) string  { return sgr("1;30;42", s) }
+func bgYellow(s string) string { return sgr("1;30;43", s) }
 
 // safe redacts text before it reaches the terminal.
 func safe(s string) string { return redact.String(s) }

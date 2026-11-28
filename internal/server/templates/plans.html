@@ -37,7 +37,7 @@
       <thead><tr><th scope="col">Setting</th><th scope="col">Before</th><th scope="col">After</th></tr></thead>
       <tbody>{{range .Rows}}<tr><th scope="row"><code>{{rd .Key}}</code></th><td><code class="before">{{rd .Before}}</code></td><td><code class="after">{{rd .After}}</code></td></tr>{{end}}</tbody>
     </table></div>{{end}}
-    {{if .Op.Draft}}<details><summary>PR draft</summary><pre class="code" tabindex="0"><code>{{rd .Op.Draft}}</code></pre></details>{{end}}
+    {{if or .Op.Draft .Op.Diff .Op.DiffNote}}<details><summary>PR draft</summary>{{if .Op.Draft}}<pre class="code" tabindex="0"><code>{{rd .Op.Draft}}</code></pre>{{end}}{{if .Op.Diff}}<p class="muted diff-cap">Proposed change (a suggestion to review; Gatecrasher never applies it):</p><pre class="code diff" tabindex="0" aria-label="Proposed diff"><code>{{diff .Op.Diff}}</code></pre>{{end}}{{if .Op.DiffNote}}<p class="muted">{{rd .Op.DiffNote}}</p>{{end}}</details>{{end}}
   </div>{{else}}<p class="muted">This plan has no operations.</p>{{end}}
   </section>
 
@@ -76,6 +76,11 @@
       <label for="env-{{$id}}">Type the environment name <code>{{$p.Environment}}</code> to confirm this Production change</label>
       <input id="env-{{$id}}" name="typed_env" type="text" required autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="env-help-{{$id}}{{if .Err}} err-{{$id}}{{end}}"{{if .Err}} aria-invalid="true"{{end}}>
       <p class="help" id="env-help-{{$id}}">Production changes are never approved with a single click.</p>
+    </div>
+    <div class="field">
+      <p class="hash-line" id="hash-{{$id}}">Plan hash: <code class="plan-hash">{{$p.Hash}}</code></p>
+      <label for="hash-in-{{$id}}">Type the last 4 characters of the plan hash</label>
+      <input id="hash-in-{{$id}}" name="typed_hash" type="text" required minlength="4" maxlength="8" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="hash-{{$id}}{{if .Err}} err-{{$id}}{{end}}"{{if .Err}} aria-invalid="true"{{end}}>
     </div>{{end}}
     {{if .NeedsContaminate}}<div class="field">
       <label for="exp-{{$id}}">Type <code>{{$.Body.Confirm}}</code> to accept that this change affects a running experiment</label>

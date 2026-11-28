@@ -142,6 +142,10 @@ func (s *Server) confirmFinding(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r, "Report")
 		return
 	}
+	// Confirming is a human decision: a script cannot make it.
+	if !s.requireBrowserPage(w, r) {
+		return
+	}
 	rep, err := s.be.Report(id)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {

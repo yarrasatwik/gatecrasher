@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -44,12 +45,62 @@ type Probes struct {
 	MaxHypotheses  int     `yaml:"max_hypotheses"`
 	MaxCombos      int     `yaml:"max_combos"`
 	MaxRerollTries int     `yaml:"max_reroll_tries"`
+	// ParitySamples overrides the profile's parity sample count (0 = profile).
+	ParitySamples int `yaml:"parity_samples"`
+	// MaxRequests caps the requests one audit sends (0 = no cap); unfinished
+	// stages are reported "incomplete (budget)". --budget overrides it.
+	MaxRequests int `yaml:"max_requests"`
+}
+
+// DefaultAIConcurrency and MaxAIConcurrency bound the parallel AI calls.
+const (
+	DefaultAIConcurrency = 4
+	MaxAIConcurrency     = 32
+)
+
+// AISettings selects the AI provider and how many calls run in parallel.
+// In YAML it is a scalar (the provider) or a mapping with provider and
+// concurrency.
+type AISettings struct {
+	Provider    string `yaml:"provider"`
+	Concurrency int    `yaml:"concurrency"`
+}
+
+// UnmarshalYAML accepts "ai: off" as well as "ai: {provider: off, concurrency: 8}".
+func (a *AISettings) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind == yaml.ScalarNode {
+		return n.Decode(&a.Provider)
+	}
+	type plain AISettings
+	var p plain
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		switch k := n.Content[i].Value; k {
+		case "provider", "concurrency":
+		default:
+			return fmt.Errorf("line %d: field %s not found in ai (want provider, concurrency)", n.Content[i].Line, k)
+		}
+	}
+	if err := n.Decode(&p); err != nil {
+		return err
+	}
+	*a = AISettings(p)
+	return nil
+}
+
+// Recon tunes Stage 1 (reading the target page and its scripts).
+type Recon struct {
+	// MaxScripts bounds how many script resources one recon run fetches
+	// (page scripts plus the chunks they preload or import). Default 60.
+	MaxScripts int `yaml:"max_scripts"`
 }
 
 // Watch configures the webhook receiver.
 type Watch struct {
 	Listen    string `yaml:"listen"`
 	PublicURL string `yaml:"public_url"`
+	// MaxRequestsPerHour caps the requests webhook re-checks may send in any
+	// rolling hour (default 500).
+	MaxRequestsPerHour int `yaml:"max_requests_per_hour"`
 }
 
 // Config is the full runtime configuration.
@@ -64,20 +115,29 @@ type Config struct {
 	TestIdentities        []string `yaml:"test_identities"`
 	ServerOnlyTraits      []string `yaml:"server_only_traits"`
 	ClientSetsIdentifier  *bool    `yaml:"client_sets_identifier"`
-	AppRepo               string   `yaml:"app_repo"`
-	Probes                Probes   `yaml:"probes"`
-	PropagationTimeoutS   int      `yaml:"propagation_timeout_s"`
-	ApprovalTTLMinutes    int      `yaml:"approval_ttl_minutes"`
-	StateDir              string   `yaml:"state_dir"`
+	// Profile is "lab" or "cloud"; empty or "auto" picks one from the API
+	// host (a non-local, non-private host is "cloud").
+	Profile             string `yaml:"profile"`
+	AppRepo             string `yaml:"app_repo"`
+	Probes              Probes `yaml:"probes"`
+	Recon               Recon  `yaml:"recon"`
+	PropagationTimeoutS int    `yaml:"propagation_timeout_s"`
+	ApprovalTTLMinutes  int    `yaml:"approval_ttl_minutes"`
+	StateDir            string `yaml:"state_dir"`
 	// AI selects the AI provider: "api" (ANTHROPIC_API_KEY), "claude-code"
 	// (a signed-in Claude Code CLI) or "off". Empty means "api" when a key
 	// is set, else off.
-	AI        string `yaml:"ai"`
-	ReportDir string `yaml:"report_dir"`
-	Watch     Watch  `yaml:"watch"`
+	// It is either a bare provider name (ai: off) or a mapping
+	// (ai: {provider: api, concurrency: 4}).
+	AI        AISettings `yaml:"ai"`
+	ReportDir string     `yaml:"report_dir"`
+	Watch     Watch      `yaml:"watch"`
 
 	// From the environment (never YAML).
-	OrgAPIKey     string            `yaml:"-"`
+	OrgAPIKey string `yaml:"-"`
+	// WriteAPIKey is GATECRASHER_WRITE_API_KEY, used only to apply and roll
+	// back. It is empty unless the config was loaded with LoadForWrites.
+	WriteAPIKey   string            `yaml:"-"`
 	ServerKeys    map[string]string `yaml:"-"` // env name -> ser. key
 	ClientKeys    map[string]string `yaml:"-"` // env name -> client key (optional)
 	AnthropicKey  string            `yaml:"-"`
@@ -100,9 +160,6 @@ func (c *Config) Defaults() {
 	if len(c.Flagsmith.Environments) == 0 {
 		c.Flagsmith.Environments = []string{"Production"}
 	}
-	if c.Probes.RerollSamples == 0 {
-		c.Probes.RerollSamples = 200
-	}
 	if c.Probes.RatePerSec == 0 {
 		c.Probes.RatePerSec = 60
 	}
@@ -114,6 +171,9 @@ func (c *Config) Defaults() {
 	}
 	if c.Probes.MaxRerollTries == 0 {
 		c.Probes.MaxRerollTries = 500
+	}
+	if c.Recon.MaxScripts <= 0 {
+		c.Recon.MaxScripts = 60
 	}
 	if c.PropagationTimeoutS == 0 {
 		c.PropagationTimeoutS = 150
@@ -127,6 +187,15 @@ func (c *Config) Defaults() {
 	if c.ReportDir == "" {
 		c.ReportDir = "reports"
 	}
+	if c.AI.Concurrency <= 0 {
+		c.AI.Concurrency = DefaultAIConcurrency
+	}
+	if c.AI.Concurrency > MaxAIConcurrency {
+		c.AI.Concurrency = MaxAIConcurrency
+	}
+	if c.Watch.MaxRequestsPerHour == 0 {
+		c.Watch.MaxRequestsPerHour = 500
+	}
 	if c.Watch.Listen == "" {
 		c.Watch.Listen = "127.0.0.1:8788"
 	}
@@ -139,10 +208,20 @@ func (c *Config) Defaults() {
 	}
 }
 
+// WriteKeyEnv names the environment variable that holds the write key.
+const WriteKeyEnv = "GATECRASHER_WRITE_API_KEY"
+
 // Load reads the YAML file at path (optional if empty and not present),
 // loads .env (if present) and the process environment, validates, and
 // builds the scope lock.
-func Load(path string) (*Config, error) {
+func Load(path string) (*Config, error) { return load(path, false) }
+
+// LoadForWrites is Load plus GATECRASHER_WRITE_API_KEY. Only `serve` and the
+// interactive terminal write paths call it; audits, CI, watch, plan, report,
+// parity and the MCP server use Load and never see the write key.
+func LoadForWrites(path string) (*Config, error) { return load(path, true) }
+
+func load(path string, withWriteKey bool) (*Config, error) {
 	c := &Config{}
 	if path == "" {
 		for _, p := range []string{"gatecrasher.yaml", "gatecrasher.yml"} {
@@ -168,8 +247,8 @@ func Load(path string) (*Config, error) {
 	if path != "" {
 		dir = filepath.Dir(path)
 	}
-	loadDotEnv(filepath.Join(dir, ".env"))
-	c.fromEnv()
+	loadDotEnv(filepath.Join(dir, ".env"), withWriteKey)
+	c.fromEnv(withWriteKey)
 	c.Defaults()
 	if err := c.Validate(); err != nil {
 		return nil, err
@@ -177,7 +256,7 @@ func Load(path string) (*Config, error) {
 	return c, nil
 }
 
-func (c *Config) fromEnv() {
+func (c *Config) fromEnv(withWriteKey bool) {
 	get := os.Getenv
 	if v := get("GATECRASHER_TARGET_URL"); v != "" && c.TargetURL == "" {
 		c.TargetURL = v
@@ -186,9 +265,13 @@ func (c *Config) fromEnv() {
 		c.Flagsmith.APIURL = v
 	}
 	c.OrgAPIKey = get("GATECRASHER_ORG_API_KEY")
+	if withWriteKey {
+		c.WriteAPIKey = get(WriteKeyEnv)
+		redact.Register(c.WriteAPIKey, "KEY")
+	}
 	c.AnthropicKey = get("ANTHROPIC_API_KEY")
 	if v := get("GATECRASHER_AI"); v != "" {
-		c.AI = v
+		c.AI.Provider = v
 	}
 	c.Model = get("GATECRASHER_MODEL")
 	c.WebhookSecret = get("GATECRASHER_WEBHOOK_SECRET")
@@ -219,6 +302,12 @@ func parsePairs(s string) map[string]string {
 
 // Validate checks the config and builds the scope lock.
 func (c *Config) Validate() error {
+	if err := checkProfile(c.Profile); err != nil {
+		return err
+	}
+	if c.Probes.MaxRequests < 0 || c.Watch.MaxRequestsPerHour < 0 || c.Probes.ParitySamples < 0 {
+		return errors.New("probes.max_requests, probes.parity_samples and watch.max_requests_per_hour must not be negative")
+	}
 	u, err := url.Parse(c.Flagsmith.APIURL)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		return fmt.Errorf("flagsmith.api_url %q is not a valid http(s) URL", c.Flagsmith.APIURL)
@@ -316,7 +405,7 @@ func (c *Config) PropagationTimeout() time.Duration {
 
 // loadDotEnv sets variables from a KEY=VALUE file without overriding
 // variables already present in the process environment.
-func loadDotEnv(path string) {
+func loadDotEnv(path string, withWriteKey bool) {
 	f, err := os.Open(path)
 	if err != nil {
 		return
@@ -334,8 +423,86 @@ func loadDotEnv(path string) {
 		}
 		k = strings.TrimSpace(strings.TrimPrefix(k, "export "))
 		v = strings.Trim(strings.TrimSpace(v), `"'`)
+		if k == WriteKeyEnv && !withWriteKey {
+			continue // keep the write key out of processes that never write
+		}
 		if _, exists := os.LookupEnv(k); !exists {
 			_ = os.Setenv(k, v)
 		}
 	}
+}
+
+// Profiles tune how many probes an audit sends. "lab" is a local or private
+// Flagsmith you own (probe freely); "cloud" is anything else (be polite).
+const (
+	ProfileLab   = "lab"
+	ProfileCloud = "cloud"
+)
+
+func checkProfile(p string) error {
+	switch strings.ToLower(strings.TrimSpace(p)) {
+	case "", "auto", ProfileLab, ProfileCloud:
+		return nil
+	}
+	return fmt.Errorf("profile %q is not valid (want lab, cloud or auto)", p)
+}
+
+// ProfileForURL picks the profile for an API URL: localhost, loopback,
+// private and link-local addresses are "lab"; everything else is "cloud".
+func ProfileForURL(apiURL string) string {
+	u, err := url.Parse(apiURL)
+	if err != nil || u.Hostname() == "" {
+		return ProfileCloud
+	}
+	h := strings.ToLower(u.Hostname())
+	if h == "localhost" || strings.HasSuffix(h, ".localhost") || h == "host.docker.internal" {
+		return ProfileLab
+	}
+	if ip := net.ParseIP(h); ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()) {
+		return ProfileLab
+	}
+	return ProfileCloud
+}
+
+// ProfileName is the active profile: the configured (or --profile) value, or
+// the one detected from the API host.
+func (c *Config) ProfileName() string {
+	switch p := strings.ToLower(strings.TrimSpace(c.Profile)); p {
+	case ProfileLab, ProfileCloud:
+		return p
+	}
+	return ProfileForURL(c.Flagsmith.APIURL)
+}
+
+// SetProfile overrides the profile ("auto" or "" restores detection).
+func (c *Config) SetProfile(p string) error {
+	if err := checkProfile(p); err != nil {
+		return err
+	}
+	c.Profile = strings.ToLower(strings.TrimSpace(p))
+	return nil
+}
+
+// ParitySamples is the engine-vs-live parity sample count: probes.parity_samples
+// when set, else 1000 for lab and 200 for cloud.
+func (c *Config) ParitySamples() int {
+	if c.Probes.ParitySamples > 0 {
+		return c.Probes.ParitySamples
+	}
+	if c.ProfileName() == ProfileCloud {
+		return 200
+	}
+	return 1000
+}
+
+// RerollSamples is the identifier re-roll sample count: probes.reroll_samples
+// when set, else 200 for lab and 100 for cloud.
+func (c *Config) RerollSamples() int {
+	if c.Probes.RerollSamples != 0 {
+		return c.Probes.RerollSamples
+	}
+	if c.ProfileName() == ProfileCloud {
+		return 100
+	}
+	return 200
 }

@@ -87,8 +87,20 @@ func (h *harness) post(path string, form url.Values, headers map[string]string) 
 	return h.do(req)
 }
 
-// postCSRF posts with a valid token.
+// postCSRF posts with a valid token the way a browser does: it carries
+// Sec-Fetch-Site: same-origin.
 func (h *harness) postCSRF(path string, form url.Values) (int, string, http.Header) {
+	h.t.Helper()
+	if form == nil {
+		form = url.Values{}
+	}
+	form.Set("csrf_token", h.token())
+	return h.post(path, form, map[string]string{"Sec-Fetch-Site": "same-origin"})
+}
+
+// postScript posts with a valid token and cookie but with no Origin and no
+// Sec-Fetch-Site header, which is what curl and scripts send.
+func (h *harness) postScript(path string, form url.Values) (int, string, http.Header) {
 	h.t.Helper()
 	if form == nil {
 		form = url.Values{}

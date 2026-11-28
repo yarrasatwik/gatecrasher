@@ -39,7 +39,25 @@ func newFlags(name string) (*flag.FlagSet, *common) {
 	return fs, c
 }
 
-func load(c *common) (*app.App, error) {
+// load builds the App for every command that only reads or plans. It never
+// loads GATECRASHER_WRITE_API_KEY.
+func load(c *common) (*app.App, error) { return build(c, config.Load) }
+
+// loadForWrites builds the App with the write key. Only `serve` and
+// loadWriter call it.
+func loadForWrites(c *common) (*app.App, error) { return build(c, config.LoadForWrites) }
+
+// loadWriter is for interactive write commands (apply, rollback, fix-all):
+// the write key is loaded only for a person at a real terminal. In an agent
+// or CI session, or with piped input, writes use the org key as before.
+func loadWriter(c *common, g *gate) (*app.App, error) {
+	if g.channel() == "tty" {
+		return loadForWrites(c)
+	}
+	return load(c)
+}
+
+func build(c *common, loadCfg func(string) (*config.Config, error)) (*app.App, error) {
 	path := c.config
 	if path == "" {
 		for _, p := range []string{"gatecrasher.yaml", "gatecrasher.yml", "gatecrasher.example.yaml"} {
@@ -49,7 +67,7 @@ func load(c *common) (*app.App, error) {
 			}
 		}
 	}
-	cfg, err := config.Load(path)
+	cfg, err := loadCfg(path)
 	if err != nil {
 		return nil, err
 	}
@@ -61,12 +79,64 @@ func cmdVersion(ctx context.Context, args []string) error {
 	return nil
 }
 
+// budgetFlags are the request-limit flags shared by the audit commands.
+type budgetFlags struct {
+	budget  *int
+	profile *string
+	dryRun  *bool
+}
+
+func addBudgetFlags(fs *flag.FlagSet, withDryRun bool) *budgetFlags {
+	b := &budgetFlags{
+		budget:  fs.Int("budget", 0, "stop sending new requests after N (default probes.max_requests; 0 = no cap)"),
+		profile: fs.String("profile", "", "request profile: lab, cloud or auto (default: from the API host)"),
+		dryRun:  new(bool),
+	}
+	if withDryRun {
+		b.dryRun = fs.Bool("dry-run", false, "print the estimated request count by stage and exit; sends nothing")
+	}
+	return b
+}
+
+// start applies --profile and --budget, prints the estimate, and reports
+// whether the audit should run (false for --dry-run).
+func (b *budgetFlags) start(a *app.App, o *app.AuditOptions, parityFlag int, asJSON bool) (bool, error) {
+	if *b.budget < 0 {
+		return false, errors.New("--budget must not be negative")
+	}
+	if err := a.Cfg.SetProfile(*b.profile); err != nil {
+		return false, err
+	}
+	if parityFlag < 0 {
+		parityFlag = a.Cfg.ParitySamples()
+	}
+	if o.Inside {
+		o.ParitySamples = parityFlag
+	}
+	o.Budget = *b.budget
+	est := a.Estimate(*o)
+	switch {
+	case *b.dryRun && asJSON:
+		return false, json.NewEncoder(os.Stdout).Encode(struct {
+			DryRun bool `json:"dry_run"`
+			app.Estimate
+		}{true, est})
+	case *b.dryRun:
+		fmt.Print(est.Text())
+		return false, nil
+	case !asJSON:
+		fmt.Fprint(os.Stderr, est.Text())
+	}
+	return true, nil
+}
+
 func cmdAudit(ctx context.Context, args []string) error {
 	fs, c := newFlags("audit")
 	target := fs.String("target", "", "site to audit (default target_url)")
 	env := fs.String("env", "", "environment for the inside map (default: first production env)")
-	paritySamples := fs.Int("parity", 200, "engine-vs-live parity samples (0 to skip)")
+	paritySamples := fs.Int("parity", -1, "engine-vs-live parity samples (0 to skip; default by profile: lab 1000, cloud 200)")
 	failOn := fs.String("fail-on", "", "exit 1 when findings at/above this severity exist")
+	bf := addBudgetFlags(fs, true)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -74,8 +144,12 @@ func cmdAudit(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	r, err := a.Audit(ctx, app.AuditOptions{Target: *target, Environment: *env, Outside: true, Inside: true,
-		ParitySamples: *paritySamples, Explain: true, Progress: progress(c.json)})
+	opts := app.AuditOptions{Target: *target, Environment: *env, Outside: true, Inside: true, Explain: true, Progress: progress(c.json)}
+	run, err := bf.start(a, &opts, *paritySamples, c.json)
+	if err != nil || !run {
+		return err
+	}
+	r, err := a.Audit(ctx, opts)
 	if err != nil {
 		return err
 	}
@@ -85,6 +159,7 @@ func cmdAudit(ctx context.Context, args []string) error {
 func cmdRecon(ctx context.Context, args []string) error {
 	fs, c := newFlags("recon")
 	target := fs.String("target", "", "site to audit (default target_url)")
+	bf := addBudgetFlags(fs, false)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -92,7 +167,11 @@ func cmdRecon(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	r, err := a.Audit(ctx, app.AuditOptions{Target: *target, Outside: true, Explain: true, Progress: progress(c.json)})
+	opts := app.AuditOptions{Target: *target, Outside: true, Explain: true, Progress: progress(c.json)}
+	if run, err := bf.start(a, &opts, 0, c.json); err != nil || !run {
+		return err
+	}
+	r, err := a.Audit(ctx, opts)
 	if err != nil {
 		return err
 	}
@@ -103,6 +182,7 @@ func cmdMap(ctx context.Context, args []string) error {
 	fs, c := newFlags("map")
 	env := fs.String("env", "", "environment to map")
 	paritySamples := fs.Int("parity", 0, "engine-vs-live parity samples")
+	bf := addBudgetFlags(fs, false)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -110,7 +190,11 @@ func cmdMap(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	r, err := a.Audit(ctx, app.AuditOptions{Environment: *env, Inside: true, ParitySamples: *paritySamples, Explain: true, Progress: progress(c.json)})
+	opts := app.AuditOptions{Environment: *env, Inside: true, Explain: true, Progress: progress(c.json)}
+	if run, err := bf.start(a, &opts, *paritySamples, c.json); err != nil || !run {
+		return err
+	}
+	r, err := a.Audit(ctx, opts)
 	if err != nil {
 		return err
 	}
@@ -121,14 +205,35 @@ func cmdCI(ctx context.Context, args []string) error {
 	fs, c := newFlags("ci")
 	env := fs.String("env", "", "environment to map")
 	failOn := fs.String("fail-on", "high", "exit 1 when findings at/above this severity exist (none to never fail)")
+	fromEnv := fs.Bool("from-env", false, "build the config from GC_* environment variables (used by the GitHub Action)")
+	bf := addBudgetFlags(fs, false)
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if *fromEnv {
+		path, in, err := writeCIConfigFromEnv()
+		if err != nil {
+			return err
+		}
+		c.config = path
+		set := map[string]bool{}
+		fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+		if !set["env"] {
+			*env = in.Environment
+		}
+		if !set["fail-on"] {
+			*failOn = in.FailOn
+		}
 	}
 	a, err := load(c)
 	if err != nil {
 		return err
 	}
-	r, err := a.Audit(ctx, app.AuditOptions{Environment: *env, Inside: true, Explain: true})
+	opts := app.AuditOptions{Environment: *env, Inside: true, Explain: true}
+	if run, err := bf.start(a, &opts, 0, c.json); err != nil || !run {
+		return err
+	}
+	r, err := a.Audit(ctx, opts)
 	if err != nil {
 		return err
 	}
@@ -189,13 +294,24 @@ func summaryText(r *model.Report, paths []string) string {
 	sum := report.Summarize(r)
 	fmt.Fprintln(&b)
 	head := "  " + report.HeadlineOf(sum.WaysIn, sum.Findings) + "  "
-	if sum.WaysIn == 0 {
-		fmt.Fprintln(&b, bgGreen(head)+"  no exploitable root cause")
-	} else {
+	switch {
+	case sum.WaysIn > 0:
 		fmt.Fprintln(&b, bgRed(head)+"  "+sevLine(r))
+	case len(r.Stats.Incomplete) > 0:
+		// Nothing found is not "safe" when stages did not finish.
+		fmt.Fprintln(&b, bgYellow(head)+"  incomplete (budget): not everything was checked")
+	default:
+		fmt.Fprintln(&b, bgGreen(head)+"  no exploitable root cause")
 	}
-	fmt.Fprintln(&b, dim(fmt.Sprintf("  target %s · env %s · AI %s · %d requests · %.1fs",
-		nonEmpty(r.Target, "—"), nonEmpty(r.Environment, "—"), r.AIMode, r.Stats.ProbesSent, float64(r.Stats.DurationMS)/1000)))
+	reqs := fmt.Sprintf("%d requests", r.Stats.ProbesSent)
+	if r.Stats.Budget > 0 {
+		reqs = fmt.Sprintf("%d of %d requests", r.Stats.ProbesSent, r.Stats.Budget)
+	}
+	fmt.Fprintln(&b, dim(fmt.Sprintf("  target %s · env %s · AI %s · %s · %.1fs",
+		nonEmpty(r.Target, "—"), nonEmpty(r.Environment, "—"), r.AIMode, reqs, float64(r.Stats.DurationMS)/1000)))
+	if len(r.Stats.Incomplete) > 0 {
+		fmt.Fprintln(&b, yellow("  "+report.IncompleteNote(r)))
+	}
 	if r.Stats.ParityChecked > 0 {
 		fmt.Fprintln(&b, dim(fmt.Sprintf("  engine vs live parity: %d/%d agree", r.Stats.ParityAgreed, r.Stats.ParityChecked)))
 	}
@@ -360,6 +476,7 @@ func printPlan(rec *model.PlanRecord) {
 	if p.ExperimentWarning != "" {
 		fmt.Printf("    %s %s\n", red("⚠ experiment"), safe(p.ExperimentWarning))
 	}
+	writeDrafts(os.Stdout, p)
 }
 
 func diffLine(op model.Operation) string {
@@ -467,7 +584,7 @@ func cmdApply(ctx context.Context, args []string) error {
 	if err := fs.Parse(rest); err != nil {
 		return err
 	}
-	a, err := load(c)
+	a, err := loadWriter(c, newGate())
 	if err != nil {
 		return err
 	}
@@ -527,7 +644,7 @@ func cmdRollback(ctx context.Context, args []string) error {
 	if err := fs.Parse(rest); err != nil {
 		return err
 	}
-	a, err := load(c)
+	a, err := loadWriter(c, newGate())
 	if err != nil {
 		return err
 	}
@@ -550,7 +667,7 @@ func fixAll(ctx context.Context, args []string, g *gate) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	a, err := load(c)
+	a, err := loadWriter(c, g)
 	if err != nil {
 		return err
 	}

@@ -21,12 +21,15 @@ func cmdServe(ctx context.Context, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	a, err := load(c)
+	a, err := loadForWrites(c)
 	if err != nil {
 		return err
 	}
+	if note := keySplitNote(a); note != "" {
+		fmt.Fprintln(os.Stderr, note)
+	}
 	opts := server.Options{
-		Backend: &app.Backend{A: a, Audit: app.AuditOptions{Outside: true, Inside: a.InsideView(), ParitySamples: 200, Explain: true}},
+		Backend: &app.Backend{A: a, Audit: app.AuditOptions{Outside: true, Inside: a.InsideView(), ParitySamples: a.Cfg.ParitySamples(), Explain: true}},
 		Addr:    *addr,
 		// Web approvals are recorded under the OS account running the server.
 		Operator: fixes.OSUser(),
@@ -66,6 +69,16 @@ func cmdServe(ctx context.Context, args []string) error {
 		return err
 	}
 	return nil
+}
+
+// keySplitNote is the one-line note `serve` prints when applies and
+// rollbacks use the same key as audits. It is empty when the keys are split
+// or no org key is configured at all.
+func keySplitNote(a *app.App) string {
+	if a.KeysSplit() || !a.InsideView() {
+		return ""
+	}
+	return yellow("note") + "      GATECRASHER_WRITE_API_KEY is not set, so applies and rollbacks use GATECRASHER_ORG_API_KEY: the keys are not split."
 }
 
 func cmdWatch(ctx context.Context, args []string) error {

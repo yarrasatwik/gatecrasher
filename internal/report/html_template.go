@@ -53,6 +53,7 @@ h3{font-size:1.08rem}
 section{scroll-margin-top:12px}
 .hero{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px 24px;margin-top:16px;box-shadow:var(--shadow)}
 .hero h1{font-size:1rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.incomplete{border:1px solid var(--border);border-left:4px solid #b45309;border-radius:8px;padding:10px 14px;margin:0 0 14px}
 .big{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:8px 0 14px}
 .big .n{font-size:clamp(3.4rem,14vw,5.5rem);font-weight:800;line-height:1;letter-spacing:-.03em}
 .big .l{font-size:1.5rem;font-weight:600;color:var(--muted)}
@@ -134,6 +135,7 @@ footer{margin:48px 0 32px;color:var(--muted);font-size:.85rem}
 <section id="summary" aria-labelledby="summary-h" class="hero">
   <h1 id="summary-h">Audit summary{{if .R.Project}} &middot; {{.R.Project}}{{end}}</h1>
   <p class="big"><span class="n">{{.WaysIn}}</span><span class="l">{{if eq .WaysIn 1}}way in{{else}}ways in{{end}} &middot; {{.FindingCount}} {{if eq .FindingCount 1}}finding{{else}}findings{{end}}</span></p>
+  {{if .Incomplete}}<p class="incomplete" role="alert"><strong>Incomplete.</strong> {{.Incomplete}}</p>{{end}}
   <p>A way in is a root cause that is exploitable now. One root cause can have several findings.</p>
   <ul class="chips" aria-label="Findings by severity">
     {{range .Chips}}<li class="chip sev-{{.Class}}"><b>{{.Count}}</b> {{.Name}}</li>
@@ -256,7 +258,8 @@ footer{margin:48px 0 32px;color:var(--muted);font-size:.85rem}
   <h2 id="method-h">Method and scope</h2>
   <dl class="meta">
     <dt>Scope</dt><dd>{{if .R.Scope}}<ul class="scope-list">{{range .R.Scope}}<li><code>{{.}}</code></li>{{end}}</ul>{{else}}none declared{{end}}</dd>
-    <dt>Probes sent</dt><dd>{{.R.Stats.ProbesSent}}</dd>
+    <dt>Probes sent</dt><dd>{{.RequestsText}}{{if .StageRequests}} ({{range $i, $s := .StageRequests}}{{if $i}}, {{end}}{{$s}}{{end}}){{end}}</dd>
+    {{if .Incomplete}}<dt>Incomplete</dt><dd>{{.Incomplete}}</dd>{{end}}
     <dt>Duration</dt><dd>{{.Duration}}{{if .Stages}} ({{range $i, $s := .Stages}}{{if $i}}, {{end}}{{$s}}{{end}}){{end}}</dd>
     {{if .Parity}}<dt>Engine parity</dt><dd>{{.Parity}}</dd>{{end}}
     {{if .AgreeText}}<dt>AI / heuristic agreement</dt><dd>{{.AgreeText}}</dd>{{end}}

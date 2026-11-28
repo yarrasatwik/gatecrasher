@@ -47,6 +47,9 @@ func TestConfirmFindingIsAHumanActionBehindCSRF(t *testing.T) {
 	if code, _, _ := h.post(path, url.Values{"csrf_token": {h.token()}}, map[string]string{"Origin": "http://evil.example.com"}); code != http.StatusForbidden {
 		t.Fatalf("cross-origin confirm = %d, want 403", code)
 	}
+	if code, _, _ := h.postScript(path, nil); code != http.StatusForbidden {
+		t.Fatalf("confirm without Origin or Sec-Fetch-Site (curl) = %d, want 403", code)
+	}
 	if n := len(h.fb.called("confirm")); n != 0 {
 		t.Fatalf("backend reached %d times by refused requests", n)
 	}

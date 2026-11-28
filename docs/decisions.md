@@ -46,8 +46,16 @@ decided and why.
   inside agent and CI sessions (`CI`, `CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT`, `CURSOR_TRACE_ID`,
   `GITHUB_ACTIONS`, `GATECRASHER_AGENT`). The person types the environment name and the last 4 characters of
   the plan hash. `--confirm` works only for unprotected environments.
-- **Web approval** keeps the typed environment name and adds a 3-second review delay, enforced on the server
-  with a signed render time bound to the plan.
+- **Web approval** keeps the typed environment name, adds the last 4 characters of the plan hash (as in the
+  terminal) and a 3-second review delay enforced on the server with a signed render time bound to the plan.
+- **Browser requests only.** Protected approve, apply, rollback and "confirm finding" requests must carry a
+  same-origin `Origin` or `Sec-Fetch-Site: same-origin`. Every browser sends one; curl and scripts do not, so
+  they are refused. A local program that forges these headers, or an agent that drives a real browser, is not stopped by
+  this check; a passkey (WebAuthn) approval would close that and is the next step.
+- **Keys are split.** Audits, `ci`, `watch`, `plan`, `report`, parity and the MCP server load only the read key.
+  `GATECRASHER_WRITE_API_KEY` is loaded only by `serve` and by the terminal paths that already require a person.
+  Self-hosted Flagsmith may not offer restricted organisation keys; the split still keeps the write key out of
+  agent processes.
 - **Audit log** records the channel (`tty`, `web`, or `cli` for unprotected environments), the OS user, and the
   claimed name when it differs.
 - The integration suite approves in-process below the CLI gate, so CI exercises apply and rollback on
@@ -72,6 +80,18 @@ decided and why.
   events more than 10 minutes old are refused, and up to 1 minute of clock skew into the future is accepted
   because Docker and VM clocks drift.
 - **`serve --watch` listens on `watch.listen`**, because that is where `watch.public_url` sends Flagsmith.
+
+## Drafts, budgets and recon
+
+- **PR drafts carry a real diff.** The drafter receives up to four affected files from `app_repo` (≤ 400 lines and
+  24 KB each, redacted, never dotfiles or key files). Its diff is kept only if it touches those files and
+  applies cleanly in memory; otherwise the draft says so and shows no diff.
+- **Request budget.** Every Flagsmith and probe request counts against one budget per run (AI calls do not).
+  Stages the budget stops are reported as incomplete and their findings stay unconfirmed, never blocked.
+  Profiles: `lab` for local and private hosts (parity 1000, re-roll 200), `cloud` otherwise (200 and 100).
+- **Recon** reads JSON data blocks (Next.js, Nuxt), follows preloaded and imported chunks one level deep on the
+  same origin and in scope, and resolves a key passed to `init` through a variable. `GATECRASHER_CLIENT_KEYS`
+  is used when a page has no key at all.
 
 ## Network
 

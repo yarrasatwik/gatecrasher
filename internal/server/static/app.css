@@ -205,6 +205,14 @@ pre.code {
   margin: 8px 0 14px; line-height: 1.5; white-space: pre; tab-size: 2;
 }
 pre.code code { background: none; padding: 0; color: inherit; overflow-wrap: normal; }
+.diff-cap { margin: 10px 0 0; font-size: 0.85rem; }
+pre.diff { font-size: 0.85rem; max-height: 70vh; overflow: auto; padding: 10px 0; }
+pre.diff code { display: block; min-width: max-content; }
+.dl { display: block; padding: 0 16px; }
+.d-add { background: var(--ok-bg); color: var(--ok); }
+.d-del { background: var(--err-bg); color: var(--err); }
+.d-hunk { color: var(--accent); background: var(--surface-2); }
+.d-file { font-weight: 700; }
 details { margin: 10px 0; }
 summary { cursor: pointer; font-weight: 600; padding: 6px 0; min-height: 32px; }
 .evidence { border-left: 3px solid var(--border); padding-left: 12px; margin: 8px 0; }

@@ -351,6 +351,14 @@ type Stats struct {
 	ParityChecked    int              `json:"parity_checked,omitempty"`
 	ParityAgreed     int              `json:"parity_agreed,omitempty"`
 	AIHeuristicAgree *float64         `json:"ai_heuristic_agreement,omitempty"`
+	// Budget is the request limit this run was held to (0 = none).
+	Budget int64 `json:"request_budget,omitempty"`
+	// StageRequests is how many requests each stage sent.
+	StageRequests map[string]int64 `json:"stage_requests,omitempty"`
+	// Incomplete lists the stages the request budget stopped before they
+	// finished ("incomplete (budget)"). Nothing in an incomplete stage is
+	// safe: whatever it could not check is unknown, never blocked.
+	Incomplete []string `json:"incomplete_stages,omitempty"`
 }
 
 // Report is the canonical audit output; every other format derives from it.
@@ -419,6 +427,19 @@ type Operation struct {
 	Automatic   bool           `json:"automatic"`
 	Via         string         `json:"via,omitempty"` // "flagsmith-cli" | "admin-api"
 	Draft       string         `json:"draft,omitempty"`
+	// Diff is a unified diff against the app repo, set only on pr.draft
+	// operations and only when it was verified to apply to the files the
+	// drafter was given. Gatecrasher never applies it.
+	Diff string `json:"diff,omitempty"`
+	// DiffNote says why no Diff is shown (for example "diff did not apply; not shown").
+	DiffNote string `json:"diff_note,omitempty"`
+}
+
+// SourceFile is one app-repo file handed to the PR drafter. Path is
+// repo-relative with forward slashes; Content is the unredacted file text.
+type SourceFile struct {
+	Path    string
+	Content string
 }
 
 // Plan is an immutable fix plan. Hash covers every field except Hash.

@@ -29,6 +29,13 @@ type ReconConfig struct {
 	// APIURL is the Flagsmith API base URL (for example http://localhost:8000/api/v1/)
 	// used when the bundle does not declare one.
 	APIURL string
+	// MaxScripts bounds how many scripts and chunks are fetched. Zero means
+	// DefaultMaxScripts (60); it comes from recon.max_scripts.
+	MaxScripts int
+	// SuppliedKeys are client keys the operator gave (GATECRASHER_CLIENT_KEYS,
+	// environment name to key). They are only tried when the page and its
+	// scripts yield no candidate, for apps whose key is not in a web bundle.
+	SuppliedKeys map[string]string
 }
 
 // Leak is a server-side key found in a public bundle. It is always a
@@ -55,6 +62,8 @@ type Result struct {
 	// Notes records skipped out-of-scope scripts, refused hosts and other
 	// observations for the report.
 	Notes []string
+
+	tried tried
 }
 
 // Recon runs Stage 1 and returns the public inventory.
@@ -68,14 +77,23 @@ func Recon(ctx context.Context, c *httpx.Client, cfg ReconConfig) (*model.Public
 
 // Run is Recon with the extra detail (notes, candidates, key leaks).
 func Run(ctx context.Context, c *httpx.Client, cfg ReconConfig) (*Result, error) {
-	base, srcs, res, err := gather(ctx, c, cfg.TargetURL)
+	base, srcs, res, err := gather(ctx, c, cfg.TargetURL, cfg.MaxScripts)
 	if err != nil {
 		return nil, err
 	}
 	ex := extract(srcs)
+	if len(ex.candidates) == 0 {
+		ex.candidates = suppliedCandidates(cfg.SuppliedKeys)
+		if len(ex.candidates) > 0 {
+			res.Notes = append(res.Notes, "no client key found in the page or its scripts; trying the key(s) from GATECRASHER_CLIENT_KEYS")
+		}
+	}
 	for _, l := range ex.leaks {
 		res.Leaks = append(res.Leaks, Leak{Source: l.source, Fingerprint: l.fingerprint, Severity: model.SevCritical})
 		res.Notes = append(res.Notes, fmt.Sprintf("CRITICAL: server-side key %s found in public bundle at %s", l.fingerprint, l.source))
+	}
+	if len(ex.candidates) == 0 {
+		return res, noKeyError(res.tried, 0, "")
 	}
 	api, notes, err := resolveAPI(ex.apiURLs, base, cfg.APIURL, c.Lock().CheckURL)
 	res.Notes = append(res.Notes, notes...)
@@ -90,8 +108,9 @@ func Run(ctx context.Context, c *httpx.Client, cfg ReconConfig) (*Result, error)
 	return res, nil
 }
 
-// gather fetches the page and every in-scope script.
-func gather(ctx context.Context, c *httpx.Client, target string) (*url.URL, []source, *Result, error) {
+// gather fetches the page, its scripts, its JSON data blocks and, one level
+// deep, the chunks those scripts preload or import.
+func gather(ctx context.Context, c *httpx.Client, target string, maxScripts int) (*url.URL, []source, *Result, error) {
 	resp, err := c.Do(ctx, httpx.Request{URL: target})
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("fetch target: %w", err)
@@ -103,11 +122,69 @@ func gather(ctx context.Context, c *httpx.Client, target string) (*url.URL, []so
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("parse target URL: %w", err)
 	}
-	inline, external, notes := pageScripts(string(resp.Body), base)
-	fetched, fnotes := fetchScripts(ctx, c, external)
-	res := &Result{Notes: append(notes, fnotes...)}
-	srcs := inline
-	return base, append(srcs, fetched...), res, nil
+	p := parsePage(string(resp.Body), base)
+	f := newFetcher(c, maxScripts)
+	res := &Result{Notes: p.notes}
+	res.tried = tried{inline: len(p.inline), json: len(p.json)}
+
+	srcs := append(append([]source{}, p.inline...), p.json...)
+	holders := make([]holder, 0, len(p.inline)+len(p.external))
+	for _, s := range p.inline {
+		holders = append(holders, holder{text: s.text})
+	}
+	for _, u := range p.external {
+		if s, ok := f.get(ctx, u, "script"); ok {
+			res.tried.linked++
+			srcs = append(srcs, s)
+			holders = append(holders, holder{url: u, text: s.text})
+		}
+	}
+	for _, u := range p.links {
+		if !sameOrigin(u, base) {
+			if !f.seen[u.String()] {
+				f.seen[u.String()] = true
+				f.notes = append(f.notes, fmt.Sprintf("skipped cross-origin chunk %s%s: not on the page's origin", u.Host, redact.String(u.Path)))
+			}
+			continue
+		}
+		if s, ok := f.get(ctx, u, "chunk"); ok {
+			res.tried.chunks++
+			srcs = append(srcs, s)
+			holders = append(holders, holder{url: u, text: s.text})
+		}
+	}
+	// One level deep: chunks referenced by the page's own scripts. Chunks
+	// found this way are scanned but not followed further.
+	srcs = append(srcs, f.followChunks(ctx, base, holders, &res.tried)...)
+	res.Notes = append(res.Notes, f.finish()...)
+	return base, srcs, res, nil
+}
+
+// suppliedCandidates turns GATECRASHER_CLIENT_KEYS into candidates, in a
+// stable order.
+func suppliedCandidates(keys map[string]string) []*candidate {
+	names := make([]string, 0, len(keys))
+	for n := range keys {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	var out []*candidate
+	for _, n := range names {
+		redact.Register(keys[n], "CLIENT_KEY")
+		out = append(out, &candidate{key: keys[n], rank: 3, sources: []string{"GATECRASHER_CLIENT_KEYS (" + n + ")"}})
+	}
+	return out
+}
+
+// noKeyError says what recon tried and how to supply the key by hand.
+func noKeyError(t tried, checked int, api string) error {
+	what := fmt.Sprintf("tried %d inline script(s), %d JSON data block(s), %d linked script(s) and %d imported or preloaded chunk(s), looking for environmentID, FLAGSMITH_ENVIRONMENT_ID and key-shaped strings near \"flagsmith\"", t.inline, t.json, t.linked, t.chunks)
+	if checked > 0 {
+		what += fmt.Sprintf("; %d candidate(s) checked against %s, none accepted", checked, redact.String(api))
+	} else {
+		what += "; nothing found"
+	}
+	return fmt.Errorf("no valid Flagsmith client key found: %s. Fix: set GATECRASHER_CLIENT_KEYS=Production=<key> for apps whose key isn't in a web bundle (mobile apps, server-rendered pages)", what)
 }
 
 // validate checks each candidate with one GET flags/ and fills the inventory
@@ -134,7 +211,7 @@ func validate(ctx context.Context, c *httpx.Client, cands []*candidate, api stri
 		inv.Flags = flagViews(flags)
 	}
 	if inv.Key == "" {
-		return fmt.Errorf("no valid Flagsmith client key found: %d candidate(s) checked against %s", len(cands), redact.String(api))
+		return noKeyError(res.tried, len(cands), api)
 	}
 	return nil
 }

@@ -17,6 +17,10 @@ import (
 // touches a running experiment.
 const ContaminateConfirmation = "contaminate-experiment"
 
+// hashSuffixLen is how many trailing plan-hash characters a person types to
+// approve a protected environment, as in the terminal.
+const hashSuffixLen = 4
+
 // actionTimeout bounds one approve/apply/verify/rollback call. The call
 // outlives the browser request so closing the tab cannot abort an apply
 // half-way.
@@ -264,6 +268,11 @@ func (s *Server) planAction(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	// Approving, applying or rolling back a protected environment must come
+	// from a browser on this server's page, never from a script.
+	if rec.Plan.Production && (action == "approve" || action == "apply" || action == "rollback") && !s.requireBrowserPage(w, r) {
+		return
+	}
 	ctx, cancel := actionContext(r)
 	defer cancel()
 	msg, ok := s.dispatch(ctx, r, action, rec)
@@ -289,7 +298,7 @@ func (s *Server) dispatch(ctx context.Context, r *http.Request, action string, r
 	var err error
 	switch action {
 	case "approve":
-		if msg := checkApproval(rec, r.PostFormValue("typed_env"), r.PostFormValue("typed_contaminate")); msg != "" {
+		if msg := checkApproval(rec, r.PostFormValue("typed_env"), r.PostFormValue("typed_hash"), r.PostFormValue("typed_contaminate")); msg != "" {
 			return msg, ""
 		}
 		if msg := s.checkDelay(rec, r.PostFormValue(stampField)); msg != "" {
@@ -332,13 +341,21 @@ func stateMsg(rec *model.PlanRecord, verb string) string {
 // checkApproval enforces the typed confirmations before the backend is
 // called: Production needs the exact environment name, and a plan with an
 // experiment warning needs the contaminate-experiment phrase.
-func checkApproval(rec *model.PlanRecord, typedEnv, typedContaminate string) string {
+func checkApproval(rec *model.PlanRecord, typedEnv, typedHash, typedContaminate string) string {
 	if rec.State != model.PlanPending {
 		return stateMsg(rec, "approved")
 	}
 	p := rec.Plan
 	if p.Production && strings.TrimSpace(typedEnv) != p.Environment {
 		return fmt.Sprintf("Type the environment name %q exactly to approve a change to Production.", p.Environment)
+	}
+	if p.Production {
+		if len(p.Hash) < hashSuffixLen {
+			return "This plan has no hash to confirm against. Build the plan again."
+		}
+		if !strings.EqualFold(strings.TrimSpace(typedHash), p.Hash[len(p.Hash)-hashSuffixLen:]) {
+			return "Type the last 4 characters of the plan hash shown on this card to approve a change to Production."
+		}
 	}
 	if p.ExperimentWarning != "" && strings.TrimSpace(typedContaminate) != ContaminateConfirmation {
 		return fmt.Sprintf("This plan affects a running experiment. Type %q to confirm you accept that.", ContaminateConfirmation)
