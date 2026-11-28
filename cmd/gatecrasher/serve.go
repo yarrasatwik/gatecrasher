@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/yarrasatwik/gatecrasher/internal/app"
+	"github.com/yarrasatwik/gatecrasher/internal/fixes"
 	"github.com/yarrasatwik/gatecrasher/internal/server"
 )
 
@@ -27,7 +28,9 @@ func cmdServe(ctx context.Context, args []string) error {
 	opts := server.Options{
 		Backend: &app.Backend{A: a, Audit: app.AuditOptions{Outside: true, Inside: a.InsideView(), ParitySamples: 200, Explain: true}},
 		Addr:    *addr,
-		Files:   http.StripPrefix("/files/", http.FileServer(http.Dir(a.ReportDir()))),
+		// Web approvals are recorded under the OS account running the server.
+		Operator: fixes.OSUser(),
+		Files:    http.StripPrefix("/files/", http.FileServer(http.Dir(a.ReportDir()))),
 	}
 	if *withWatch {
 		w, err := a.StartWatch(ctx, a.Cfg.Watch.PublicURL, "http://"+*addr)

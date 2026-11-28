@@ -340,7 +340,9 @@ func TestReceiverAlertsOnlyForNewFindings(t *testing.T) {
 		t.Errorf("LatencyMS = %d, expected to include the debounce window", a.LatencyMS)
 	}
 
-	post(t, r, flagBody, signed(flagBody))
+	// A later event for the same object re-checks, but the finding is known.
+	again := flagEvent("beta", time.Now())
+	post(t, r, again, signed(again))
 	wait(t, rec.done)
 	select {
 	case dup := <-ch:

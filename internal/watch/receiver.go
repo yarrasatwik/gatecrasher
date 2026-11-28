@@ -3,6 +3,7 @@ package watch
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -23,6 +24,14 @@ const (
 	DefaultDebounce = 250 * time.Millisecond
 	// MaxAlerts is how many alerts are kept in memory.
 	MaxAlerts = 200
+	// DedupWindow is how long a delivery is remembered, so the same signed
+	// body sent again (a retry or a replay) does not start another re-check.
+	DedupWindow = 10 * time.Minute
+	// MaxEventAge is the oldest event timestamp that is still accepted.
+	MaxEventAge = 10 * time.Minute
+	// MaxClockSkew is how far ahead of this machine's clock an event
+	// timestamp may be. Anything later is refused as "in the future".
+	MaxClockSkew = time.Minute
 
 	defaultRecheckTimeout = 60 * time.Second
 	subscriberBuffer      = 16
@@ -78,6 +87,7 @@ type Receiver struct {
 
 	mu      sync.Mutex
 	pending map[string]*pendingChange
+	seen    map[string]time.Time // delivery key -> when it may be forgotten
 	known   map[string]struct{}
 	alerts  []Alert // oldest first
 	subs    map[int]chan Alert
@@ -112,6 +122,7 @@ func NewReceiver(opts Options) (*Receiver, error) {
 	return &Receiver{
 		opts: opts, log: opts.Logger, ctx: ctx, stop: stop,
 		pending: map[string]*pendingChange{},
+		seen:    map[string]time.Time{},
 		known:   map[string]struct{}{},
 		procSem: make(chan struct{}, 4),
 		subs:    map[int]chan Alert{},
@@ -142,6 +153,10 @@ func (r *Receiver) Seed(ids []string) {
 
 // ServeHTTP verifies and accepts a webhook. It answers 202 as soon as the
 // change is queued; the re-check runs after the debounce window.
+//
+// The signature is always checked first. After that an event whose own
+// timestamp is too old or in the future is refused, and a delivery already
+// seen in the last DedupWindow is acknowledged without a second re-check.
 func (r *Receiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
@@ -173,8 +188,61 @@ func (r *Receiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "unrecognised webhook payload", http.StatusBadRequest)
 		return
 	}
+	if msg := checkEventTime(change.EventTime, received); msg != "" {
+		r.log.Warn("webhook refused", "reason", msg, "kind", change.Kind)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+	if r.duplicate(body, change.EventTime, received) {
+		// 202 so the sender stops retrying; nothing is queued.
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = io.WriteString(w, "duplicate delivery ignored\n")
+		return
+	}
 	r.enqueue(change)
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// checkEventTime returns why an event's own timestamp makes it
+// unacceptable, or "" when it is fine. Payloads without a timestamp pass.
+func checkEventTime(event, received time.Time) string {
+	switch {
+	case event.IsZero():
+		return ""
+	case received.Sub(event) > MaxEventAge:
+		return "event timestamp is too old (more than 10 minutes); delivery refused"
+	case event.Sub(received) > MaxClockSkew:
+		return "event timestamp is in the future; delivery refused"
+	}
+	return ""
+}
+
+// duplicate reports whether this delivery (hash of the signed body plus the
+// event timestamp) was already accepted, and remembers it if not. An entry
+// is kept for DedupWindow, or until the event is too old to be accepted
+// again if that is later, and expired entries are dropped on every call.
+func (r *Receiver) duplicate(body []byte, event, received time.Time) bool {
+	sum := sha256.Sum256(body)
+	key := hex.EncodeToString(sum[:])
+	if !event.IsZero() {
+		key += "|" + event.UTC().Format(time.RFC3339Nano)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for k, until := range r.seen {
+		if !received.Before(until) {
+			delete(r.seen, k)
+		}
+	}
+	if _, ok := r.seen[key]; ok {
+		return true
+	}
+	from := received
+	if event.After(from) {
+		from = event
+	}
+	r.seen[key] = from.Add(DedupWindow)
+	return false
 }
 
 // enqueue starts the debounce window for change, or merges it into the

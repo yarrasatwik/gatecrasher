@@ -58,6 +58,8 @@ func New(cfg *config.Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("plan store: %w", err)
 	}
+	// Plans, approvals, refusals and rejections go to the audit log too.
+	st.Audit = lg
 	hc := httpx.New(cfg.Lock(), httpx.WithRate(cfg.Probes.RatePerSec), httpx.WithTimeout(15*time.Second))
 	aiClient, err := newAI(cfg)
 	if err != nil {

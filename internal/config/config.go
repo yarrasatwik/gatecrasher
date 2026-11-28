@@ -30,7 +30,8 @@ type Flagsmith struct {
 	Project string `yaml:"project"`
 	// Environments to audit by name.
 	Environments []string `yaml:"environments"`
-	// ProductionEnvironments require typed confirmation to change.
+	// ProductionEnvironments is the older name for the top-level
+	// protected_environments list; both are read and merged.
 	ProductionEnvironments []string `yaml:"production_environments"`
 	// UseCLI makes the applier prefer the Flagsmith CLI when installed.
 	UseCLI bool `yaml:"use_cli"`
@@ -53,17 +54,21 @@ type Watch struct {
 
 // Config is the full runtime configuration.
 type Config struct {
-	TargetURL            string    `yaml:"target_url"`
-	AllowedDomains       []string  `yaml:"allowed_domains"`
-	Flagsmith            Flagsmith `yaml:"flagsmith"`
-	TestIdentities       []string  `yaml:"test_identities"`
-	ServerOnlyTraits     []string  `yaml:"server_only_traits"`
-	ClientSetsIdentifier *bool     `yaml:"client_sets_identifier"`
-	AppRepo              string    `yaml:"app_repo"`
-	Probes               Probes    `yaml:"probes"`
-	PropagationTimeoutS  int       `yaml:"propagation_timeout_s"`
-	ApprovalTTLMinutes   int       `yaml:"approval_ttl_minutes"`
-	StateDir             string    `yaml:"state_dir"`
+	TargetURL      string    `yaml:"target_url"`
+	AllowedDomains []string  `yaml:"allowed_domains"`
+	Flagsmith      Flagsmith `yaml:"flagsmith"`
+	// ProtectedEnvironments can only be changed by a person: approvals need
+	// a real terminal or the web UI and are refused inside agent and CI
+	// sessions. An environment named Production is always protected.
+	ProtectedEnvironments []string `yaml:"protected_environments"`
+	TestIdentities        []string `yaml:"test_identities"`
+	ServerOnlyTraits      []string `yaml:"server_only_traits"`
+	ClientSetsIdentifier  *bool    `yaml:"client_sets_identifier"`
+	AppRepo               string   `yaml:"app_repo"`
+	Probes                Probes   `yaml:"probes"`
+	PropagationTimeoutS   int      `yaml:"propagation_timeout_s"`
+	ApprovalTTLMinutes    int      `yaml:"approval_ttl_minutes"`
+	StateDir              string   `yaml:"state_dir"`
 	// AI selects the AI provider: "api" (ANTHROPIC_API_KEY), "claude-code"
 	// (a signed-in Claude Code CLI) or "off". Empty means "api" when a key
 	// is set, else off.
@@ -241,15 +246,48 @@ func (c *Config) Validate() error {
 // Lock returns the immutable scope lock.
 func (c *Config) Lock() *scope.Lock { return c.lock }
 
-// IsProduction reports whether env requires typed confirmation.
-func (c *Config) IsProduction(env string) bool {
+// Protected lists the protected environments: protected_environments plus
+// the older flagsmith.production_environments, and always "Production".
+// Configuration can add to the list but never take Production off it.
+func (c *Config) Protected() []string {
+	var out []string
+	add := func(name string) {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return
+		}
+		for _, have := range out {
+			if strings.EqualFold(have, name) {
+				return
+			}
+		}
+		out = append(out, name)
+	}
+	for _, p := range c.ProtectedEnvironments {
+		add(p)
+	}
 	for _, p := range c.Flagsmith.ProductionEnvironments {
+		add(p)
+	}
+	add("Production")
+	return out
+}
+
+// IsProtected reports whether changes to env need a person at a real
+// terminal or in the web UI. Names match case-insensitively; "prod" is
+// treated like "Production".
+func (c *Config) IsProtected(env string) bool {
+	env = strings.TrimSpace(env)
+	for _, p := range c.Protected() {
 		if strings.EqualFold(p, env) {
 			return true
 		}
 	}
-	return strings.EqualFold(env, "production") || strings.EqualFold(env, "prod")
+	return strings.EqualFold(env, "prod")
 }
+
+// IsProduction is the older name for IsProtected.
+func (c *Config) IsProduction(env string) bool { return c.IsProtected(env) }
 
 // IsServerOnlyTrait reports whether the trait is set only by the server.
 func (c *Config) IsServerOnlyTrait(key string) bool {

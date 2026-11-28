@@ -26,10 +26,16 @@ flagsmith:
     - localhost:8000
   project: Acme Shop
   environments: [Development, Production]
-  # Changing these requires the approver to type the environment name.
-  production_environments: [Production]
   # Prefer the Flagsmith CLI v2 for approved writes when it is installed.
   use_cli: true
+
+# Protected environments can only be changed by a person. Approving a plan for
+# one needs the web UI (gatecrasher serve) or a real terminal, where you type
+# the environment name and the last 4 characters of the plan hash. Gatecrasher
+# refuses inside coding-agent and CI sessions, and --confirm is not accepted.
+# An environment named Production is always protected; this list can add more.
+# (flagsmith.production_environments is the older name and still works.)
+protected_environments: [Production]
 
 # Identity-lookup tests only ever run against these identifiers.
 test_identities:
