@@ -1,20 +1,28 @@
 recon     fetching http://localhost:3030 and its scripts
-recon     client key found at app.js:4 key-shaped string near flagsmith; 7 flags visible
+recon     client key found at app.js:4 key-shaped string near flagsmith; 9 flags visible
 classify  classifying flag names and values · AI on (claude-sonnet-5-5 via Claude Code)
 attack    testing 40 trait hypotheses and configured test identities
 map       reading settings, features and segments of Acme Shop / Production
 map       loading the environment document into Flagsmith's evaluation engine
-map       engine found 5 reachable flag states
+map       engine found 6 reachable flag states
 verify    cross-checking every engine result against the live Flags API (transient identities)
+parity    engine vs live parity over 200 random identities
 severity  applying deterministic severity rules
-explain   explaining 2 findings · AI on (claude-sonnet-5-5 via Claude Code)
-done      2 ways in
+explain   explaining 3 findings · AI on (claude-sonnet-5-5 via Claude Code)
+done      3 ways in · 3 findings
 
-  2 ways in    1 high · 1 medium
-  target http://localhost:3030 · env Production · AI on (claude-sonnet-5-5 via Claude Code) · 402 requests · 122.7s
+  3 ways in · 3 findings    1 critical · 1 high · 1 medium
+  target http://localhost:3030 · env Production · AI on (claude-sonnet-5-5 via Claude Code) · 615 requests · 62.8s
+  engine vs live parity: 200/200 agree
 
-   HIGH  GC-DED120AC Users can pick their own group in experiment "Pricing page price test" (pricing_page) ✓ reproduced live
-   MED   GC-B626FA94 Re-rolling the identifier unlocks early_access_ai (≈9% rollout, ~11 tries) [unconfirmed]
+   CRIT  Browsers choose the identifier that unlocks internal_tools (way in · RC-A2E6FEBF)
+      CRIT  GC-32B2A0B1 Choosing identifier a@acmeshop.dev unlocks internal_tools — this survives turning off client traits. ✓ reproduced live
+
+   HIGH  Browsers choose the identifier that decides their group in the pricing_page experiment (way in · RC-D72363A6)
+      HIGH  GC-DED120AC Users can pick their own group in experiment "Pricing page price test" (pricing_page) ✓ reproduced live
+
+   MED   Browsers choose the identifier that decides early_access_ai (way in · RC-1C4189EB)
+      MED   GC-B626FA94 Re-rolling the identifier unlocks early_access_ai (≈9% rollout, ~11 tries) ✓ reproduced live
 
   wrote reports\latest.json
   wrote reports\latest.md

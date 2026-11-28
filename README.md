@@ -43,30 +43,31 @@ A real run against the self-hosted lab (full output in [`examples/acme-shop`](ex
 
 ```text
 $ gatecrasher audit
-recon     client key found at app.js:4; 11 flags visible
-classify  classifying flag names and values · AI on (Claude)
+recon     client key found at app.js:4 key-shaped string near flagsmith; 12 flags visible
+classify  classifying flag names and values · AI on (Claude via Claude Code)
 attack    testing 40 trait hypotheses and configured test identities
-map       engine found 5 reachable flag states
+map       engine found 6 reachable flag states
 verify    cross-checking every engine result against the live Flags API (transient identities)
-parity    engine vs live parity over 1000 random identities
+parity    engine vs live parity over 200 random identities
 
-  18 ways in    3 critical · 5 high · 7 medium · 3 low
-  engine vs live parity: 1000/1000 agree
+  8 ways in · 17 findings    4 critical · 5 high · 6 medium · 2 low
+  engine vs live parity: 200/200 agree
 
-   CRIT  Secret in a client-visible flag value: payment_config
-   CRIT  Forging role=admin unlocks admin_panel (segment "admins")                    ✓ reproduced live
-   CRIT  Forging email=a@acmeshop.dev unlocks staff_preview (segment "staff")         ✓ reproduced live
-   HIGH  Users can pick their own group in experiment "Pricing page price test"       ✓ reproduced live
-   HIGH  Traits of ce***@acmeshop.dev are readable by anyone with the public client key ✓ reproduced live
-   HIGH  Forging plan=gold unlocks premium_export (segment "gold_plan")               ✓ reproduced live
-   MED   Unreleased product leaked through flag: early_access_ai        ← spotted by Claude
+   CRIT  Browsers choose the identifier that unlocks internal_tools (way in)
+      CRIT  Choosing identifier a@acmeshop.dev unlocks internal_tools — this survives turning off client traits. ✓ reproduced live
+   CRIT  Production lets clients set traits (way in)
+      CRIT  Forging role=admin unlocks admin_panel (segment "admins")              ✓ reproduced live
+      CRIT  Forging email=a@acmeshop.dev unlocks staff_preview (segment "staff")   ✓ reproduced live
+      HIGH  Forging plan=gold unlocks premium_export (segment "gold_plan")         ✓ reproduced live
+      MED   Production: "Allow client SDKs to set user traits" is ON
+   CRIT  payment_config is served to browsers and contains a live secret (way in)
    ...
 
-$ gatecrasher fix-all        # a human types "Production" to approve each change
-  17 findings  EXPLOITABLE → BLOCKED   ·   every change via the Flagsmith CLI   ·   checkout still works
+# approve each plan in the web UI (gatecrasher serve) or in your own terminal
+  4 plans applied through the Flagsmith CLI · 14 findings EXPLOITABLE → BLOCKED
 
 $ gatecrasher audit
-  2 ways in    (identifier re-rolls — Gatecrasher drafts the server-side change for you)
+  3 ways in · 3 findings    (each one is a browser choosing its own identifier: a server change, drafted for you)
 ```
 
 <img src="docs/screenshots/approval.png" alt="A Gatecrasher approval card: turn off client-set traits and hide sensitive data on Production, the eight findings it fixes, and the two lines of app code it will affect" width="860">
@@ -77,11 +78,12 @@ $ gatecrasher audit
 
 ## What it does
 
-- **Thinks like an attacker, with Claude.** Claude reads the redacted flag inventory, spots secrets and roadmap leaks the rules miss, proposes the trait values most likely to unlock something, explains each finding in plain English and drafts the PR that fixes it. It never decides what is real or touches Flagsmith — deterministic code and a human do.
+- **Thinks like an attacker, with Claude.** Claude reads the redacted flag inventory, suggests secrets and roadmap leaks the rules may miss, proposes the trait values most likely to unlock something, explains each finding in plain English and drafts the PR that fixes it. It never decides what is real or touches Flagsmith: its own suggestions are listed under "Claude suggests reviewing" and count only after a deterministic rule or a person confirms them.
 - **Recon like an outsider.** Fetches your site, follows its scripts, extracts the Flagsmith client key and API host, and lists every flag a visitor receives.
 - **Attacks safely.** Forged traits (each confirmed twice, minimal trait sets only), identifier re-rolls, test-identity lookups, config leaks and experiment rigging — all with transient identities that Flagsmith never stores.
 - **Maps from the inside with Flagsmith's own engine.** Loads the environment document into the official SDK's evaluation engine, solves every segment rule (REGEX, PERCENTAGE_SPLIT, nested ALL/ANY/NONE, semver, modulo…) for the smallest forged input, and replays each answer against the live API.
-- **Fixes with a human in the loop.** Each plan shows what changes, why, and which lines of *your* code it will affect, with a PR draft. A person types the environment name to approve; Gatecrasher applies it, waits until the live API stops reproducing the hole, re-attacks, and can roll back at any time.
+- **Fixes with a human in the loop.** Each plan shows what changes, why, and which lines of *your* code it will affect, with a PR draft. A person approves in the web UI or a real terminal by typing the environment name; Gatecrasher applies it through the Flagsmith CLI, waits until the live API stops reproducing the hole, re-attacks, and can roll back at any time.
+- **Counts honestly.** One fixable root cause is one way in, however many findings it causes ("8 ways in · 17 findings"). A hole that a fix only hides from client SDKs is reported as `HIDDEN` and stays open; found − blocked = remaining is checked on every report.
 - **Watches continuously.** A signed Flagsmith webhook re-maps every flag or segment change and alerts within seconds.
 - **Fits your workflow.** CLI, web UI, GitHub Action with code-scanning alerts, Slack alerts, and a read-only MCP server so Claude Code or Cursor can ask *"is my Flagsmith setup safe?"*
 
@@ -146,7 +148,8 @@ Every endpoint was verified against a running Flagsmith before code relied on it
 | Run probes | Agent, on its own — transient identities, scope-locked |
 | Whether a finding is real | **Deterministic code** — only a live probe or the engine can confirm it |
 | Severity | Deterministic rules; the AI only explains in plain English |
-| Any change to Flagsmith | **A human**, typing the environment name for Production |
+| Any change to Flagsmith | **A human**, in the web UI or a real terminal, typing the environment name for Production |
+| Approving from a script, CI or a coding agent | **Refused.** A coding agent cannot approve: protected environments require a real terminal or the web UI, and Gatecrasher refuses inside agent and CI sessions. |
 | Changing a flag under a running experiment | **A human**, typing `contaminate-experiment` |
 | Moving `setTrait` calls or secrets to your server | **A human** reviews the PR draft Gatecrasher writes |
 
@@ -171,7 +174,7 @@ Needs Docker and Go 1.25+.
 git clone https://github.com/yarrasatwik/gatecrasher && cd gatecrasher
 make install      # builds bin/gatecrasher and enables the secret-blocking hook
 make lab-up       # official self-hosted Flagsmith (Postgres, API, task processor)
-make lab-seed     # the Acme Shop project with 12 planted misconfigurations; writes .env
+make lab-seed     # the Acme Shop project with 13 planted misconfigurations; writes .env
 make shop &       # the Acme Shop storefront on http://localhost:3030
 make audit        # → reports/latest.{html,md,json,sarif}
 ```
@@ -179,15 +182,15 @@ make audit        # → reports/latest.{html,md,json,sarif}
 Then fix and prove it:
 
 ```bash
-bin/gatecrasher fix-all          # review each plan, type "Production" to approve
-bin/gatecrasher serve --watch    # web UI on http://127.0.0.1:8787 + live alerts
+bin/gatecrasher serve --watch    # web UI on http://127.0.0.1:8787: review and approve plans, live alerts
+bin/gatecrasher fix-all          # or, in your own terminal: type the environment name and the plan-hash suffix
 make lab-reset                   # restore the lab
 ```
 
 ### For judges in 60 seconds
 
 ```bash
-make verify                 # no Docker, no keys: vet + 400+ test cases + build
+make verify                 # no Docker, no keys: vet + 600+ test cases + build
 make lab-up lab-seed        # then, the full run (~3 minutes):
 make shop &
 make audit
@@ -204,7 +207,9 @@ Works with Flagsmith Cloud and self-hosted.
    - **Outside view:** none — Gatecrasher finds your public client key itself.
    - **Inside view:** `GATECRASHER_ORG_API_KEY` — a dedicated organisation key; read-only is enough for audits and CI.
    - **AI:** Claude classifies values, proposes attack ideas, explains findings and drafts PRs. Use `ANTHROPIC_API_KEY`, or set `ai: claude-code` to run through a signed-in Claude Code CLI (no API key; every tool disabled).
-3. `gatecrasher audit` → `plan` → `approve --confirm <env>` → `apply` → `verify`.
+3. `gatecrasher audit` → `plan` → approve in `gatecrasher serve` (or `approve` in your own terminal) → `apply` → `verify`. `--confirm` works only for unprotected environments such as Development.
+
+If no client key is found (mobile apps, server-rendered pages), set `GATECRASHER_CLIENT_KEYS=Production=<key>`.
 
 ### GitHub Action
 
@@ -238,20 +243,35 @@ Tools: `gatecrasher_audit`, `gatecrasher_findings`, `gatecrasher_explain` — al
 
 ## Measured results
 
-From real runs against self-hosted Flagsmith 2.295.2 — on Windows 11 with Docker Desktop and on GitHub's Ubuntu runners, where CI repeats every number on each pull request.
+From the recorded run in [`examples/acme-shop`](examples/acme-shop) against self-hosted Flagsmith 2.295.2 (Windows 11, Docker Desktop). CI repeats the scenarios against real Flagsmith on every pull request.
 
 | Measure | Result |
 |---|---|
-| Planted misconfigurations found | **12 / 12**, zero false positives on control flags — plus one roadmap leak Claude spotted on its own |
-| Engine vs live API parity | **1000 / 1000** identities agree |
-| Ways in after approved fixes | **18 → 2** (17 findings EXPLOITABLE → BLOCKED; the remaining two are code changes Gatecrasher drafts) |
-| Claude vs deterministic classification | **91 %** agreement · Claude wrote 17 of 18 explanations and every PR draft |
-| Changes applied through the official Flagsmith CLI | **10 / 10** on a v2-versioned environment, all re-verified BLOCKED |
-| Approved change written to Flagsmith | **~1 s** (CLI or Admin API) |
-| …and proven on the live API | **~0.7 s** for Server-side only · the client-traits setting as soon as Flagsmith's SDK cache refreshes (3–18 s) — Gatecrasher waits and re-attacks |
-| Watch alert after a dashboard change | **2.9 – 4.5 s** (≈2 s of it is Flagsmith delivering the webhook) |
-| Full audit | **~10 s** with built-in heuristics · ~3 min with Claude explaining every finding |
-| Integration suite | 6 end-to-end scenarios against real Flagsmith on every PR (v1 and v2 environments) |
+| Planted misconfigurations found | **13 / 13**, zero false positives on control flags |
+| First audit | **8 ways in · 17 findings** (4 critical, 5 high, 6 medium, 2 low) · 669 API requests |
+| After approved fixes | **3 ways in · 3 findings**: 14 of 17 findings EXPLOITABLE → BLOCKED (17 − 14 = 3) |
+| What is left | Three holes where the browser chooses its own identifier, including one that survives turning off client traits; each needs a server change, and Gatecrasher drafts it |
+| Engine vs live API parity | **1000 / 1000** identities agree · 200 / 200 in every audit |
+| Changes applied through the official Flagsmith CLI | **5 / 5**, all re-verified |
+| Fix live on the API | **1.1 s** for Server-side only · **5.0 s** for the client-traits setting (Gatecrasher waits for every API worker, then re-attacks) |
+| Watch alert after a dashboard change | **7.9 s** from the change to the alert in the web UI |
+| Full audit | **14 s** with built-in heuristics · **152 s** with Claude explaining every finding |
+| Claude vs deterministic classification | **92 %** agreement; Claude-only suggestions are listed for review, never counted |
+| Integration suite | 9 end-to-end scenarios against real Flagsmith on every PR (v1 and v2 environments) |
+
+## Stress-tested
+
+Each of these is proven by a test that failed before the fix:
+
+- **Agents cannot approve.** Piped input, `--confirm` on Production and agent or CI sessions are refused; the web UI enforces a 3-second review.
+- **No false CRITICALs** on public-by-design keys (Stripe publishable, Firebase web, Mapbox public, Sentry DSNs), commit hashes or UUIDs.
+- **Credentials in URLs are caught** (`postgres://user:password@…` and any other scheme) as CRITICAL.
+- **Key headers never follow redirects.**
+- **Webhook replays are ignored**, and stale or future events are refused.
+- **Identifier-rule depth:** a segment on the identifier still unlocks `internal_tools` after client traits are turned off, and Gatecrasher says so.
+- **Honest counts:** one root cause per way in, `HIDDEN` for holes that are only hidden, and found − blocked = remaining on every report.
+
+Decisions and what we learned about Flagsmith along the way: [`docs/decisions.md`](docs/decisions.md).
 
 ## Tech stack
 

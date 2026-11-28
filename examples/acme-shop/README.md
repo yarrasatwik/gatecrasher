@@ -1,17 +1,17 @@
 # Recorded run: Acme Shop
 
-A complete Gatecrasher session against the Acme Shop lab on self-hosted Flagsmith 2.295.2, captured unedited — Claude on (via Claude Code), every change applied through the official Flagsmith CLI.
+A complete Gatecrasher session against the Acme Shop lab on self-hosted Flagsmith 2.295.2, captured unedited. Claude was on (through Claude Code), approvals were made by a person in the web UI, and every change went through the official Flagsmith CLI.
 
 | File | What it shows |
 |---|---|
-| [`audit.txt`](audit.txt) | The first audit: 18 ways in, every exploit reproduced live, engine vs live parity 1000/1000 |
-| [`report.html`](report.html) | The self-contained HTML report (download and open in a browser) |
-| [`report.md`](report.md) · [`report.json`](report.json) · [`report.sarif`](report.sarif) | The same report as Markdown, canonical JSON and SARIF for GitHub code scanning |
-| [`plan.txt`](plan.txt) | The fix plans, including what each change would break in the storefront's code (PR drafts written by Claude) |
-| [`fix-all.txt`](fix-all.txt) | The approval session: a human typed `Production` for each change; every finding re-checked EXPLOITABLE → BLOCKED |
-| [`audit-after-fixes.txt`](audit-after-fixes.txt) | The re-audit: 18 → 2 ways in |
-| [`audit-log.txt`](audit-log.txt) | The hash-chained audit log, verified |
+| [`audit.txt`](audit.txt) | The first audit: **8 ways in · 17 findings**, grouped by root cause, every exploit reproduced live, engine vs live parity 200/200 |
+| [`report.html`](report.html) | The self-contained HTML report after the fixes were verified (download and open in a browser) |
+| [`report.md`](report.md) · [`report.json`](report.json) · [`report.sarif`](report.sarif) | The same report as Markdown, canonical JSON and SARIF for GitHub code scanning: 17 findings, 14 BLOCKED, 3 open |
+| [`plans.txt`](plans.txt) | The fix plans: four Flagsmith changes, approved and verified, and three code changes left as guidance with PR drafts |
+| [`audit-after-fixes.txt`](audit-after-fixes.txt) | The re-audit: **3 ways in · 3 findings**. Each is a browser choosing its own identifier, including the `internal_tools` rule that survives turning off client traits |
+
+The hash-chained audit log for this run verified with 28 entries (plan, approve, apply, verify). It is not included here because it records the operator's local account name.
 
 Keys and secrets never appear: the client key is shown as `<CLIENT_KEY>` and the payment secret as `[SECRET len=42 prefix=acme…]`.
 
-Reproduce it: `make lab-up lab-seed`, `make shop &`, then `bash scripts/walkthrough.sh`.
+Reproduce it: `make lab-up lab-seed`, `make shop &`, `bin/gatecrasher audit`, then approve the plans in `bin/gatecrasher serve` and run `bin/gatecrasher audit` again.

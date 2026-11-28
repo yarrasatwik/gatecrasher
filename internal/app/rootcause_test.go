@@ -89,8 +89,8 @@ func TestRecordedReportRootCauses(t *testing.T) {
 		t.Error("identity leaks are not grouped with the hide_sensitive_data setting")
 	}
 
-	if r.FindingCount != 18 || r.WaysIn != 8 {
-		t.Fatalf("recorded report: %d ways in · %d findings, want 8 · 18", r.WaysIn, r.FindingCount)
+	if r.FindingCount != 17 || r.WaysIn != 3 {
+		t.Fatalf("recorded report: %d ways in · %d findings, want 3 · 17", r.WaysIn, r.FindingCount)
 	}
 	exploitable := 0
 	for _, c := range r.RootCauses {
@@ -128,7 +128,7 @@ func TestRecordedReportRootCauses(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &raw); err != nil {
 		t.Fatal(err)
 	}
-	if raw["ways_in"] != float64(8) || raw["finding_count"] != float64(18) || raw["open_count"] != float64(18) || raw["blocked_count"] != float64(0) {
+	if raw["ways_in"] != float64(3) || raw["finding_count"] != float64(17) || raw["open_count"] != float64(3) || raw["blocked_count"] != float64(14) {
 		t.Fatalf("JSON contract: ways_in=%v finding_count=%v open=%v blocked=%v", raw["ways_in"], raw["finding_count"], raw["open_count"], raw["blocked_count"])
 	}
 	rc := raw["root_causes"].([]any)[0].(map[string]any)

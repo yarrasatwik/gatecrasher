@@ -1,0 +1,7 @@
+  plan-3dd892cd  verified    Production   Disable client-set traits on Production, hide sensitive data
+  plan-600c3dc6  verified    Production   Mark `internal_api_url` Server-side only on Production
+  plan-1a43203e  verified    Production   Mark `payment_config` Server-side only on Production
+  plan-83421890  verified    Production   Mark `project_nightjar_launch_2026_12_15` Server-side only on Production
+  plan-73c4ff88  pending     Production   Guidance for `internal_tools` on Production: assign identifiers on the server and stop targeting on identifier patterns
+  plan-a3e4bb3e  pending     Production   Assign identifiers on the server for `early_access_ai` on Production
+  plan-9406347d  pending     Production   Assign identifiers on the server for `pricing_page` on Production

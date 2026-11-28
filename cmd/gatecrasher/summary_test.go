@@ -63,7 +63,7 @@ func TestCLIHeadlineMatchesJSON(t *testing.T) {
 		}
 	}
 	out := summaryText(&r, nil)
-	if !strings.Contains(out, "8 ways in · 18 findings") {
+	if !strings.Contains(out, "3 ways in · 17 findings") {
 		t.Fatalf("recorded lab report headline wrong:\n%s", out)
 	}
 	for _, want := range []string{"Production lets clients set traits", "payment_config is served to browsers and contains a live secret", "way in"} {
